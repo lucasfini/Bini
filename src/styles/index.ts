@@ -1,32 +1,34 @@
 import { Dimensions } from 'react-native';
 
-// Color Palette
+// Color Palette - From your beautiful original design
 export const colors = {
-  // Primary Colors
-  primary: '#3B82F6',       // Blue
-  primaryLight: '#60A5FA',
-  primaryDark: '#1D4ED8',
+  // Primary Colors (from your original design)
+  primary: '#4A7C3A',       // Main green
+  primaryLight: '#5A8A4A',
+  primaryDark: '#2C3E26',
   
-  // Secondary Colors
-  secondary: '#F59E0B',     // Amber
-  secondaryLight: '#FCD34D',
-  secondaryDark: '#D97706',
+  // Secondary Colors 
+  secondary: '#D4AF37',     // Gold
+  secondaryLight: '#E6C759',
+  secondaryDark: '#B8930F',
   
-  // Neutral Colors
-  background: '#F8FAFC',    // Light gray
-  surface: '#FFFFFF',       // White
+  // Neutral Colors (from your design)
+  background: '#F7F3E9',    // Parchment background
+  surface: '#FEFEFE',       // White cards
+  surfaceSecondary: '#F5F5F5', // Light gray for tabs
   border: '#E5E7EB',        // Light border
+  borderLight: '#F0F0F0',   // Even lighter border
   
   // Text Colors
-  textPrimary: '#1F2937',   // Dark gray
-  textSecondary: '#6B7280', // Medium gray
+  textPrimary: '#2C3E26',   // Dark green text
+  textSecondary: '#5A6B54', // Medium green-gray
   textTertiary: '#9CA3AF',  // Light gray
   
   // Status Colors
-  success: '#10B981',       // Green
+  success: '#4A7C3A',       // Green
   error: '#EF4444',         // Red
-  warning: '#F59E0B',       // Amber
-  info: '#3B82F6',          // Blue
+  warning: '#D4AF37',       // Gold
+  info: '#B8D4E3',          // Light blue
   
   // Special Colors
   white: '#FFFFFF',
@@ -35,6 +37,20 @@ export const colors = {
   // Couple-themed Colors
   heart: '#EF4444',         // Red for love/heart
   couple: '#EC4899',        // Pink for couples
+  
+  // Task specific colors
+  shared: '#D4AF37',        // Gold for shared tasks
+  individual: '#4A7C3A',    // Green for individual tasks
+  lightBlue: '#B8D4E3',     // From your palette
+  
+  // Timeline colors
+  timelineDot: '#E0E0E0',   // Gray timeline dots
+  timelineActive: '#3D73FF', // Blue for active/highlighted
+  
+  // UI Enhancement colors (from your original design)
+  shadowColor: 'rgba(0,0,0,0.08)',
+  overlayLight: 'rgba(255,255,255,0.95)',
+  overlayDark: 'rgba(0,0,0,0.8)',
 } as const;
 
 // Typography Scale

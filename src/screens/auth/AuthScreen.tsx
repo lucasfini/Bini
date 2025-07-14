@@ -7,29 +7,39 @@ import {
   StyleSheet, 
   SafeAreaView, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { colors, typography, spacing } from '../../styles';
+import { useAuth } from '../../context/AuthContext';
 
 const AuthScreen: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
+  const [isLogin, setIsLogin] = useState<boolean>(true);
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [name, setName] = useState<string>('');
 
-  const handleSubmit = (): void => {
-    if (isLogin) {
-      // Handle login
-      console.log('Login:', { email, password });
-    } else {
-      // Handle signup
-      console.log('Signup:', { name, email, password, confirmPassword });
+  const { login, signup, isLoading, error } = useAuth();
+
+  const handleSubmit = async (): Promise<void> => {
+    try {
+      if (isLogin) {
+        await login({ email, password });
+      } else {
+        await signup({ name, email, password, confirmPassword });
+      }
+    } catch (err: any) {
+      Alert.alert('Authentication Error', err.message);
     }
   };
 
-  const handleGoogleSignIn = (): void => {
-    console.log('Google Sign In');
+  const isFormValid = (): boolean => {
+    if (!email || !password) return false;
+    if (!isLogin && (!name || !confirmPassword)) return false;
+    if (!isLogin && password !== confirmPassword) return false;
+    return true;
   };
 
   return (
@@ -49,6 +59,13 @@ const AuthScreen: React.FC = () => {
             </Text>
           </View>
 
+          {/* Error Message */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           {/* Form */}
           <View style={styles.form}>
             {!isLogin && (
@@ -60,6 +77,7 @@ const AuthScreen: React.FC = () => {
                   onChangeText={setName}
                   placeholder="Enter your full name"
                   placeholderTextColor={colors.textSecondary}
+                  editable={!isLoading}
                 />
               </View>
             )}
@@ -74,6 +92,7 @@ const AuthScreen: React.FC = () => {
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={!isLoading}
               />
             </View>
 
@@ -86,6 +105,7 @@ const AuthScreen: React.FC = () => {
                 placeholder="Enter your password"
                 placeholderTextColor={colors.textSecondary}
                 secureTextEntry
+                editable={!isLoading}
               />
             </View>
 
@@ -99,29 +119,27 @@ const AuthScreen: React.FC = () => {
                   placeholder="Confirm your password"
                   placeholderTextColor={colors.textSecondary}
                   secureTextEntry
+                  editable={!isLoading}
                 />
               </View>
             )}
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-              <Text style={styles.submitButtonText}>
-                {isLogin ? 'Sign In' : 'Create Account'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Google Sign In */}
-            <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
-              <Text style={styles.googleButtonText}>
-                Continue with Google
-              </Text>
+            <TouchableOpacity 
+              style={[
+                styles.submitButton, 
+                (!isFormValid() || isLoading) && styles.submitButtonDisabled
+              ]} 
+              onPress={handleSubmit}
+              disabled={!isFormValid() || isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {isLogin ? 'Sign In' : 'Create Account'}
+                </Text>
+              )}
             </TouchableOpacity>
 
             {/* Toggle Login/Signup */}
@@ -129,8 +147,14 @@ const AuthScreen: React.FC = () => {
               <Text style={styles.toggleText}>
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
               </Text>
-              <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-                <Text style={styles.toggleLink}>
+              <TouchableOpacity 
+                onPress={() => setIsLogin(!isLogin)}
+                disabled={isLoading}
+              >
+                <Text style={[
+                  styles.toggleLink,
+                  isLoading && styles.toggleLinkDisabled
+                ]}>
                   {isLogin ? 'Sign Up' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
@@ -171,6 +195,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  errorContainer: {
+    backgroundColor: colors.error + '20',
+    borderColor: colors.error,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: typography.sizes.sm,
+    textAlign: 'center',
+  },
   form: {
     width: '100%',
   },
@@ -200,37 +237,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
+  submitButtonDisabled: {
+    backgroundColor: colors.textSecondary,
+  },
   submitButtonText: {
     color: colors.white,
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: spacing.md,
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-  },
-  googleButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  googleButtonText: {
-    color: colors.textPrimary,
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.semibold,
   },
@@ -247,6 +258,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.primary,
     fontWeight: typography.weights.semibold,
+  },
+  toggleLinkDisabled: {
+    color: colors.textSecondary,
   },
 });
 
