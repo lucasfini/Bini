@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import GroupedTaskCard from '../../components/tasks/GroupedTaskCard';
 import {
   View,
   Text,
@@ -10,11 +9,15 @@ import {
   RefreshControl,
   Animated,
   Pressable,
-  Modal
+  Modal,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
-import { Calendar, Users, User } from '@tamagui/lucide-icons';
+import { Calendar, Users, Edit3, Trash2, Copy, Check } from '@tamagui/lucide-icons';
 import { typography, spacing, shadows } from '../../styles';
-import { useReactions, ReactionDisplay, ReactionSystem } from '../../components/reactions/ReactionSystem';
+import { useReactions, ReactionDisplay } from '../../components/reactions/ReactionSystem';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 // Updated minimal color palette for clean timeline design
 const colors = {
@@ -39,6 +42,16 @@ const colors = {
   completed: '#999999',
   todo: '#FF6B9D',
   
+  // Group colors (soft pastels, Zelda-inspired)
+  groupColors: {
+    health: '#B8E6B8',      // Soft mint green
+    home: '#FFE4B5',        // Soft peach
+    work: '#E6E6FA',        // Soft lavender
+    social: '#FFB6C1',      // Soft pink
+    learning: '#B0E0E6',    // Soft powder blue
+    creative: '#FFEFD5',    // Soft papaya
+  },
+  
   // Special
   white: '#FFFFFF',
   black: '#000000',
@@ -57,7 +70,7 @@ interface EnhancedTask {
   isCompleted: boolean;
   assignedTo: string[];
   category?: string;
-  groupId?: string; // Link to task group
+  groupId?: string;
   reactions: Array<{
     emoji: string;
     count: number;
@@ -66,6 +79,7 @@ interface EnhancedTask {
   }>;
   priority: 'low' | 'medium' | 'high';
   progress?: number;
+  notes?: string;
 }
 
 // Task Group interface
@@ -79,9 +93,159 @@ interface TaskGroup {
   completedAt?: Date;
   isCompleted: boolean;
   participants: string[];
+  color: keyof typeof colors.groupColors;
+  shortName: string; // For the pill tag
 }
 
-// Encouragement Modal Component
+// Task Detail Tray Component
+interface TaskDetailTrayProps {
+  visible: boolean;
+  task: EnhancedTask | null;
+  group?: TaskGroup | null;
+  onClose: () => void;
+  onEdit: (task: EnhancedTask) => void;
+  onDelete: (taskId: string) => void;
+  onDuplicate: (task: EnhancedTask) => void;
+  onComplete: (taskId: string) => void;
+  groupProgress?: { completed: number; total: number };
+}
+
+const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
+  visible,
+  task,
+  group,
+  onClose,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  onComplete,
+  groupProgress,
+}) => {
+  const [slideAnim] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
+
+  if (!task) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.trayOverlay} onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.trayContainer,
+            {
+              transform: [
+                {
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [400, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.trayHandle} />
+          
+          {/* Task Header */}
+          <View style={styles.trayHeader}>
+            <View style={styles.trayTitleRow}>
+              {task.emoji && <Text style={styles.trayEmoji}>{task.emoji}</Text>}
+              <Text style={styles.trayTitle}>{task.title}</Text>
+            </View>
+            {task.time && (
+              <Text style={styles.trayTime}>{task.time}</Text>
+            )}
+          </View>
+
+          {/* Group Info */}
+          {group && (
+            <View style={[styles.groupInfoSection, { backgroundColor: colors.groupColors[group.color] + '20' }]}>
+              <View style={styles.groupInfoHeader}>
+                <View style={[styles.groupDot, { backgroundColor: colors.groupColors[group.color] }]} />
+                <Text style={styles.groupInfoTitle}>Part of {group.title}</Text>
+              </View>
+              {groupProgress && (
+                <Text style={styles.groupProgress}>
+                  {groupProgress.completed}/{groupProgress.total} complete
+                </Text>
+              )}
+              <Text style={styles.groupReward}>🎁 {group.reward}</Text>
+            </View>
+          )}
+
+          {/* Task Notes */}
+          {task.subtitle && (
+            <View style={styles.notesSection}>
+              <Text style={styles.notesLabel}>Notes</Text>
+              <Text style={styles.notesText}>{task.subtitle}</Text>
+            </View>
+          )}
+
+          {/* Actions */}
+          <View style={styles.actionsSection}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => onEdit(task)}
+            >
+              <Edit3 size={18} color={colors.textPrimary} />
+              <Text style={styles.actionButtonText}>Edit</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.duplicateButton]}
+              onPress={() => onDuplicate(task)}
+            >
+              <Copy size={18} color={colors.textPrimary} />
+              <Text style={styles.actionButtonText}>Duplicate</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => onDelete(task.id)}
+            >
+              <Trash2 size={18} color={colors.accentWarning} />
+              <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Complete Button */}
+          {!task.isCompleted && (
+            <TouchableOpacity
+              style={styles.completeButton}
+              onPress={() => onComplete(task.id)}
+            >
+              <Check size={20} color={colors.white} />
+              <Text style={styles.completeButtonText}>Complete Task</Text>
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// Encouragement Modal Component (simplified)
 interface EncouragementModalProps {
   visible: boolean;
   onClose: () => void;
@@ -93,9 +257,6 @@ const EncouragementModal: React.FC<EncouragementModalProps> = ({
   onClose,
   onEncouragementSelect,
 }) => {
-  const [slideAnim] = useState(new Animated.Value(0));
-  const [scaleAnim] = useState(new Animated.Value(0));
-
   const encouragementOptions = [
     { emoji: '💪', label: 'You got this!' },
     { emoji: '🔥', label: 'On fire!' },
@@ -103,101 +264,38 @@ const EncouragementModal: React.FC<EncouragementModalProps> = ({
     { emoji: '🎉', label: 'Let\'s celebrate!' },
   ];
 
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-
-  const handleEncouragementPress = (emoji: string) => {
-    onEncouragementSelect(emoji);
-  };
-
   if (!visible) return null;
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      onRequestClose={onClose}
-    >
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.encouragementOverlay} onPress={onClose}>
-        <Animated.View
-          style={[
-            styles.encouragementContainer,
-            {
-              transform: [
-                {
-                  translateY: slideAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [100, 0],
-                  }),
-                },
-                { scale: scaleAnim },
-              ],
-              opacity: slideAnim,
-            },
-          ]}
-        >
-          <View style={styles.encouragementContent}>
-            <Text style={styles.encouragementTitle}>Send Encouragement</Text>
-            <Text style={styles.encouragementSubtitle}>Motivate your partner to complete this task!</Text>
-            
-            <View style={styles.encouragementOptions}>
-              {encouragementOptions.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handleEncouragementPress(option.emoji)}
-                  style={styles.encouragementOption}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.encouragementEmoji}>{option.emoji}</Text>
-                  <Text style={styles.encouragementLabel}>{option.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        <View style={styles.encouragementContainer}>
+          <Text style={styles.encouragementTitle}>Send Encouragement</Text>
+          <View style={styles.encouragementOptions}>
+            {encouragementOptions.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={() => onEncouragementSelect(option.emoji)}
+                style={styles.encouragementOption}
+              >
+                <Text style={styles.encouragementEmoji}>{option.emoji}</Text>
+                <Text style={styles.encouragementLabel}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        </Animated.View>
+        </View>
       </Pressable>
     </Modal>
   );
 };
 
-// Generate dates for timeline (showing past and future days)
+// Generate dates for timeline
 const generateTimelineDates = () => {
   const today = new Date();
   const dates = [];
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
-  // Get 7 days: 2 past, today, 4 future
   for (let i = -2; i <= 4; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
@@ -219,6 +317,8 @@ const TimelineScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [encouragementModalVisible, setEncouragementModalVisible] = useState(false);
   const [selectedTaskForEncouragement, setSelectedTaskForEncouragement] = useState<string | null>(null);
+  const [taskDetailTrayVisible, setTaskDetailTrayVisible] = useState(false);
+  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<EnhancedTask | null>(null);
   
   // Task Groups State
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([
@@ -231,6 +331,8 @@ const TimelineScreen: React.FC = () => {
       createdAt: new Date(),
       isCompleted: false,
       participants: ['Alex', 'Blake'],
+      color: 'health',
+      shortName: 'Health',
     },
     {
       id: 'group2',
@@ -241,10 +343,12 @@ const TimelineScreen: React.FC = () => {
       createdAt: new Date(),
       isCompleted: false,
       participants: ['Alex', 'Blake'],
+      color: 'home',
+      shortName: 'Home Org',
     }
   ]);
 
-  // Enhanced mock data organized by date with groupId
+  // Enhanced mock data with groups embedded in timeline
   const [tasks, setTasks] = useState<Record<string, EnhancedTask[]>>({
     'today': [
       {
@@ -253,7 +357,7 @@ const TimelineScreen: React.FC = () => {
         subtitle: 'Strength training session at the gym',
         emoji: '💪',
         time: '8:00 AM',
-        groupId: 'group1', // Link to Healthy Week Challenge
+        groupId: 'group1',
         date: 'today',
         isShared: true,
         isCompleted: false,
@@ -267,7 +371,7 @@ const TimelineScreen: React.FC = () => {
         subtitle: 'Sort and label all items',
         emoji: '🗂️',
         time: '2:00 PM',
-        groupId: 'group2', // Link to Home Organization Sprint
+        groupId: 'group2',
         date: 'today',
         isShared: true,
         isCompleted: true,
@@ -295,7 +399,7 @@ const TimelineScreen: React.FC = () => {
         title: 'Evening Yoga Session',
         emoji: '🧘‍♀️',
         time: '7:00 PM',
-        groupId: 'group1', // Link to Healthy Week Challenge
+        groupId: 'group1',
         date: 'tomorrow',
         isShared: true,
         isCompleted: false,
@@ -308,7 +412,7 @@ const TimelineScreen: React.FC = () => {
         title: 'Declutter Bedroom',
         emoji: '🛏️',
         time: '10:00 AM',
-        groupId: 'group2', // Link to Home Organization Sprint
+        groupId: 'group2',
         date: 'tomorrow',
         isShared: true,
         isCompleted: false,
@@ -335,7 +439,7 @@ const TimelineScreen: React.FC = () => {
         title: 'Hiking Trip',
         emoji: '🥾',
         time: 'TODO',
-        groupId: 'group1', // Link to Healthy Week Challenge
+        groupId: 'group1',
         date: 'saturday',
         isShared: true,
         isCompleted: false,
@@ -348,7 +452,7 @@ const TimelineScreen: React.FC = () => {
   
   const timelineDates = generateTimelineDates();
   
-  // Get tasks for a specific date key
+  // Get tasks for a specific date key with filtering
   const getTasksForDate = (dateKey: string, isToday: boolean) => {
     let taskList: EnhancedTask[] = [];
     
@@ -360,60 +464,69 @@ const TimelineScreen: React.FC = () => {
       taskList = tasks['saturday'] || [];
     }
     
-    // Apply filter and exclude grouped tasks (they'll be shown in GroupedTaskCard)
+    // Apply filter
     return taskList.filter(task => {
-      const matchesFilter = selectedFilter === 'All' || 
+      return selectedFilter === 'All' || 
         (selectedFilter === 'Mine' && !task.isShared) ||
         (selectedFilter === 'Shared' && task.isShared);
-      
-      const isNotGrouped = !task.groupId; // Only show non-grouped tasks in regular timeline
-      
-      return matchesFilter && isNotGrouped;
     });
   };
 
-  // Get grouped tasks for display
-  const getGroupedTasks = (): { [groupId: string]: EnhancedTask[] } => {
-    const groupedTasks: { [groupId: string]: EnhancedTask[] } = {};
+  // Get group progress for a specific group
+  const getGroupProgress = (groupId: string) => {
+    const allTasks = Object.values(tasks).flat();
+    const groupTasks = allTasks.filter(task => task.groupId === groupId);
+    const completed = groupTasks.filter(task => task.isCompleted).length;
+    return { completed, total: groupTasks.length };
+  };
+
+  // Get group by ID
+  const getGroupById = (groupId: string) => {
+    return taskGroups.find(group => group.id === groupId);
+  };
+
+  // Handle swipe to complete
+  const createSwipeHandler = (task: EnhancedTask) => {
+    const translateX = new Animated.Value(0);
     
-    Object.values(tasks).flat().forEach(task => {
-      if (task.groupId) {
-        if (!groupedTasks[task.groupId]) {
-          groupedTasks[task.groupId] = [];
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 100;
+      },
+      onPanResponderGrant: () => {
+        translateX.setOffset(translateX._value);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        translateX.setValue(gestureState.dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateX.flattenOffset();
+        
+        if (Math.abs(gestureState.dx) > screenWidth * 0.3) {
+          // Complete the task
+          Animated.timing(translateX, {
+            toValue: gestureState.dx > 0 ? screenWidth : -screenWidth,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            toggleTaskCompletion(task.id);
+            translateX.setValue(0);
+          });
+        } else {
+          // Snap back
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
         }
-        groupedTasks[task.groupId].push(task);
-      }
+      },
     });
-    
-    return groupedTasks;
-  };
-
-  // Filter grouped tasks based on current filter
-  const getFilteredGroupedTasks = () => {
-    const groupedTasks = getGroupedTasks();
-    const filteredGroups: { [groupId: string]: EnhancedTask[] } = {};
-    
-    Object.keys(groupedTasks).forEach(groupId => {
-      const filteredTasks = groupedTasks[groupId].filter(task => {
-        return selectedFilter === 'All' || 
-          (selectedFilter === 'Mine' && !task.isShared) ||
-          (selectedFilter === 'Shared' && task.isShared);
-      });
-      
-      if (filteredTasks.length > 0) {
-        filteredGroups[groupId] = filteredTasks;
-      }
-    });
-    
-    return filteredGroups;
   };
 
   // Toggle task completion
   const toggleTaskCompletion = (taskId: string) => {
     setTasks(prevTasks => {
       const newTasks = { ...prevTasks };
-      
-      // Find and update the task in all date categories
       Object.keys(newTasks).forEach(dateKey => {
         newTasks[dateKey] = newTasks[dateKey].map(task => {
           if (task.id === taskId) {
@@ -422,20 +535,8 @@ const TimelineScreen: React.FC = () => {
           return task;
         });
       });
-      
       return newTasks;
     });
-  };
-
-  // Handle reward claiming
-  const handleRewardClaim = (group: TaskGroup) => {
-    setTaskGroups(prev => 
-      prev.map(g => 
-        g.id === group.id 
-          ? { ...g, completedAt: new Date(), isCompleted: true }
-          : g
-      )
-    );
   };
 
   const onRefresh = useCallback(() => {
@@ -445,26 +546,38 @@ const TimelineScreen: React.FC = () => {
     }, 1000);
   }, []);
 
+  // Task action handlers
+  const handleTaskEdit = (task: EnhancedTask) => {
+    console.log('Edit task:', task.title);
+    setTaskDetailTrayVisible(false);
+  };
+
+  const handleTaskDelete = (taskId: string) => {
+    console.log('Delete task:', taskId);
+    setTaskDetailTrayVisible(false);
+  };
+
+  const handleTaskDuplicate = (task: EnhancedTask) => {
+    console.log('Duplicate task:', task.title);
+    setTaskDetailTrayVisible(false);
+  };
+
+  const handleTaskComplete = (taskId: string) => {
+    toggleTaskCompletion(taskId);
+    setTaskDetailTrayVisible(false);
+  };
+
   const TaskItem: React.FC<{ task: EnhancedTask }> = ({ task }) => {
-    const { reactions, toggleReaction } = useReactions(task.reactions);
-    const [scaleAnim] = useState(new Animated.Value(1));
+    const { reactions } = useReactions(task.reactions);
+    const [translateX] = useState(new Animated.Value(0));
+    const group = task.groupId ? getGroupById(task.groupId) : null;
+    const groupProgress = task.groupId ? getGroupProgress(task.groupId) : null;
+
+    const swipeHandler = createSwipeHandler(task);
 
     const handleTaskPress = () => {
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 0.98,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Toggle task completion
-      toggleTaskCompletion(task.id);
+      setSelectedTaskForDetail(task);
+      setTaskDetailTrayVisible(true);
     };
 
     const handleSharedIconPress = () => {
@@ -475,13 +588,16 @@ const TimelineScreen: React.FC = () => {
     };
 
     const getAccentColor = () => {
-      if (task.isShared) return colors.accentPrimary; // Pink accent for shared
-      if (task.priority === 'high') return colors.accentWarning; // Red accent for high priority
-      return colors.accentSecondary; // Blue accent default
+      if (task.isShared) return colors.accentPrimary;
+      if (task.priority === 'high') return colors.accentWarning;
+      return colors.accentSecondary;
     };
 
     return (
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Animated.View 
+        style={[{ transform: [{ translateX }] }]}
+        {...swipeHandler.panHandlers}
+      >
         <Pressable onPress={handleTaskPress} style={styles.taskItem}>
           <View style={styles.taskContent}>
             {/* Time or Status */}
@@ -507,8 +623,19 @@ const TimelineScreen: React.FC = () => {
                 ]}>
                   {task.title}
                 </Text>
+
+                {/* Group Tag */}
+                {group && (
+                  <TouchableOpacity style={styles.groupTag}>
+                    <View style={[
+                      styles.groupTagDot, 
+                      { backgroundColor: colors.groupColors[group.color] }
+                    ]} />
+                    <Text style={styles.groupTagText}>{group.shortName}</Text>
+                  </TouchableOpacity>
+                )}
                 
-                {/* Shared indicator - clickable for encouragement */}
+                {/* Shared indicator */}
                 {task.isShared && (
                   <TouchableOpacity 
                     onPress={handleSharedIconPress}
@@ -585,17 +712,10 @@ const TimelineScreen: React.FC = () => {
     );
   };
 
-  const filteredGroupedTasks = getFilteredGroupedTasks();
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Calendar size={24} color={colors.textPrimary} />
-          <Text style={styles.headerTitle}>Timeline</Text>
-        </View>
-      </View>
+ 
 
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
@@ -632,27 +752,6 @@ const TimelineScreen: React.FC = () => {
         }
       >
         <View style={styles.timelineContent}>
-          {/* Render Grouped Tasks First */}
-          {taskGroups.map(group => {
-            const groupTasks = filteredGroupedTasks[group.id] || [];
-            if (groupTasks.length === 0) return null;
-            
-            return (
-              <GroupedTaskCard
-                key={group.id}
-                group={group}
-                tasks={groupTasks}
-                onTaskPress={(task) => {
-                  console.log('Task pressed:', task.title);
-                  // Navigate to task detail or handle task interaction
-                }}
-                onTaskToggle={toggleTaskCompletion}
-                onRewardClaim={handleRewardClaim}
-              />
-            );
-          })}
-
-          {/* Render Individual Timeline Tasks */}
           {timelineDates.map((dateInfo, index) => (
             <DateSection key={index} dateInfo={dateInfo} />
           ))}
@@ -661,6 +760,19 @@ const TimelineScreen: React.FC = () => {
         <View style={{ height: 100 }} />
       </ScrollView>
 
+      {/* Task Detail Tray */}
+      <TaskDetailTray
+        visible={taskDetailTrayVisible}
+        task={selectedTaskForDetail}
+        group={selectedTaskForDetail?.groupId ? getGroupById(selectedTaskForDetail.groupId) : null}
+        groupProgress={selectedTaskForDetail?.groupId ? getGroupProgress(selectedTaskForDetail.groupId) : undefined}
+        onClose={() => setTaskDetailTrayVisible(false)}
+        onEdit={handleTaskEdit}
+        onDelete={handleTaskDelete}
+        onDuplicate={handleTaskDuplicate}
+        onComplete={handleTaskComplete}
+      />
+
       {/* Encouragement Modal */}
       <EncouragementModal
         visible={encouragementModalVisible}
@@ -668,7 +780,6 @@ const TimelineScreen: React.FC = () => {
         onEncouragementSelect={(emoji) => {
           if (selectedTaskForEncouragement) {
             console.log('Encouragement sent:', emoji, 'for task:', selectedTaskForEncouragement);
-            // Here you would send the encouragement to your partner
           }
           setEncouragementModalVisible(false);
         }}
@@ -682,23 +793,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
+
   filterTabs: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -711,7 +806,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   filterTabActive: {
     backgroundColor: colors.background,
@@ -741,7 +835,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   dateNumber: {
-    fontSize: 48,
+    fontSize: 34,
     fontWeight: '300',
     color: colors.textDisabled,
     lineHeight: 48,
@@ -772,7 +866,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   tasksContainer: {
-    paddingLeft: 100, // Align with date info
+    paddingLeft: 20,
     paddingRight: 20,
   },
   taskItem: {
@@ -785,22 +879,22 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   taskTimeContainer: {
-    minWidth: 60,
+    minWidth: 20,
     alignItems: 'flex-start',
   },
   taskStatusDone: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: colors.completed,
     letterSpacing: 0.5,
   },
   taskStatusTodo: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.5,
   },
   taskTime: {
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '500',
   },
   taskDetails: {
@@ -810,7 +904,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingLeft: 45,
     marginBottom: 2,
+    flexWrap: 'wrap',
   },
   taskEmoji: {
     fontSize: 16,
@@ -824,6 +920,25 @@ const styles = StyleSheet.create({
   taskTitleCompleted: {
     color: colors.completed,
   },
+  groupTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    gap: 4,
+  },
+  groupTagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  groupTagText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
   sharedIndicator: {
     width: 20,
     height: 20,
@@ -836,13 +951,157 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 18,
+    paddingLeft: 45,
   },
   taskSubtitleCompleted: {
     color: colors.textTertiary,
   },
   reactionsContainer: {
     marginTop: 8,
-    marginLeft: 76, // Align with task content
+    marginLeft: 76,
+  },
+  
+  // Task Detail Tray Styles
+  trayOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  trayContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    minHeight: 300,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  trayHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  trayHeader: {
+    marginBottom: 20,
+  },
+  trayTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 15,
+  },
+  trayEmoji: {
+    fontSize: 24,
+  },
+  trayTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  trayTime: {
+    fontSize: 16,
+    color: colors.accentPrimary,
+    fontWeight: '500',
+  },
+  groupInfoSection: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  groupInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  groupDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  groupInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  groupProgress: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  groupReward: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  notesSection: {
+    marginBottom: 20,
+  },
+  notesLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  notesText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  actionsSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  editButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  duplicateButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: colors.accentWarning + '40',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  completeButton: {
+    backgroundColor: colors.accentSuccess,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  completeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
   },
   
   // Encouragement Modal Styles
@@ -865,47 +1124,31 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  encouragementContent: {
-    alignItems: 'center',
-  },
   encouragementTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 16,
     textAlign: 'center',
-  },
-  encouragementSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 20,
   },
   encouragementOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 16,
+    gap: 12,
   },
   encouragementOption: {
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     backgroundColor: colors.background,
     borderRadius: 12,
-    minWidth: 80,
+    minWidth: 70,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border, 
   },
   encouragementEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  encouragementLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontSize: 24,
+    marginBottom: 4,
   },
 });
 
