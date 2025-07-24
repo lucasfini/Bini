@@ -1,3 +1,4 @@
+// src/screens/profile/ProfileScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -6,10 +7,11 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
-  Alert,
+  Modal,
   Switch,
+  Alert,
+  Share,
 } from 'react-native';
-import { YStack, XStack, Button } from 'tamagui';
 import { colors, typography, spacing, shadows } from '../../styles';
 
 interface UserStats {
@@ -19,6 +21,7 @@ interface UserStats {
   totalPoints: number;
   weeklyGoal: number;
   weeklyProgress: number;
+  joinedDate: Date;
 }
 
 interface PartnerInfo {
@@ -26,13 +29,17 @@ interface PartnerInfo {
   avatar: string;
   tasksCompleted: number;
   sharedWith: number;
+  isConnected: boolean;
 }
 
 const ProfileScreen: React.FC = () => {
+  const [showSettings, setShowSettings] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cheerNotifications, setCheerNotifications] = useState(true);
   const [partnerUpdates, setPartnerUpdates] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
+  // Mock user data - replace with your actual user data
   const userStats: UserStats = {
     tasksCompleted: 247,
     sharedGoals: 89,
@@ -40,6 +47,7 @@ const ProfileScreen: React.FC = () => {
     totalPoints: 3420,
     weeklyGoal: 15,
     weeklyProgress: 11,
+    joinedDate: new Date('2024-01-15'),
   };
 
   const partner: PartnerInfo = {
@@ -47,6 +55,7 @@ const ProfileScreen: React.FC = () => {
     avatar: 'B',
     tasksCompleted: 203,
     sharedWith: 89,
+    isConnected: true,
   };
 
   const achievements = [
@@ -64,108 +73,267 @@ const ProfileScreen: React.FC = () => {
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: () => {
-          // Handle logout logic
-          console.log('User signed out');
-        }}
+        { 
+          text: 'Sign Out', 
+          style: 'destructive', 
+          onPress: () => {
+            // Handle logout logic
+            console.log('User signed out');
+          }
+        }
       ]
     );
   };
 
-  const StatCard: React.FC<{ title: string; value: string | number; emoji: string; color?: string }> = ({ 
-    title, value, emoji, color = colors.primary 
-  }) => (
+  const handleExportData = async () => {
+    try {
+      const result = await Share.share({
+        message: 'Here is my Bini task data export!',
+        title: 'Bini Data Export',
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to export data');
+    }
+  };
+
+  const handleInvitePartner = () => {
+    Alert.alert(
+      'Invite Partner',
+      'Send an invitation to connect with your partner on Bini',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send Invite', onPress: () => console.log('Invite sent') }
+      ]
+    );
+  };
+
+  const StatCard: React.FC<{ 
+    title: string; 
+    value: string | number; 
+    emoji: string; 
+    color?: string;
+    subtitle?: string;
+  }> = ({ title, value, emoji, color = colors.accentPrimary, subtitle }) => (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <XStack alignItems="center" gap="$3">
+      <View style={styles.statCardHeader}>
         <Text style={styles.statEmoji}>{emoji}</Text>
-        <YStack flex={1}>
+        <View style={styles.statContent}>
           <Text style={styles.statValue}>{value}</Text>
           <Text style={styles.statTitle}>{title}</Text>
-        </YStack>
-      </XStack>
+          {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+        </View>
+      </View>
     </View>
   );
 
   const SettingRow: React.FC<{ 
     title: string; 
-    description: string; 
-    value: boolean; 
-    onToggle: (value: boolean) => void;
+    description?: string; 
+    value?: boolean; 
+    onToggle?: (value: boolean) => void;
+    onPress?: () => void;
     emoji: string;
-  }> = ({ title, description, value, onToggle, emoji }) => (
-    <View style={styles.settingRow}>
-      <XStack alignItems="center" gap="$3">
+    showArrow?: boolean;
+    textColor?: string;
+  }> = ({ title, description, value, onToggle, onPress, emoji, showArrow = false, textColor }) => (
+    <TouchableOpacity 
+      style={styles.settingRow} 
+      onPress={onPress}
+      disabled={!onPress && value === undefined}
+    >
+      <View style={styles.settingContent}>
         <Text style={styles.settingEmoji}>{emoji}</Text>
-        <YStack flex={1}>
-          <Text style={styles.settingTitle}>{title}</Text>
-          <Text style={styles.settingDescription}>{description}</Text>
-        </YStack>
+        <View style={styles.settingText}>
+          <Text style={[styles.settingTitle, textColor && { color: textColor }]}>
+            {title}
+          </Text>
+          {description && (
+            <Text style={styles.settingDescription}>{description}</Text>
+          )}
+        </View>
+      </View>
+      
+      {value !== undefined && onToggle ? (
         <Switch
           value={value}
           onValueChange={onToggle}
-          trackColor={{ false: colors.border, true: colors.primary + '40' }}
-          thumbColor={value ? colors.primary : colors.textSecondary}
+          trackColor={{ false: colors.border, true: colors.accentPrimary + '40' }}
+          thumbColor={value ? colors.accentPrimary : colors.textSecondary}
         />
-      </XStack>
-    </View>
+      ) : showArrow ? (
+        <Text style={styles.settingArrow}>→</Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+
+  const SettingsModal = () => (
+    <Modal visible={showSettings} transparent animationType="slide">
+      <View style={styles.settingsOverlay}>
+        <View style={styles.settingsModal}>
+          <View style={styles.settingsHeader}>
+            <Text style={styles.settingsTitle}>App Settings</Text>
+            <TouchableOpacity onPress={() => setShowSettings(false)}>
+              <Text style={styles.settingsClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.settingsContent} showsVerticalScrollIndicator={false}>
+            {/* Notifications Section */}
+            <Text style={styles.settingsSectionTitle}>Notifications</Text>
+            <SettingRow
+              title="Push Notifications"
+              description="Get notified about task reminders and updates"
+              value={notificationsEnabled}
+              onToggle={setNotificationsEnabled}
+              emoji="🔔"
+            />
+            <SettingRow
+              title="Cheer Notifications"
+              description="Know when your partner cheers you on"
+              value={cheerNotifications}
+              onToggle={setCheerNotifications}
+              emoji="🎉"
+            />
+            <SettingRow
+              title="Partner Updates"
+              description="Updates when your partner completes tasks"
+              value={partnerUpdates}
+              onToggle={setPartnerUpdates}
+              emoji="👥"
+            />
+
+            {/* Appearance Section */}
+            <Text style={styles.settingsSectionTitle}>Appearance</Text>
+            <SettingRow
+              title="Dark Mode"
+              description="Switch to dark theme"
+              value={darkMode}
+              onToggle={setDarkMode}
+              emoji="🌙"
+            />
+            <SettingRow
+              title="Theme Color"
+              description="Customize your accent color"
+              onPress={() => Alert.alert('Theme Colors', 'Color picker coming soon!')}
+              emoji="🎨"
+              showArrow
+            />
+
+            {/* Data & Privacy Section */}
+            <Text style={styles.settingsSectionTitle}>Data & Privacy</Text>
+            <SettingRow
+              title="Export Data"
+              description="Download your task history"
+              onPress={handleExportData}
+              emoji="📱"
+              showArrow
+            />
+            <SettingRow
+              title="Privacy Settings"
+              description="Manage your privacy preferences"
+              onPress={() => Alert.alert('Privacy', 'Privacy settings coming soon!')}
+              emoji="🔐"
+              showArrow
+            />
+
+            {/* Support Section */}
+            <Text style={styles.settingsSectionTitle}>Support</Text>
+            <SettingRow
+              title="Help & Support"
+              description="Get help or send feedback"
+              onPress={() => Alert.alert('Support', 'Contact support at help@bini.app')}
+              emoji="❓"
+              showArrow
+            />
+            <SettingRow
+              title="About Bini"
+              description="Version 1.0.0"
+              onPress={() => Alert.alert('About Bini', 'Built with ❤️ for couples')}
+              emoji="ℹ️"
+              showArrow
+            />
+
+            {/* Danger Zone */}
+            <Text style={styles.settingsSectionTitle}>Account</Text>
+            <SettingRow
+              title="Sign Out"
+              onPress={handleLogout}
+              emoji="🚪"
+              textColor={colors.error}
+              showArrow
+            />
+
+            <View style={{ height: 50 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <YStack 
-        padding="$4" 
-        backgroundColor="white" 
-        borderBottomLeftRadius="$7" 
-        borderBottomRightRadius="$7"
-        shadowColor="black"
-        shadowOffset={{ width: 0, height: 2 }}
-        shadowOpacity={0.1}
-        shadowRadius={8}
-        elevation={4}
-      >
-        <YStack alignItems="center">
+      {/* Profile Header */}
+      <View style={styles.profileHeader}>
+        <View style={styles.profileInfo}>
           <View style={styles.profileAvatar}>
             <Text style={styles.profileAvatarText}>A</Text>
           </View>
           <Text style={styles.profileName}>Alex Johnson</Text>
-          <Text style={styles.profileSubtitle}>Your Journey Together</Text>
-        </YStack>
-      </YStack>
+          <Text style={styles.profileSubtitle}>
+            Your journey together • {Math.floor((new Date().getTime() - userStats.joinedDate.getTime()) / (1000 * 60 * 60 * 24))} days
+          </Text>
+        </View>
+        
+        {/* Settings Button */}
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => setShowSettings(true)}
+        >
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Stats Overview */}
-        <View style={styles.statsSection}>
+        {/* Weekly Progress */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>This Week's Progress</Text>
           
-          <View style={styles.weeklyProgress}>
-            <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
-              <Text style={styles.progressTitle}>Weekly Goal Progress</Text>
-              <Text style={styles.progressText}>{userStats.weeklyProgress}/{userStats.weeklyGoal}</Text>
-            </XStack>
-            <View style={styles.progressBar}>
-              <View style={[
-                styles.progressFill, 
-                { width: `${(userStats.weeklyProgress / userStats.weeklyGoal) * 100}%` }
-              ]} />
+          <View style={styles.weeklyProgressCard}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressTitle}>Weekly Goal</Text>
+              <Text style={styles.progressCount}>
+                {userStats.weeklyProgress}/{userStats.weeklyGoal}
+              </Text>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBar}>
+                <View style={[
+                  styles.progressFill, 
+                  { width: `${(userStats.weeklyProgress / userStats.weeklyGoal) * 100}%` }
+                ]} />
+              </View>
             </View>
             <Text style={styles.progressSubtext}>
-              {userStats.weeklyGoal - userStats.weeklyProgress} more tasks to reach your weekly goal!
+              {userStats.weeklyGoal - userStats.weeklyProgress} more tasks to reach your goal!
             </Text>
           </View>
+        </View>
 
+        {/* Stats Grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Stats</Text>
           <View style={styles.statsGrid}>
             <StatCard 
               title="Tasks Completed" 
               value={userStats.tasksCompleted} 
               emoji="✅" 
-              color={colors.primary}
+              color={colors.accentPrimary}
             />
             <StatCard 
               title="Shared Goals" 
               value={userStats.sharedGoals} 
               emoji="🤝" 
-              color={colors.secondary}
+              color={colors.accentSecondary}
             />
             <StatCard 
               title="Current Streak" 
@@ -175,7 +343,7 @@ const ProfileScreen: React.FC = () => {
             />
             <StatCard 
               title="Total Points" 
-              value={userStats.totalPoints} 
+              value={userStats.totalPoints.toLocaleString()} 
               emoji="⭐" 
               color="#FFD93D"
             />
@@ -183,34 +351,47 @@ const ProfileScreen: React.FC = () => {
         </View>
 
         {/* Partner Section */}
-        <View style={styles.partnerSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Partner</Text>
           
-          <View style={styles.partnerCard}>
-            <XStack alignItems="center" gap="$4">
-              <View style={styles.partnerAvatar}>
-                <Text style={styles.partnerAvatarText}>{partner.avatar}</Text>
+          {partner.isConnected ? (
+            <View style={styles.partnerCard}>
+              <View style={styles.partnerInfo}>
+                <View style={styles.partnerAvatar}>
+                  <Text style={styles.partnerAvatarText}>{partner.avatar}</Text>
+                </View>
+                <View style={styles.partnerDetails}>
+                  <Text style={styles.partnerName}>{partner.name}</Text>
+                  <Text style={styles.partnerStats}>
+                    {partner.tasksCompleted} tasks • {partner.sharedWith} together
+                  </Text>
+                </View>
               </View>
-              <YStack flex={1}>
-                <Text style={styles.partnerName}>{partner.name}</Text>
-                <Text style={styles.partnerStats}>
-                  {partner.tasksCompleted} tasks completed • {partner.sharedWith} shared together
-                </Text>
-              </YStack>
               <TouchableOpacity style={styles.cheerButton}>
                 <Text style={styles.cheerButtonText}>🎉 Cheer</Text>
               </TouchableOpacity>
-            </XStack>
-          </View>
+            </View>
+          ) : (
+            <View style={styles.invitePartnerCard}>
+              <Text style={styles.inviteEmoji}>👋</Text>
+              <Text style={styles.inviteTitle}>Invite Your Partner</Text>
+              <Text style={styles.inviteDescription}>
+                Share goals and cheer each other on together
+              </Text>
+              <TouchableOpacity style={styles.inviteButton} onPress={handleInvitePartner}>
+                <Text style={styles.inviteButtonText}>Send Invitation</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Achievements */}
-        <View style={styles.achievementsSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Achievements</Text>
           
           <View style={styles.achievementsGrid}>
             {achievements.map((achievement, index) => (
-              <TouchableOpacity 
+              <View 
                 key={index} 
                 style={[
                   styles.achievementCard,
@@ -240,101 +421,15 @@ const ProfileScreen: React.FC = () => {
                     <Text style={styles.earnedBadgeText}>✓</Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
         </View>
 
-        {/* Settings */}
-        <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          
-          <View style={styles.settingsCard}>
-            <SettingRow
-              title="Push Notifications"
-              description="Get notified about task reminders and updates"
-              value={notificationsEnabled}
-              onToggle={setNotificationsEnabled}
-              emoji="🔔"
-            />
-            
-            <SettingRow
-              title="Cheer Notifications"
-              description="Know when your partner cheers you on"
-              value={cheerNotifications}
-              onToggle={setCheerNotifications}
-              emoji="🎉"
-            />
-            
-            <SettingRow
-              title="Partner Updates"
-              description="Updates when your partner completes tasks"
-              value={partnerUpdates}
-              onToggle={setPartnerUpdates}
-              emoji="👥"
-            />
-          </View>
-        </View>
-
-        {/* App Settings */}
-        <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>App Settings</Text>
-          
-          <View style={styles.settingsCard}>
-            <TouchableOpacity style={styles.settingButton}>
-              <XStack alignItems="center" gap="$3">
-                <Text style={styles.settingEmoji}>🎨</Text>
-                <YStack flex={1}>
-                  <Text style={styles.settingTitle}>Theme & Appearance</Text>
-                  <Text style={styles.settingDescription}>Customize your app experience</Text>
-                </YStack>
-                <Text style={styles.settingArrow}>→</Text>
-              </XStack>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingButton}>
-              <XStack alignItems="center" gap="$3">
-                <Text style={styles.settingEmoji}>📱</Text>
-                <YStack flex={1}>
-                  <Text style={styles.settingTitle}>Export Data</Text>
-                  <Text style={styles.settingDescription}>Download your task history</Text>
-                </YStack>
-                <Text style={styles.settingArrow}>→</Text>
-              </XStack>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingButton}>
-              <XStack alignItems="center" gap="$3">
-                <Text style={styles.settingEmoji}>❓</Text>
-                <YStack flex={1}>
-                  <Text style={styles.settingTitle}>Help & Support</Text>
-                  <Text style={styles.settingDescription}>Get help or send feedback</Text>
-                </YStack>
-                <Text style={styles.settingArrow}>→</Text>
-              </XStack>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Logout Button */}
-        <View style={styles.logoutSection}>
-          <Button
-            onPress={handleLogout}
-            backgroundColor="transparent"
-            borderColor="#FF6B6B"
-            borderWidth={2}
-            borderRadius="$5"
-            size="$4"
-            fontWeight="bold"
-            color="#FF6B6B"
-            pressStyle={{ scale: 0.95, backgroundColor: '#FF6B6B20' }}
-          >
-            Sign Out
-          </Button>
-        </View>
-
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <SettingsModal />
     </SafeAreaView>
   );
 };
@@ -344,168 +439,254 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  profileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  profileInfo: {
+    alignItems: 'center',
     flex: 1,
-    padding: spacing.lg,
   },
   profileAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentPrimary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: 12,
     ...shadows.lg,
   },
   profileAvatarText: {
     fontSize: 32,
-    fontWeight: typography.weights.bold,
+    fontWeight: '700',
     color: colors.white,
   },
   profileName: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
+    fontSize: 24,
+    fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: 4,
   },
   profileSubtitle: {
-    fontSize: typography.sizes.sm,
+    fontSize: 14,
     color: colors.textSecondary,
+    textAlign: 'center',
   },
-  statsSection: {
-    marginBottom: spacing.xl,
+  settingsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  settingsIcon: {
+    fontSize: 20,
+  },
+  content: {
+    flex: 1,
+  },
+  section: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
   },
   sectionTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
-  weeklyProgress: {
+  weeklyProgressCard: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...shadows.lg,
+    borderRadius: 16,
+    padding: 20,
+    ...shadows.md,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   progressTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textPrimary,
   },
-  progressText: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.bold,
-    color: colors.primary,
+  progressCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.accentPrimary,
+  },
+  progressBarContainer: {
+    marginBottom: 12,
   },
   progressBar: {
     height: 12,
     backgroundColor: colors.border,
     borderRadius: 6,
     overflow: 'hidden',
-    marginBottom: spacing.sm,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentPrimary,
     borderRadius: 6,
   },
   progressSubtext: {
-    fontSize: typography.sizes.sm,
+    fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: 12,
   },
   statCard: {
     flex: 1,
     minWidth: '45%',
     backgroundColor: colors.surface,
-    borderRadius: 15,
-    padding: spacing.md,
+    borderRadius: 12,
+    padding: 16,
     borderLeftWidth: 4,
-    ...shadows.md,
+    ...shadows.sm,
+  },
+  statCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   statEmoji: {
     fontSize: 24,
   },
+  statContent: {
+    flex: 1,
+  },
   statValue: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.textPrimary,
+    marginBottom: 2,
   },
   statTitle: {
-    fontSize: typography.sizes.xs,
+    fontSize: 12,
     color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
+    fontWeight: '500',
   },
-  partnerSection: {
-    marginBottom: spacing.xl,
+  statSubtitle: {
+    fontSize: 10,
+    color: colors.textTertiary,
+    marginTop: 2,
   },
   partnerCard: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: spacing.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.secondary,
-    ...shadows.lg,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...shadows.md,
+  },
+  partnerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 16,
   },
   partnerAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.accentSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     ...shadows.sm,
   },
   partnerAvatarText: {
     fontSize: 20,
-    fontWeight: typography.weights.bold,
+    fontWeight: '700',
     color: colors.white,
+  },
+  partnerDetails: {
+    flex: 1,
   },
   partnerName: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.textPrimary,
+    marginBottom: 4,
   },
   partnerStats: {
-    fontSize: typography.sizes.sm,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 2,
   },
   cheerButton: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.accentSecondary,
     borderRadius: 20,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   cheerButtonText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.white,
   },
-  achievementsSection: {
-    marginBottom: spacing.xl,
+  invitePartnerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    ...shadows.md,
+  },
+  inviteEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  inviteTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  inviteDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  inviteButton: {
+    backgroundColor: colors.accentPrimary,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  inviteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
   },
   achievementsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: 12,
   },
   achievementCard: {
     flex: 1,
     minWidth: '45%',
     backgroundColor: colors.surface,
-    borderRadius: 15,
-    padding: spacing.md,
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
     position: 'relative',
-    ...shadows.md,
+    ...shadows.sm,
   },
   achievementCardLocked: {
     opacity: 0.6,
@@ -513,85 +694,127 @@ const styles = StyleSheet.create({
   },
   achievementEmoji: {
     fontSize: 32,
-    marginBottom: spacing.sm,
+    marginBottom: 12,
   },
   achievementEmojiLocked: {
     opacity: 0.5,
   },
   achievementTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.textPrimary,
     textAlign: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 4,
   },
   achievementTitleLocked: {
     color: colors.textSecondary,
   },
   achievementDescription: {
-    fontSize: typography.sizes.xs,
+    fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: typography.lineHeights.relaxed * typography.sizes.xs,
+    lineHeight: 16,
   },
   achievementDescriptionLocked: {
     opacity: 0.7,
   },
   earnedBadge: {
     position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
+    top: 12,
+    right: 12,
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentSuccess,
     justifyContent: 'center',
     alignItems: 'center',
   },
   earnedBadgeText: {
     fontSize: 12,
     color: colors.white,
-    fontWeight: typography.weights.bold,
+    fontWeight: '700',
   },
-  settingsSection: {
-    marginBottom: spacing.xl,
+
+  // Settings Modal Styles
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
-  settingsCard: {
+  settingsModal: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: spacing.lg,
-    ...shadows.lg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingsTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  settingsClose: {
+    fontSize: 18,
+    color: colors.textSecondary,
+    width: 32,
+    height: 32,
+    textAlign: 'center',
+    lineHeight: 32,
+  },
+  settingsContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  settingsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginTop: 24,
+    marginBottom: 12,
   },
   settingRow: {
-    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  settingButton: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  settingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 16,
   },
   settingEmoji: {
     fontSize: 20,
+    width: 24,
+    textAlign: 'center',
+  },
+  settingText: {
+    flex: 1,
   },
   settingTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    fontSize: 16,
+    fontWeight: '500',
     color: colors.textPrimary,
   },
   settingDescription: {
-    fontSize: typography.sizes.sm,
+    fontSize: 14,
     color: colors.textSecondary,
     marginTop: 2,
   },
   settingArrow: {
-    fontSize: typography.sizes.lg,
-    color: colors.textSecondary,
-  },
-  logoutSection: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
+    fontSize: 16,
+    color: colors.textTertiary,
   },
 });
 

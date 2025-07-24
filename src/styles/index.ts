@@ -1,56 +1,64 @@
 import { Dimensions } from 'react-native';
 
-// Color Palette - From your beautiful original design
+// Updated Color Palette - Clean minimal design
 export const colors = {
-  // Primary Colors (from your original design)
-  primary: '#4A7C3A',       // Main green
-  primaryLight: '#5A8A4A',
-  primaryDark: '#2C3E26',
+  // Base colors for minimal timeline design
+  background: '#FAFAFA',        // Light gray background
+  surface: '#FFFFFF',           // White cards/surfaces
+  border: '#F0F0F0',           // Light borders
+  borderLight: '#F8F8F8',      // Even lighter borders
   
-  // Secondary Colors 
-  secondary: '#D4AF37',     // Gold
-  secondaryLight: '#E6C759',
-  secondaryDark: '#B8930F',
+  // Text hierarchy
+  textPrimary: '#333333',       // Main text
+  textSecondary: '#666666',     // Secondary text
+  textTertiary: '#999999',      // Tertiary text/labels
+  textDisabled: '#CCCCCC',      // Disabled text
   
-  // Neutral Colors (from your design)
-  background: '#F7F3E9',    // Parchment background
-  surface: '#FEFEFE',       // White cards
-  surfaceSecondary: '#F5F5F5', // Light gray for tabs
-  border: '#E5E7EB',        // Light border
-  borderLight: '#F0F0F0',   // Even lighter border
+  // Configurable accent colors (user can choose theme)
+  accentPrimary: '#FF6B9D',     // Pink - for shared tasks, today indicator
+  accentSecondary: '#6B73FF',   // Blue - default accent
+  accentWarning: '#FF6B6B',     // Red - high priority, errors
+  accentSuccess: '#4CAF50',     // Green - completed states
+  accentInfo: '#17A2B8',        // Teal - info states
   
-  // Text Colors
-  textPrimary: '#2C3E26',   // Dark green text
-  textSecondary: '#5A6B54', // Medium green-gray
-  textTertiary: '#9CA3AF',  // Light gray
+  // Legacy colors (keeping for backward compatibility)
+  primary: '#FF6B9D',           // Maps to accentPrimary
+  primaryLight: '#FF8FB3',
+  primaryDark: '#E55A89',
   
-  // Status Colors
-  success: '#4A7C3A',       // Green
-  error: '#EF4444',         // Red
-  warning: '#D4AF37',       // Gold
-  info: '#B8D4E3',          // Light blue
+  secondary: '#6B73FF',         // Maps to accentSecondary
+  secondaryLight: '#8B93FF',
+  secondaryDark: '#4B53DD',
   
-  // Special Colors
+  // Status colors
+  success: '#4CAF50',
+  error: '#FF6B6B',
+  warning: '#FFC107',
+  info: '#17A2B8',
+  
+  // Task-specific colors
+  completed: '#999999',         // Completed task text
+  todo: '#FF6B9D',             // TODO status
+  shared: '#FF6B9D',           // Shared task indicator
+  individual: '#6B73FF',        // Individual task indicator
+  
+  // Timeline specific
+  timelineDot: '#E0E0E0',
+  timelineActive: '#FF6B9D',    // Active timeline elements
+  
+  // Special colors
   white: '#FFFFFF',
   black: '#000000',
   
-  // Couple-themed Colors
-  heart: '#EF4444',         // Red for love/heart
-  couple: '#EC4899',        // Pink for couples
-  
-  // Task specific colors
-  shared: '#D4AF37',        // Gold for shared tasks
-  individual: '#4A7C3A',    // Green for individual tasks
-  lightBlue: '#B8D4E3',     // From your palette
-  
-  // Timeline colors
-  timelineDot: '#E0E0E0',   // Gray timeline dots
-  timelineActive: '#3D73FF', // Blue for active/highlighted
-  
-  // UI Enhancement colors (from your original design)
+  // Shadows and overlays
   shadowColor: 'rgba(0,0,0,0.08)',
   overlayLight: 'rgba(255,255,255,0.95)',
   overlayDark: 'rgba(0,0,0,0.8)',
+  
+  // Legacy couple-themed colors
+  heart: '#FF6B6B',
+  couple: '#FF6B9D',
+  lightBlue: '#B8D4E3',
 } as const;
 
 // Typography Scale
@@ -64,6 +72,7 @@ export const typography = {
     xxl: 24,
     xxxl: 28,
     title: 32,
+    display: 48,    // For large date numbers
   },
   weights: {
     light: '300' as const,
@@ -100,8 +109,15 @@ export const borderRadius = {
   round: 50,
 } as const;
 
-// Shadows
+// Shadows - Minimal approach
 export const shadows = {
+  none: {
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
   sm: {
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
@@ -112,14 +128,14 @@ export const shadows = {
   md: {
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
   lg: {
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 5,
   },
@@ -143,3 +159,25 @@ export const layout = {
   isSmallDevice: width < 375,
   isLargeDevice: width >= 414,
 } as const;
+
+// Theme configuration for accent colors
+export const themes = {
+  pink: {
+    primary: '#FF6B9D',
+    secondary: '#6B73FF',
+  },
+  blue: {
+    primary: '#6B73FF',
+    secondary: '#FF6B9D',
+  },
+  green: {
+    primary: '#4CAF50',
+    secondary: '#FF6B9D',
+  },
+  red: {
+    primary: '#FF6B6B',
+    secondary: '#6B73FF',
+  },
+} as const;
+
+export type ThemeKey = keyof typeof themes;

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import GroupedTaskCard from '../../components/tasks/GroupedTaskCard';
 import {
   View,
   Text,
@@ -6,46 +7,198 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
-  TextInput,
-  Dimensions,
+  RefreshControl,
+  Animated,
+  Pressable,
+  Modal
 } from 'react-native';
-import { XStack, YStack } from 'tamagui';
-import { Calendar, Search, Filter, ChevronLeft, ChevronRight } from '@tamagui/lucide-icons';
-import { colors, typography, spacing, shadows } from '../../styles';
-import { useReactions, ReactionDisplay } from '../../components/reactions/ReactionSystem';
+import { Calendar, Users, User } from '@tamagui/lucide-icons';
+import { typography, spacing, shadows } from '../../styles';
+import { useReactions, ReactionDisplay, ReactionSystem } from '../../components/reactions/ReactionSystem';
 
-const { width } = Dimensions.get('window');
+// Updated minimal color palette for clean timeline design
+const colors = {
+  // Base colors
+  background: '#FAFAFA',
+  surface: '#FFFFFF',
+  border: '#F0F0F0',
+  
+  // Text colors
+  textPrimary: '#333333',
+  textSecondary: '#666666',
+  textTertiary: '#999999',
+  textDisabled: '#CCCCCC',
+  
+  // Accent colors (configurable based on user preference)
+  accentPrimary: '#FF6B9D',    // Pink for shared/today
+  accentSecondary: '#6B73FF',  // Blue for default
+  accentWarning: '#FF6B6B',    // Red for high priority
+  accentSuccess: '#4CAF50',    // Green for completed
+  
+  // Status colors
+  completed: '#999999',
+  todo: '#FF6B9D',
+  
+  // Special
+  white: '#FFFFFF',
+  black: '#000000',
+} as const;
 
-// Types for our enhanced tasks
-interface Task {
+// Enhanced Task interface
+interface EnhancedTask {
   id: string;
   title: string;
-  subtitle: string;
-  emoji: string;
+  subtitle?: string;
+  emoji?: string;
   time: string;
-  endTime: string;
+  endTime?: string;
   date: string;
   isShared: boolean;
   isCompleted: boolean;
   assignedTo: string[];
   category?: string;
-  gradientColors: string[];
+  groupId?: string; // Link to task group
   reactions: Array<{
     emoji: string;
     count: number;
     isFromPartner: boolean;
+    users: string[];
   }>;
+  priority: 'low' | 'medium' | 'high';
+  progress?: number;
 }
 
-// Generate week dates around today
-const generateWeekDates = () => {
+// Task Group interface
+interface TaskGroup {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  reward: string;
+  createdAt: Date;
+  completedAt?: Date;
+  isCompleted: boolean;
+  participants: string[];
+}
+
+// Encouragement Modal Component
+interface EncouragementModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onEncouragementSelect: (emoji: string) => void;
+}
+
+const EncouragementModal: React.FC<EncouragementModalProps> = ({
+  visible,
+  onClose,
+  onEncouragementSelect,
+}) => {
+  const [slideAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0));
+
+  const encouragementOptions = [
+    { emoji: '💪', label: 'You got this!' },
+    { emoji: '🔥', label: 'On fire!' },
+    { emoji: '⭐', label: 'You\'re a star!' },
+    { emoji: '🎉', label: 'Let\'s celebrate!' },
+  ];
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const handleEncouragementPress = (emoji: string) => {
+    onEncouragementSelect(emoji);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.encouragementOverlay} onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.encouragementContainer,
+            {
+              transform: [
+                {
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [100, 0],
+                  }),
+                },
+                { scale: scaleAnim },
+              ],
+              opacity: slideAnim,
+            },
+          ]}
+        >
+          <View style={styles.encouragementContent}>
+            <Text style={styles.encouragementTitle}>Send Encouragement</Text>
+            <Text style={styles.encouragementSubtitle}>Motivate your partner to complete this task!</Text>
+            
+            <View style={styles.encouragementOptions}>
+              {encouragementOptions.map((option, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => handleEncouragementPress(option.emoji)}
+                  style={styles.encouragementOption}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.encouragementEmoji}>{option.emoji}</Text>
+                  <Text style={styles.encouragementLabel}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// Generate dates for timeline (showing past and future days)
+const generateTimelineDates = () => {
   const today = new Date();
   const dates = [];
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
-  // Get 5 days starting from 2 days ago
-  for (let i = -2; i <= 2; i++) {
+  // Get 7 days: 2 past, today, 4 future
+  for (let i = -2; i <= 4; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     dates.push({
@@ -55,205 +208,384 @@ const generateWeekDates = () => {
       fullDate: date,
       month: months[date.getMonth()],
       year: date.getFullYear(),
+      dayKey: date.toISOString().split('T')[0],
     });
   }
   return dates;
 };
 
-// Enhanced mock data with gradients
-const mockTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Morning Workout',
-    subtitle: 'Strength training session at the gym',
-    emoji: '💪',
-    time: '8:00',
-    endTime: '9:00',
-    date: 'today',
-    isShared: false,
-    isCompleted: false,
-    assignedTo: ['Alex'],
-    category: 'HEALTH',
-    gradientColors: ['#FFE5B4', '#FFEAA7'], // Light peach
-    reactions: [{ emoji: '🔥', count: 1, isFromPartner: true }],
-  },
-  {
-    id: '2',
-    title: 'Grocery Shopping Together',
-    subtitle: 'Weekly meal prep ingredients for healthy cooking',
-    emoji: '🛒',
-    time: '10:30',
-    endTime: '11:45',
-    date: 'today',
-    isShared: true,
-    isCompleted: false,
-    assignedTo: ['Alex', 'Blake'],
-    category: 'SHARED',
-    gradientColors: ['#A8E6CF', '#DCEDC1'], // Light green
-    reactions: [
-      { emoji: '💖', count: 1, isFromPartner: true },
-      { emoji: '👍', count: 1, isFromPartner: false },
-    ],
-  },
-  {
-    id: '3',
-    title: 'Read "Atomic Habits"',
-    subtitle: 'Chapter 5: The Best Way to Start New Habits',
-    emoji: '📚',
-    time: '14:00',
-    endTime: '15:00',
-    date: 'today',
-    isShared: false,
-    isCompleted: true,
-    assignedTo: ['Blake'],
-    category: 'LEARNING',
-    gradientColors: ['#C7CEEA', '#B8C6DB'], // Light blue
-    reactions: [{ emoji: '🌟', count: 2, isFromPartner: false }],
-  },
-  {
-    id: '4',
-    title: 'Cook Dinner Date',
-    subtitle: 'Trying the new pasta recipe we found',
-    emoji: '🍽️',
-    time: '18:00',
-    endTime: '19:30',
-    date: 'today',
-    isShared: true,
-    isCompleted: false,
-    assignedTo: ['Alex', 'Blake'],
-    category: 'TOGETHER',
-    gradientColors: ['#FFB6C1', '#FFC0CB'], // Light pink
-    reactions: [
-      { emoji: '😋', count: 1, isFromPartner: true },
-      { emoji: '🎉', count: 1, isFromPartner: false },
-    ],
-  },
-];
-
 const TimelineScreen: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<'All' | 'Mine' | 'Shared'>('All');
-  const [selectedDateIndex, setSelectedDateIndex] = useState(2); // Today is index 2
-  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [encouragementModalVisible, setEncouragementModalVisible] = useState(false);
+  const [selectedTaskForEncouragement, setSelectedTaskForEncouragement] = useState<string | null>(null);
   
-  const weekDates = generateWeekDates();
-  const selectedDate = weekDates[selectedDateIndex];
+  // Task Groups State
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([
+    {
+      id: 'group1',
+      title: 'Healthy Week Challenge',
+      description: 'Let\'s build healthy habits together',
+      emoji: '🏃‍♀️',
+      reward: 'Spa Day Together',
+      createdAt: new Date(),
+      isCompleted: false,
+      participants: ['Alex', 'Blake'],
+    },
+    {
+      id: 'group2',
+      title: 'Home Organization Sprint',
+      description: 'Get our space organized and clutter-free',
+      emoji: '🏠',
+      reward: 'Movie Night with Takeout',
+      createdAt: new Date(),
+      isCompleted: false,
+      participants: ['Alex', 'Blake'],
+    }
+  ]);
 
-  const filteredTasks = mockTasks.filter(task => {
-    const matchesFilter = selectedFilter === 'All' || 
-      (selectedFilter === 'Mine' && !task.isShared) ||
-      (selectedFilter === 'Shared' && task.isShared);
-    
-    const matchesSearch = searchQuery === '' || 
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.subtitle.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesFilter && matchesSearch;
+  // Enhanced mock data organized by date with groupId
+  const [tasks, setTasks] = useState<Record<string, EnhancedTask[]>>({
+    'today': [
+      {
+        id: '1',
+        title: 'Morning Workout',
+        subtitle: 'Strength training session at the gym',
+        emoji: '💪',
+        time: '8:00 AM',
+        groupId: 'group1', // Link to Healthy Week Challenge
+        date: 'today',
+        isShared: true,
+        isCompleted: false,
+        assignedTo: ['Alex'],
+        reactions: [],
+        priority: 'high',
+      },
+      {
+        id: '2',
+        title: 'Organize Kitchen Pantry',
+        subtitle: 'Sort and label all items',
+        emoji: '🗂️',
+        time: '2:00 PM',
+        groupId: 'group2', // Link to Home Organization Sprint
+        date: 'today',
+        isShared: true,
+        isCompleted: true,
+        assignedTo: ['Blake'],
+        reactions: [{ emoji: '🎉', count: 1, isFromPartner: true, users: ['Alex'] }],
+        priority: 'medium',
+      },
+      {
+        id: '7',
+        title: 'Lunch Meeting',
+        subtitle: 'Quarterly review with team',
+        emoji: '🍽️',
+        time: '12:30 PM',
+        date: 'today',
+        isShared: false,
+        isCompleted: true,
+        assignedTo: ['Alex'],
+        reactions: [],
+        priority: 'high',
+      },
+    ],
+    'tomorrow': [
+      {
+        id: '3',
+        title: 'Evening Yoga Session',
+        emoji: '🧘‍♀️',
+        time: '7:00 PM',
+        groupId: 'group1', // Link to Healthy Week Challenge
+        date: 'tomorrow',
+        isShared: true,
+        isCompleted: false,
+        assignedTo: ['Alex', 'Blake'],
+        reactions: [],
+        priority: 'medium',
+      },
+      {
+        id: '4',
+        title: 'Declutter Bedroom',
+        emoji: '🛏️',
+        time: '10:00 AM',
+        groupId: 'group2', // Link to Home Organization Sprint
+        date: 'tomorrow',
+        isShared: true,
+        isCompleted: false,
+        assignedTo: ['Alex', 'Blake'],
+        reactions: [],
+        priority: 'low',
+      },
+      {
+        id: '5',
+        title: 'Groceries',
+        emoji: '🛒',
+        time: '4:00 PM',
+        date: 'tomorrow',
+        isShared: true,
+        isCompleted: false,
+        assignedTo: ['Alex', 'Blake'],
+        reactions: [],
+        priority: 'medium',
+      },
+    ],
+    'saturday': [
+      {
+        id: '6',
+        title: 'Hiking Trip',
+        emoji: '🥾',
+        time: 'TODO',
+        groupId: 'group1', // Link to Healthy Week Challenge
+        date: 'saturday',
+        isShared: true,
+        isCompleted: false,
+        assignedTo: ['Alex', 'Blake'],
+        reactions: [],
+        priority: 'high',
+      },
+    ],
   });
+  
+  const timelineDates = generateTimelineDates();
+  
+  // Get tasks for a specific date key
+  const getTasksForDate = (dateKey: string, isToday: boolean) => {
+    let taskList: EnhancedTask[] = [];
+    
+    if (isToday) {
+      taskList = tasks['today'] || [];
+    } else if (dateKey === 'tomorrow') {
+      taskList = tasks['tomorrow'] || [];
+    } else if (dateKey === 'saturday') {
+      taskList = tasks['saturday'] || [];
+    }
+    
+    // Apply filter and exclude grouped tasks (they'll be shown in GroupedTaskCard)
+    return taskList.filter(task => {
+      const matchesFilter = selectedFilter === 'All' || 
+        (selectedFilter === 'Mine' && !task.isShared) ||
+        (selectedFilter === 'Shared' && task.isShared);
+      
+      const isNotGrouped = !task.groupId; // Only show non-grouped tasks in regular timeline
+      
+      return matchesFilter && isNotGrouped;
+    });
+  };
 
-  const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
+  // Get grouped tasks for display
+  const getGroupedTasks = (): { [groupId: string]: EnhancedTask[] } => {
+    const groupedTasks: { [groupId: string]: EnhancedTask[] } = {};
+    
+    Object.values(tasks).flat().forEach(task => {
+      if (task.groupId) {
+        if (!groupedTasks[task.groupId]) {
+          groupedTasks[task.groupId] = [];
+        }
+        groupedTasks[task.groupId].push(task);
+      }
+    });
+    
+    return groupedTasks;
+  };
+
+  // Filter grouped tasks based on current filter
+  const getFilteredGroupedTasks = () => {
+    const groupedTasks = getGroupedTasks();
+    const filteredGroups: { [groupId: string]: EnhancedTask[] } = {};
+    
+    Object.keys(groupedTasks).forEach(groupId => {
+      const filteredTasks = groupedTasks[groupId].filter(task => {
+        return selectedFilter === 'All' || 
+          (selectedFilter === 'Mine' && !task.isShared) ||
+          (selectedFilter === 'Shared' && task.isShared);
+      });
+      
+      if (filteredTasks.length > 0) {
+        filteredGroups[groupId] = filteredTasks;
+      }
+    });
+    
+    return filteredGroups;
+  };
+
+  // Toggle task completion
+  const toggleTaskCompletion = (taskId: string) => {
+    setTasks(prevTasks => {
+      const newTasks = { ...prevTasks };
+      
+      // Find and update the task in all date categories
+      Object.keys(newTasks).forEach(dateKey => {
+        newTasks[dateKey] = newTasks[dateKey].map(task => {
+          if (task.id === taskId) {
+            return { ...task, isCompleted: !task.isCompleted };
+          }
+          return task;
+        });
+      });
+      
+      return newTasks;
+    });
+  };
+
+  // Handle reward claiming
+  const handleRewardClaim = (group: TaskGroup) => {
+    setTaskGroups(prev => 
+      prev.map(g => 
+        g.id === group.id 
+          ? { ...g, completedAt: new Date(), isCompleted: true }
+          : g
+      )
+    );
+  };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
+
+  const TaskItem: React.FC<{ task: EnhancedTask }> = ({ task }) => {
     const { reactions, toggleReaction } = useReactions(task.reactions);
+    const [scaleAnim] = useState(new Animated.Value(1));
 
     const handleTaskPress = () => {
-      // Navigate to task detail
-      console.log('Navigate to task detail:', task.id);
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.98,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Toggle task completion
+      toggleTaskCompletion(task.id);
     };
 
-    const handleEmojiPress = () => {
-      toggleReaction('🎉', false, 'current-user');
+    const handleSharedIconPress = () => {
+      if (task.isShared) {
+        setSelectedTaskForEncouragement(task.id);
+        setEncouragementModalVisible(true);
+      }
+    };
+
+    const getAccentColor = () => {
+      if (task.isShared) return colors.accentPrimary; // Pink accent for shared
+      if (task.priority === 'high') return colors.accentWarning; // Red accent for high priority
+      return colors.accentSecondary; // Blue accent default
     };
 
     return (
-      <TouchableOpacity 
-        style={[
-          styles.taskCard,
-          { backgroundColor: task.gradientColors[0] },
-          task.isCompleted && styles.taskCardCompleted
-        ]}
-        onPress={handleTaskPress}
-        activeOpacity={0.8}
-      >
-        {/* Task Header */}
-        <View style={styles.taskHeader}>
-          <View style={styles.taskHeaderLeft}>
-            <View style={styles.taskTitleRow}>
-              <TouchableOpacity onPress={handleEmojiPress}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable onPress={handleTaskPress} style={styles.taskItem}>
+          <View style={styles.taskContent}>
+            {/* Time or Status */}
+            <View style={styles.taskTimeContainer}>
+              {task.isCompleted ? (
+                <Text style={styles.taskStatusDone}>DONE</Text>
+              ) : task.time === 'TODO' ? (
+                <Text style={[styles.taskStatusTodo, { color: getAccentColor() }]}>TODO</Text>
+              ) : (
+                <Text style={[styles.taskTime, { color: getAccentColor() }]}>{task.time}</Text>
+              )}
+            </View>
+
+            {/* Task Details */}
+            <View style={styles.taskDetails}>
+              <View style={styles.taskTitleRow}>
+                {task.emoji && (
+                  <Text style={styles.taskEmoji}>{task.emoji}</Text>
+                )}
                 <Text style={[
-                  styles.taskEmoji,
-                  task.isCompleted && styles.taskEmojiCompleted
+                  styles.taskTitle,
+                  task.isCompleted && styles.taskTitleCompleted
                 ]}>
-                  {task.emoji}
+                  {task.title}
                 </Text>
-              </TouchableOpacity>
-              <Text style={[
-                styles.taskTitle,
-                task.isCompleted && styles.taskTitleCompleted
-              ]}>
-                {task.title}
-              </Text>
+                
+                {/* Shared indicator - clickable for encouragement */}
+                {task.isShared && (
+                  <TouchableOpacity 
+                    onPress={handleSharedIconPress}
+                    style={styles.sharedIndicator}
+                  >
+                    <Users size={12} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {task.subtitle && (
+                <Text style={[
+                  styles.taskSubtitle,
+                  task.isCompleted && styles.taskSubtitleCompleted
+                ]}>
+                  {task.subtitle}
+                </Text>
+              )}
             </View>
-            <Text style={styles.taskTime}>
-              {task.time} - {task.endTime} AM (UTC)
-            </Text>
           </View>
-          
-          {/* Category Badge */}
-          {task.category && (
-            <View style={[
-              styles.categoryBadge,
-              task.isShared && styles.categoryBadgeShared
-            ]}>
-              <Text style={[
-                styles.categoryText,
-                task.isShared && styles.categoryTextShared
-              ]}>
-                {task.category}
-              </Text>
+
+          {/* Reactions */}
+          {reactions.length > 0 && (
+            <View style={styles.reactionsContainer}>
+              <ReactionDisplay 
+                reactions={reactions} 
+                onReactionPress={(reaction) => console.log('Reaction pressed:', reaction)}
+              />
             </View>
           )}
-        </View>
-
-        {/* Task Description */}
-        <Text style={styles.taskSubtitle}>{task.subtitle}</Text>
-
-        {/* Avatars & Additional Info */}
-        <XStack justifyContent="space-between" alignItems="center" marginTop="$3">
-          <XStack alignItems="center" gap="$2">
-            {task.assignedTo.map((person, index) => (
-              <View key={index} style={styles.avatar}>
-                <Text style={styles.avatarText}>{person.charAt(0)}</Text>
-              </View>
-            ))}
-            {task.assignedTo.length > 2 && (
-              <View style={[styles.avatar, styles.avatarMore]}>
-                <Text style={styles.avatarText}>+{task.assignedTo.length - 2}</Text>
-              </View>
-            )}
-          </XStack>
-          
-          {task.isShared && (
-            <Text style={styles.platformText}>Together 🤝</Text>
-          )}
-        </XStack>
-
-        {/* Reactions */}
-        {reactions.length > 0 && (
-          <View style={styles.reactionsContainer}>
-            <ReactionDisplay 
-              reactions={reactions} 
-              onReactionPress={(reaction) => console.log('Reaction pressed:', reaction)}
-            />
-          </View>
-        )}
-
-        {/* Progress for completed tasks */}
-        {task.isCompleted && (
-          <View style={styles.completedIndicator}>
-            <Text style={styles.completedText}>✓ Completed</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+        </Pressable>
+      </Animated.View>
     );
   };
+
+  const DateSection: React.FC<{ dateInfo: any }> = ({ dateInfo }) => {
+    const tasks = getTasksForDate(
+      dateInfo.isToday ? 'today' : 
+      dateInfo.day === 'Thursday' ? 'tomorrow' : 
+      dateInfo.day === 'Saturday' ? 'saturday' : 'none', 
+      dateInfo.isToday
+    );
+
+    if (tasks.length === 0) return null;
+
+    return (
+      <View style={styles.dateSection}>
+        {/* Date Header */}
+        <View style={styles.dateHeader}>
+          <Text style={[
+            styles.dateNumber,
+            dateInfo.isToday && styles.dateNumberToday
+          ]}>
+            {dateInfo.date}
+          </Text>
+          <View style={styles.dateInfo}>
+            <Text style={[
+              styles.dateName,
+              dateInfo.isToday && styles.dateNameToday
+            ]}>
+              {dateInfo.day}
+            </Text>
+            <Text style={styles.dateMonth}>{dateInfo.month}</Text>
+          </View>
+        </View>
+
+        {/* Tasks for this date */}
+        <View style={styles.tasksContainer}>
+          {tasks.map((task) => (
+            <TaskItem key={task.id} task={task} />
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const filteredGroupedTasks = getFilteredGroupedTasks();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -265,75 +597,16 @@ const TimelineScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Month/Year Display */}
-      <View style={styles.monthHeader}>
-        <TouchableOpacity>
-          <ChevronLeft size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <Text style={styles.monthText}>
-          {selectedDate.month}, {selectedDate.year}
-        </Text>
-        <TouchableOpacity>
-          <ChevronRight size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Date Strip */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.dateStrip}
-        contentContainerStyle={styles.dateStripContent}
-      >
-        {weekDates.map((dateInfo, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => setSelectedDateIndex(index)}
-            style={[
-              styles.dateItem,
-              selectedDateIndex === index && styles.dateItemSelected
-            ]}
-          >
-            <Text style={[
-              styles.dayText,
-              selectedDateIndex === index && styles.dayTextSelected
-            ]}>
-              {dateInfo.day}
-            </Text>
-            <Text style={[
-              styles.dateText,
-              selectedDateIndex === index && styles.dateTextSelected
-            ]}>
-              {dateInfo.date.toString().padStart(2, '0')}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Search size={18} color={colors.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <Filter size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
         {(['All', 'Mine', 'Shared'] as const).map((filter) => (
           <TouchableOpacity
             key={filter}
             onPress={() => setSelectedFilter(filter)}
-            style={styles.filterTab}
+            style={[
+              styles.filterTab,
+              selectedFilter === filter && styles.filterTabActive
+            ]}
           >
             <Text style={[
               styles.filterTabText,
@@ -341,33 +614,65 @@ const TimelineScreen: React.FC = () => {
             ]}>
               {filter}
             </Text>
-            {selectedFilter === filter && <View style={styles.filterTabIndicator} />}
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Tasks List */}
+      {/* Timeline */}
       <ScrollView 
-        style={styles.tasksList} 
+        style={styles.timeline} 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.tasksListContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textSecondary}
+            colors={[colors.textSecondary]}
+          />
+        }
       >
-        {filteredTasks.map((task) => (
-          <TaskCard key={task.id} task={task} />
-        ))}
-        
-        {filteredTasks.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateEmoji}>🌟</Text>
-            <Text style={styles.emptyStateTitle}>No tasks found</Text>
-            <Text style={styles.emptyStateSubtitle}>
-              {searchQuery ? 'Try adjusting your search' : 'Create your first task to get started'}
-            </Text>
-          </View>
-        )}
+        <View style={styles.timelineContent}>
+          {/* Render Grouped Tasks First */}
+          {taskGroups.map(group => {
+            const groupTasks = filteredGroupedTasks[group.id] || [];
+            if (groupTasks.length === 0) return null;
+            
+            return (
+              <GroupedTaskCard
+                key={group.id}
+                group={group}
+                tasks={groupTasks}
+                onTaskPress={(task) => {
+                  console.log('Task pressed:', task.title);
+                  // Navigate to task detail or handle task interaction
+                }}
+                onTaskToggle={toggleTaskCompletion}
+                onRewardClaim={handleRewardClaim}
+              />
+            );
+          })}
 
+          {/* Render Individual Timeline Tasks */}
+          {timelineDates.map((dateInfo, index) => (
+            <DateSection key={index} dateInfo={dateInfo} />
+          ))}
+        </View>
+        
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Encouragement Modal */}
+      <EncouragementModal
+        visible={encouragementModalVisible}
+        onClose={() => setEncouragementModalVisible(false)}
+        onEncouragementSelect={(emoji) => {
+          if (selectedTaskForEncouragement) {
+            console.log('Encouragement sent:', emoji, 'for task:', selectedTaskForEncouragement);
+            // Here you would send the encouragement to your partner
+          }
+          setEncouragementModalVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -378,283 +683,229 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitle: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-  },
-  monthText: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.semibold,
-    color: colors.textPrimary,
-  },
-  dateStrip: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  dateStripContent: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    gap: spacing.sm,
-  },
-  dateItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 16,
-    minWidth: 50,
-    backgroundColor: 'transparent',
-  },
-  dateItemSelected: {
-    backgroundColor: colors.timelineActive,
-    ...shadows.sm,
-  },
-  dayText: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    marginBottom: 2,
-    fontWeight: typography.weights.medium,
-  },
-  dayTextSelected: {
-    color: colors.white,
-  },
-  dateText: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-  },
-  dateTextSelected: {
-    color: colors.white,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: typography.sizes.md,
-    color: colors.textPrimary,
-    padding: 0,
-  },
-  filterButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  filterTab: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    marginRight: spacing.md,
-    position: 'relative',
-  },
-  filterTabText: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.medium,
-    color: colors.textSecondary,
-  },
-  filterTabTextActive: {
-    color: colors.timelineActive,
-    fontWeight: typography.weights.semibold,
-  },
-  filterTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: spacing.md,
-    right: spacing.md,
-    height: 2,
-    backgroundColor: colors.timelineActive,
-    borderRadius: 1,
-  },
-  tasksList: {
-    flex: 1,
-  },
-  tasksListContent: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  taskCard: {
-    borderRadius: 16,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-    ...shadows.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  taskCardCompleted: {
-    opacity: 0.7,
-  },
-  taskEmoji: {
-    fontSize: 24,
-  },
-  taskEmojiCompleted: {
-    opacity: 0.6,
-  },
-  taskTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  taskTitleCompleted: {
-    textDecorationLine: 'line-through',
-    color: colors.textSecondary,
-  },
-  taskTime: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
-    marginLeft: 32, // Offset for emoji
-  },
-  taskSubtitle: {
-    fontSize: typography.sizes.md,
-    color: colors.textPrimary,
-    lineHeight: typography.lineHeights.relaxed * typography.sizes.md,
-    marginVertical: spacing.sm,
-  },
-  categoryBadge: {
-    backgroundColor: colors.warning,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryBadgeShared: {
-    backgroundColor: colors.secondary,
-  },
-  categoryText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.white,
-    letterSpacing: 0.5,
-  },
-  categoryTextShared: {
-    color: colors.white,
+    borderBottomColor: colors.border,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: 8,
   },
-  taskHeader: {
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  filterTabs: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  taskHeaderLeft: {
+  filterTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  filterTabActive: {
+    backgroundColor: colors.background,
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textTertiary,
+  },
+  filterTabTextActive: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  timeline: {
+    flex: 1,
+  },
+  timelineContent: {
+    paddingTop: 20,
+  },
+  dateSection: {
+    marginBottom: 40,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  dateNumber: {
+    fontSize: 48,
+    fontWeight: '300',
+    color: colors.textDisabled,
+    lineHeight: 48,
+    marginRight: 20,
+    minWidth: 80,
+  },
+  dateNumberToday: {
+    color: colors.accentPrimary,
+    fontWeight: '400',
+  },
+  dateInfo: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 8,
+  },
+  dateName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  dateNameToday: {
+    color: colors.accentPrimary,
+  },
+  dateMonth: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    fontWeight: '400',
+  },
+  tasksContainer: {
+    paddingLeft: 100, // Align with date info
+    paddingRight: 20,
+  },
+  taskItem: {
+    marginBottom: 16,
+    backgroundColor: 'transparent',
+  },
+  taskContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  taskTimeContainer: {
+    minWidth: 60,
+    alignItems: 'flex-start',
+  },
+  taskStatusDone: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.completed,
+    letterSpacing: 0.5,
+  },
+  taskStatusTodo: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  taskTime: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  taskDetails: {
     flex: 1,
   },
   taskTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: 8,
+    marginBottom: 2,
   },
-  taskFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.md,
+  taskEmoji: {
+    fontSize: 16,
   },
-  
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
+  taskTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  taskTitleCompleted: {
+    color: colors.completed,
+  },
+  sharedIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.white,
   },
-  avatarMore: {
-    backgroundColor: colors.textSecondary,
-  },
-  avatarText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.white,
-  },
-  platformText: {
-    fontSize: typography.sizes.sm,
+  taskSubtitle: {
+    fontSize: 14,
     color: colors.textSecondary,
-    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  taskSubtitleCompleted: {
+    color: colors.textTertiary,
   },
   reactionsContainer: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.5)',
+    marginTop: 8,
+    marginLeft: 76, // Align with task content
   },
-  completedIndicator: {
-    marginTop: spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  completedText: {
-    fontSize: typography.sizes.sm,
-    color: colors.success,
-    fontWeight: typography.weights.semibold,
-  },
-  emptyState: {
+  
+  // Encouragement Modal Styles
+  encouragementOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.xxxl,
+    padding: 20,
   },
-  emptyStateEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.md,
+  encouragementContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 320,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  emptyStateTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.semibold,
+  encouragementContent: {
+    alignItems: 'center',
+  },
+  encouragementTitle: {
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
+    marginBottom: 8,
+    textAlign: 'center',
   },
-  emptyStateSubtitle: {
-    fontSize: typography.sizes.md,
+  encouragementSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  encouragementOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  encouragementOption: {
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    minWidth: 80,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  encouragementEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  encouragementLabel: {
+    fontSize: 12,
+    fontWeight: '500',
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: typography.lineHeights.relaxed * typography.sizes.md,
   },
 });
 
