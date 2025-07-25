@@ -1,5 +1,5 @@
-// src/screens/profile/ProfileScreen.tsx
-import React, { useState } from 'react';
+// src/screens/profile/ProfileScreen.tsx - Updated with Supabase
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Share,
 } from 'react-native';
 import { colors, typography, spacing, shadows } from '../../styles';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabase';
 
 interface UserStats {
   tasksCompleted: number;
@@ -24,6 +26,15 @@ interface UserStats {
   joinedDate: Date;
 }
 
+interface ProfileData {
+  id: string;
+  name: string;
+  email: string;
+  partner_code: string;
+  partner_id?: string;
+  created_at: string;
+}
+
 interface PartnerInfo {
   name: string;
   avatar: string;
@@ -33,21 +44,24 @@ interface PartnerInfo {
 }
 
 const ProfileScreen: React.FC = () => {
+  const { user, logout } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cheerNotifications, setCheerNotifications] = useState(true);
   const [partnerUpdates, setPartnerUpdates] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock user data - replace with your actual user data
+  // Mock user stats - we'll make these real later
   const userStats: UserStats = {
-    tasksCompleted: 247,
-    sharedGoals: 89,
-    streak: 12,
-    totalPoints: 3420,
+    tasksCompleted: 0, // We'll calculate this from real tasks
+    sharedGoals: 0,
+    streak: 0,
+    totalPoints: 0,
     weeklyGoal: 15,
-    weeklyProgress: 11,
-    joinedDate: new Date('2024-01-15'),
+    weeklyProgress: 0,
+    joinedDate: user?.createdAt || new Date(),
   };
 
   const partner: PartnerInfo = {
@@ -55,15 +69,46 @@ const ProfileScreen: React.FC = () => {
     avatar: 'B',
     tasksCompleted: 203,
     sharedWith: 89,
-    isConnected: true,
+    isConnected: false, // Will be true when they have a partner
   };
 
+  // Fetch user profile data from Supabase
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!user) return;
+
+      try {
+        console.log('🔍 Fetching profile data for:', user.id);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Profile fetch failed:', error);
+          return;
+        }
+
+        console.log('✅ Profile data fetched:', data);
+        setProfileData(data);
+      } catch (error) {
+        console.error('❌ Profile fetch error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [user]);
+
   const achievements = [
-    { title: 'First Steps', description: 'Completed your first task', emoji: '👶', earned: true },
-    { title: 'Team Player', description: 'Completed 50 shared goals', emoji: '🤝', earned: true },
-    { title: 'Streak Master', description: '7 day completion streak', emoji: '🔥', earned: true },
-    { title: 'Goal Crusher', description: 'Complete 100 tasks', emoji: '💪', earned: true },
-    { title: 'Supportive Partner', description: 'Give 100 cheers', emoji: '🎉', earned: false },
+    { title: 'First Steps', description: 'Created your account', emoji: '👶', earned: true },
+    { title: 'Task Creator', description: 'Created your first task', emoji: '✨', earned: false },
+    { title: 'Team Player', description: 'Connected with your partner', emoji: '🤝', earned: !!profileData?.partner_id },
+    { title: 'Goal Crusher', description: 'Complete 10 tasks', emoji: '💪', earned: false },
+    { title: 'Streak Master', description: '7 day completion streak', emoji: '🔥', earned: false },
     { title: 'Consistency King', description: '30 day streak', emoji: '👑', earned: false },
   ];
 
@@ -76,9 +121,15 @@ const ProfileScreen: React.FC = () => {
         { 
           text: 'Sign Out', 
           style: 'destructive', 
-          onPress: () => {
-            // Handle logout logic
-            console.log('User signed out');
+          onPress: async () => {
+            try {
+              console.log('🚀 Signing out...');
+              await logout();
+              console.log('✅ Logout successful');
+            } catch (error) {
+              console.error('❌ Logout failed:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
           }
         }
       ]
@@ -87,8 +138,16 @@ const ProfileScreen: React.FC = () => {
 
   const handleExportData = async () => {
     try {
+      const exportData = {
+        user: user?.name,
+        email: user?.email,
+        partnerCode: profileData?.partner_code,
+        joinedDate: user?.createdAt,
+        // Add more data as needed
+      };
+
       const result = await Share.share({
-        message: 'Here is my Bini task data export!',
+        message: `Bini Account Data:\n\nName: ${exportData.user}\nEmail: ${exportData.email}\nPartner Code: ${exportData.partnerCode}\nJoined: ${exportData.joinedDate?.toLocaleDateString()}`,
         title: 'Bini Data Export',
       });
     } catch (error) {
@@ -96,15 +155,36 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
-  const handleInvitePartner = () => {
+  const handleSharePartnerCode = () => {
+    if (!profileData?.partner_code) {
+      Alert.alert('Error', 'Partner code not available');
+      return;
+    }
+
     Alert.alert(
-      'Invite Partner',
-      'Send an invitation to connect with your partner on Bini',
+      'Share Partner Code',
+      `Your partner code is: ${profileData.partner_code}\n\nShare this code with your partner so they can connect with you!`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Send Invite', onPress: () => console.log('Invite sent') }
+        { 
+          text: 'Share Code', 
+          onPress: async () => {
+            try {
+              await Share.share({
+                message: `Hey! Join me on Bini using my partner code: ${profileData.partner_code}\n\nLet's achieve our goals together! 💪`,
+                title: 'Join me on Bini!',
+              });
+            } catch (error) {
+              console.error('Share failed:', error);
+            }
+          }
+        }
       ]
     );
+  };
+
+  const handleInvitePartner = () => {
+    handleSharePartnerCode();
   };
 
   const StatCard: React.FC<{ 
@@ -178,6 +258,23 @@ const ProfileScreen: React.FC = () => {
           </View>
           
           <ScrollView style={styles.settingsContent} showsVerticalScrollIndicator={false}>
+            {/* Account Section */}
+            <Text style={styles.settingsSectionTitle}>Account</Text>
+            <SettingRow
+              title="Partner Code"
+              description={`Your code: ${profileData?.partner_code || 'Loading...'}`}
+              onPress={handleSharePartnerCode}
+              emoji="🔗"
+              showArrow
+            />
+            <SettingRow
+              title="Export Data"
+              description="Download your account information"
+              onPress={handleExportData}
+              emoji="📱"
+              showArrow
+            />
+
             {/* Notifications Section */}
             <Text style={styles.settingsSectionTitle}>Notifications</Text>
             <SettingRow
@@ -219,23 +316,6 @@ const ProfileScreen: React.FC = () => {
               showArrow
             />
 
-            {/* Data & Privacy Section */}
-            <Text style={styles.settingsSectionTitle}>Data & Privacy</Text>
-            <SettingRow
-              title="Export Data"
-              description="Download your task history"
-              onPress={handleExportData}
-              emoji="📱"
-              showArrow
-            />
-            <SettingRow
-              title="Privacy Settings"
-              description="Manage your privacy preferences"
-              onPress={() => Alert.alert('Privacy', 'Privacy settings coming soon!')}
-              emoji="🔐"
-              showArrow
-            />
-
             {/* Support Section */}
             <Text style={styles.settingsSectionTitle}>Support</Text>
             <SettingRow
@@ -254,7 +334,7 @@ const ProfileScreen: React.FC = () => {
             />
 
             {/* Danger Zone */}
-            <Text style={styles.settingsSectionTitle}>Account</Text>
+            <Text style={styles.settingsSectionTitle}>Danger Zone</Text>
             <SettingRow
               title="Sign Out"
               onPress={handleLogout}
@@ -270,17 +350,42 @@ const ProfileScreen: React.FC = () => {
     </Modal>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Not logged in</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.profileInfo}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>A</Text>
+            <Text style={styles.profileAvatarText}>
+              {user.name.charAt(0).toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.profileName}>Alex Johnson</Text>
+          <Text style={styles.profileName}>{user.name}</Text>
           <Text style={styles.profileSubtitle}>
-            Your journey together • {Math.floor((new Date().getTime() - userStats.joinedDate.getTime()) / (1000 * 60 * 60 * 24))} days
+            Partner Code: {profileData?.partner_code || 'Loading...'}
+          </Text>
+          <Text style={styles.profileSubtitle}>
+            Member since {user.createdAt.toLocaleDateString()}
           </Text>
         </View>
         
@@ -342,9 +447,9 @@ const ProfileScreen: React.FC = () => {
               color="#FF6B6B"
             />
             <StatCard 
-              title="Total Points" 
-              value={userStats.totalPoints.toLocaleString()} 
-              emoji="⭐" 
+              title="Partner Code" 
+              value={profileData?.partner_code || '...'} 
+              emoji="🔗" 
               color="#FFD93D"
             />
           </View>
@@ -354,16 +459,16 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Partner</Text>
           
-          {partner.isConnected ? (
+          {profileData?.partner_id ? (
             <View style={styles.partnerCard}>
               <View style={styles.partnerInfo}>
                 <View style={styles.partnerAvatar}>
-                  <Text style={styles.partnerAvatarText}>{partner.avatar}</Text>
+                  <Text style={styles.partnerAvatarText}>P</Text>
                 </View>
                 <View style={styles.partnerDetails}>
-                  <Text style={styles.partnerName}>{partner.name}</Text>
+                  <Text style={styles.partnerName}>Partner Connected</Text>
                   <Text style={styles.partnerStats}>
-                    {partner.tasksCompleted} tasks • {partner.sharedWith} together
+                    Working together on shared goals
                   </Text>
                 </View>
               </View>
@@ -376,10 +481,10 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.inviteEmoji}>👋</Text>
               <Text style={styles.inviteTitle}>Invite Your Partner</Text>
               <Text style={styles.inviteDescription}>
-                Share goals and cheer each other on together
+                Share your partner code: {profileData?.partner_code || '...'}
               </Text>
               <TouchableOpacity style={styles.inviteButton} onPress={handleInvitePartner}>
-                <Text style={styles.inviteButtonText}>Send Invitation</Text>
+                <Text style={styles.inviteButtonText}>Share Partner Code</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -439,6 +544,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: typography.sizes.lg,
+    color: colors.textSecondary,
+  },
   profileHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -478,6 +592,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 2,
   },
   settingsButton: {
     width: 44,

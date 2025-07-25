@@ -1,6 +1,7 @@
+// src/context/AuthContext.tsx - Updated to use Supabase
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthContextType, User, LoginCredentials, SignupCredentials } from '../types/auth';
-import LocalAuthService from '../services/auth/localAuth';
+import SupabaseAuthService from '../services/auth/supabaseAuth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -17,10 +18,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing user on app start
     const checkCurrentUser = async () => {
       try {
-        const currentUser = await LocalAuthService.getCurrentUser();
-        setUser(currentUser);
+        console.log('🔍 Checking for current user...');
+        
+        const currentUser = await SupabaseAuthService.getCurrentUser();
+        
+        if (currentUser) {
+          console.log('✅ Current user found:', currentUser.name);
+          setUser(currentUser);
+        } else {
+          console.log('📝 No current user found');
+        }
       } catch (err) {
-        console.log('No existing user found');
+        console.error('❌ Auth check failed:', err);
+        setError('Failed to check authentication status');
       } finally {
         setIsLoading(false);
       }
@@ -35,9 +45,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       clearError();
-      const user = await LocalAuthService.signIn(credentials);
+      
+      console.log('🚀 Attempting login...');
+      const user = await SupabaseAuthService.signIn(credentials);
       setUser(user);
+      console.log('✅ Login successful for:', user.name);
     } catch (err: any) {
+      console.error('❌ Login failed:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -49,9 +63,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       clearError();
-      const user = await LocalAuthService.signUp(credentials);
+      
+      console.log('🚀 Attempting signup...');
+      const user = await SupabaseAuthService.signUp(credentials);
       setUser(user);
+      console.log('✅ Signup successful for:', user.name);
     } catch (err: any) {
+      console.error('❌ Signup failed:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -60,16 +78,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signInWithGoogle = async (): Promise<void> => {
-    throw new Error('Google Sign-In not available in this version');
+    throw new Error('Google Sign-In coming in a future step');
   };
 
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true);
       clearError();
-      await LocalAuthService.signOut();
+      
+      console.log('🚀 Attempting logout...');
+      await SupabaseAuthService.signOut();
       setUser(null);
+      console.log('✅ Logout successful');
     } catch (err: any) {
+      console.error('❌ Logout failed:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -78,8 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const linkPartner = async (data: any): Promise<void> => {
-    // TODO: Implement partner linking logic
-    console.log('Partner linking not implemented yet:', data);
+    console.log('Partner linking coming in a future step:', data);
   };
 
   const value: AuthContextType = {
