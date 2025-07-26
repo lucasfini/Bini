@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useRealTasks } from '../../hooks/useRealTasks';
 import {
   View,
   Text,
@@ -57,13 +58,13 @@ const colors = {
   black: '#000000',
 } as const;
 
-// Enhanced Task interface
+// Enhanced Task interface that matches your SimpleTask but with additional fields
 interface EnhancedTask {
   id: string;
   title: string;
   subtitle?: string;
   emoji?: string;
-  time: string;
+  time?: string;
   endTime?: string;
   date: string;
   isShared: boolean;
@@ -77,7 +78,7 @@ interface EnhancedTask {
     isFromPartner: boolean;
     users: string[];
   }>;
-  priority: 'low' | 'medium' | 'high';
+  priority?: 'low' | 'medium' | 'high';
   progress?: number;
   notes?: string;
 }
@@ -319,7 +320,16 @@ const TimelineScreen: React.FC = () => {
   const [selectedTaskForEncouragement, setSelectedTaskForEncouragement] = useState<string | null>(null);
   const [taskDetailTrayVisible, setTaskDetailTrayVisible] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<EnhancedTask | null>(null);
-  
+
+  // Get real tasks using your existing hook
+  const { 
+    tasks: realTasks, 
+    loading: tasksLoading, 
+    toggleTaskCompletion,
+    refreshTasks,
+    deleteTask
+  } = useRealTasks();
+
   // Task Groups State
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([
     {
@@ -348,107 +358,28 @@ const TimelineScreen: React.FC = () => {
     }
   ]);
 
-  // Enhanced mock data with groups embedded in timeline
-  const [tasks, setTasks] = useState<Record<string, EnhancedTask[]>>({
-    'today': [
-      {
-        id: '1',
-        title: 'Morning Workout',
-        subtitle: 'Strength training session at the gym',
-        emoji: '💪',
-        time: '8:00 AM',
-        groupId: 'group1',
-        date: 'today',
-        isShared: true,
-        isCompleted: false,
-        assignedTo: ['Alex'],
-        reactions: [],
-        priority: 'high',
-      },
-      {
-        id: '2',
-        title: 'Organize Kitchen Pantry',
-        subtitle: 'Sort and label all items',
-        emoji: '🗂️',
-        time: '2:00 PM',
-        groupId: 'group2',
-        date: 'today',
-        isShared: true,
-        isCompleted: true,
-        assignedTo: ['Blake'],
-        reactions: [{ emoji: '🎉', count: 1, isFromPartner: true, users: ['Alex'] }],
-        priority: 'medium',
-      },
-      {
-        id: '7',
-        title: 'Lunch Meeting',
-        subtitle: 'Quarterly review with team',
-        emoji: '🍽️',
-        time: '12:30 PM',
-        date: 'today',
-        isShared: false,
-        isCompleted: true,
-        assignedTo: ['Alex'],
-        reactions: [],
-        priority: 'high',
-      },
-    ],
-    'tomorrow': [
-      {
-        id: '3',
-        title: 'Evening Yoga Session',
-        emoji: '🧘‍♀️',
-        time: '7:00 PM',
-        groupId: 'group1',
-        date: 'tomorrow',
-        isShared: true,
-        isCompleted: false,
-        assignedTo: ['Alex', 'Blake'],
-        reactions: [],
-        priority: 'medium',
-      },
-      {
-        id: '4',
-        title: 'Declutter Bedroom',
-        emoji: '🛏️',
-        time: '10:00 AM',
-        groupId: 'group2',
-        date: 'tomorrow',
-        isShared: true,
-        isCompleted: false,
-        assignedTo: ['Alex', 'Blake'],
-        reactions: [],
-        priority: 'low',
-      },
-      {
-        id: '5',
-        title: 'Groceries',
-        emoji: '🛒',
-        time: '4:00 PM',
-        date: 'tomorrow',
-        isShared: true,
-        isCompleted: false,
-        assignedTo: ['Alex', 'Blake'],
-        reactions: [],
-        priority: 'medium',
-      },
-    ],
-    'saturday': [
-      {
-        id: '6',
-        title: 'Hiking Trip',
-        emoji: '🥾',
-        time: 'TODO',
-        groupId: 'group1',
-        date: 'saturday',
-        isShared: true,
-        isCompleted: false,
-        assignedTo: ['Alex', 'Blake'],
-        reactions: [],
-        priority: 'high',
-      },
-    ],
-  });
+  // Convert SimpleTask to EnhancedTask to add missing properties
+  const convertToEnhancedTasks = (simpleTasks: Record<string, any[]>): Record<string, EnhancedTask[]> => {
+    const enhancedTasks: Record<string, EnhancedTask[]> = {};
+    
+    Object.keys(simpleTasks).forEach(dateKey => {
+      enhancedTasks[dateKey] = simpleTasks[dateKey].map(task => ({
+        ...task,
+        // Ensure all required properties exist with defaults
+        time: task.time || 'TODO',
+        reactions: task.reactions || [],
+        priority: task.priority || 'medium',
+        groupId: task.groupId || undefined,
+        progress: task.progress || undefined,
+        notes: task.notes || undefined,
+      }));
+    });
+    
+    return enhancedTasks;
+  };
+
+  // Convert real tasks to enhanced tasks
+  const tasks = convertToEnhancedTasks(realTasks);
   
   const timelineDates = generateTimelineDates();
   
@@ -523,28 +454,12 @@ const TimelineScreen: React.FC = () => {
     });
   };
 
-  // Toggle task completion
-  const toggleTaskCompletion = (taskId: string) => {
-    setTasks(prevTasks => {
-      const newTasks = { ...prevTasks };
-      Object.keys(newTasks).forEach(dateKey => {
-        newTasks[dateKey] = newTasks[dateKey].map(task => {
-          if (task.id === taskId) {
-            return { ...task, isCompleted: !task.isCompleted };
-          }
-          return task;
-        });
-      });
-      return newTasks;
-    });
-  };
-
-  const onRefresh = useCallback(() => {
+  // Handle refresh with your existing refreshTasks function
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  }, []);
+    await refreshTasks();
+    setRefreshing(false);
+  }, [refreshTasks]);
 
   // Task action handlers
   const handleTaskEdit = (task: EnhancedTask) => {
@@ -552,9 +467,13 @@ const TimelineScreen: React.FC = () => {
     setTaskDetailTrayVisible(false);
   };
 
-  const handleTaskDelete = (taskId: string) => {
-    console.log('Delete task:', taskId);
-    setTaskDetailTrayVisible(false);
+  const handleTaskDelete = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      setTaskDetailTrayVisible(false);
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
   };
 
   const handleTaskDuplicate = (task: EnhancedTask) => {
@@ -714,9 +633,6 @@ const TimelineScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
- 
-
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
         {(['All', 'Mine', 'Shared'] as const).map((filter) => (
@@ -793,7 +709,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
   filterTabs: {
     flexDirection: 'row',
     backgroundColor: colors.surface,

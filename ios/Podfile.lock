@@ -1121,9 +1121,11 @@ PODS:
     - React-logger (= 0.74.7)
     - React-perflogger (= 0.74.7)
     - React-utils (= 0.74.7)
+  - ReactNativeUiLib (4.5.2):
+    - React
   - RNCAsyncStorage (2.2.0):
     - React-Core
-  - RNGestureHandler (2.27.1):
+  - RNGestureHandler (2.27.2):
     - DoubleConversion
     - glog
     - RCT-Folly (= 2024.01.01.00)
@@ -1189,7 +1191,7 @@ PODS:
     - Yoga
   - RNSVG (15.12.0):
     - React-Core
-  - RNVectorIcons (10.2.0):
+  - RNVectorIcons (10.3.0):
     - DoubleConversion
     - glog
     - RCT-Folly (= 2024.01.01.00)
@@ -1268,6 +1270,7 @@ DEPENDENCIES:
   - React-runtimescheduler (from `../node_modules/react-native/ReactCommon/react/renderer/runtimescheduler`)
   - React-utils (from `../node_modules/react-native/ReactCommon/react/utils`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - ReactNativeUiLib (from `../node_modules/react-native-ui-lib`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
@@ -1385,6 +1388,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/utils"
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  ReactNativeUiLib:
+    :path: "../node_modules/react-native-ui-lib"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNGestureHandler:
@@ -1453,12 +1458,13 @@ SPEC CHECKSUMS:
   React-runtimescheduler: 7ae98c85d480214a491c40799501c94c7a188d73
   React-utils: 269c55ca0a0a9d985fc8ab90898f7c1124784d73
   ReactCommon: 345cad6a151c60c5d80bcc2005457fac2e079b82
+  ReactNativeUiLib: 237cd5430e9569575778f228547d03c485b010de
   RNCAsyncStorage: b44e8a4e798c3e1f56bffccd0f591f674fb9198f
-  RNGestureHandler: c8eafdf9b693b8de87a07f571279d232d536e882
+  RNGestureHandler: 535900401230aa705436f4470e366a2dcf5338a1
   RNReanimated: 76f916b85bb322b7075f1f9022e4bc0c3f59b7c6
   RNScreens: cec3075e13c6061901ea9762649d85ca4ec54483
   RNSVG: ff728783849deecdeb6a270ab35e9cb1db3cbe0f
-  RNVectorIcons: 04732dca6e1fc6ab6fac54a0cd4611570153b54e
+  RNVectorIcons: 0816de14f77317e7c29bfc96a9dc90cdd44f0014
   SocketRocket: abac6f5de4d4d62d24e11868d7a2f427e0ef940d
   Yoga: 9db4b2da1ed5d8e0c94158f9ac379c8b1b529f59
 

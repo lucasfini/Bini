@@ -1,3 +1,4 @@
+// src/screens/create/ModernCreateTaskScreen.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -9,55 +10,70 @@ import {
   Alert,
   Animated,
   Modal,
-  TouchableWithoutFeedback,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
-  PanResponder,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Clean minimal color palette
+// Clean modern color palette
 const colors = {
-  background: '#FAFAFA',
+  background: '#F8F9FA',
   surface: '#FFFFFF',
-  border: '#F0F0F0',
-  textPrimary: '#333333',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
-  textDisabled: '#CCCCCC',
-  accentPrimary: '#FF6B9D',
-  accentSecondary: '#6B73FF',
-  accentWarning: '#FF6B6B',
-  accentSuccess: '#4CAF50',
+  primary: '#6366F1',
+  primaryLight: '#A5B4FC',
+  primaryDark: '#4338CA',
+  secondary: '#EC4899',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
+  gray600: '#4B5563',
+  gray700: '#374151',
+  gray800: '#1F2937',
+  gray900: '#111827',
+  text: '#1F2937',
+  textLight: '#6B7280',
+  textMuted: '#9CA3AF',
+  border: '#E5E7EB',
   white: '#FFFFFF',
   black: '#000000',
-  overlay: 'rgba(0,0,0,0.4)',
 };
 
-interface TaskForm {
+interface TaskFormData {
   title: string;
-  description: string;
-  emoji: string;
-  time: string;
-  endTime: string;
-  when: string; // Date selection
+  description?: string;
+  emoji?: string;
+  time?: string;
+  endTime?: string;
+  when: string;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly';
-  alerts: string[]; // Array of alert types
+  alerts: string[];
   category: string;
   priority: 'low' | 'medium' | 'high';
   isShared: boolean;
 }
 
-interface CreateTaskTrayProps {
+interface ModernCreateTaskProps {
   visible: boolean;
   onClose: () => void;
-  onCreateTask: (task: TaskForm) => void;
+  onCreateTask: (task: TaskFormData) => void;
 }
 
-const CreateTaskTray: React.FC<CreateTaskTrayProps> = ({ visible, onClose, onCreateTask }) => {
-  const [formData, setFormData] = useState<TaskForm>({
+const ModernCreateTaskScreen: React.FC<ModernCreateTaskProps> = ({
+  visible,
+  onClose,
+  onCreateTask,
+}) => {
+  const [formData, setFormData] = useState<TaskFormData>({
     title: '',
     description: '',
     emoji: '✨',
@@ -71,92 +87,71 @@ const CreateTaskTray: React.FC<CreateTaskTrayProps> = ({ visible, onClose, onCre
     isShared: false,
   });
 
+  const [currentStep, setCurrentStep] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [titleFocused, setTitleFocused] = useState(false);
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-
-  // Animation values
   const slideAnim = useRef(new Animated.Value(screenHeight)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const previewOpacity = useRef(new Animated.Value(0)).current;
-  const emojiScale = useRef(new Animated.Value(1)).current;
-  const titleUnderlineWidth = useRef(new Animated.Value(0)).current;
-  const createButtonScale = useRef(new Animated.Value(0)).current;
-  const sharedMessageOpacity = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const steps = [
+    { id: 0, title: 'What?', subtitle: 'What do you want to do?' },
+    { id: 1, title: 'When?', subtitle: 'When will you do it?' },
+    { id: 2, title: 'Details', subtitle: 'Final touches' },
+  ];
+
+  const quickTimes = [
+    { label: 'Morning', value: '09:00', icon: '🌅' },
+    { label: 'Afternoon', value: '14:00', icon: '☀️' },
+    { label: 'Evening', value: '18:00', icon: '🌅' },
+    { label: 'Night', value: '21:00', icon: '🌙' },
+  ];
+
+  const quickDates = [
+    { label: 'Today', value: new Date().toISOString().split('T')[0], icon: '📅' },
+    { 
+      label: 'Tomorrow', 
+      value: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+      icon: '📆' 
+    },
+    { 
+      label: 'This Weekend', 
+      value: getWeekendDate(), 
+      icon: '🏖️' 
+    },
+  ];
+
+  const categories = [
+    { name: 'Personal', icon: '👤', color: colors.primary },
+    { name: 'Work', icon: '💼', color: colors.secondary },
+    { name: 'Health', icon: '💪', color: colors.success },
+    { name: 'Learning', icon: '📚', color: colors.warning },
+    { name: 'Home', icon: '🏠', color: colors.error },
+    { name: 'Social', icon: '👥', color: colors.primaryLight },
+  ];
+
+  const priorities = [
+    { key: 'low', label: 'Low', color: colors.gray400, icon: '⬇️' },
+    { key: 'medium', label: 'Medium', color: colors.warning, icon: '➡️' },
+    { key: 'high', label: 'High', color: colors.error, icon: '⬆️' },
+  ];
 
   const emojiOptions = [
-    '✨', '💪', '🛒', '📚', '🍽️', '💼', '🏃', '🧘',
-    '🎯', '🌱', '🎨', '🎵', '📝', '💡', '🏠', '❤️',
-    '🌟', '🔥', '💖', '🎉', '🚀', '⚡', '🌈', '🦋'
+    '✨', '💪', '🎯', '📚', '🏃‍♂️', '🧘‍♀️', '💼', '🎨',
+    '🍽️', '🛒', '🏠', '💡', '🌟', '🔥', '💖', '🎉',
+    '🚀', '⚡', '🌈', '🦋', '🎵', '📝', '❤️', '🌱'
   ];
 
-  const timeOptions = [
-    { label: '08:00', value: '08:00' },
-    { label: '08:30', value: '08:30' },
-    { label: '09:00', value: '09:00', featured: true },
-    { label: '08:45', value: '08:45' },
-    { label: '10:45', value: '10:45' },
-    { label: '11:00', value: '11:00' },
-    { label: '11:15', value: '11:15' },
-  ];
-  
-  const endTimeOptions = [
-    { label: '09:30', value: '09:30' },
-    { label: '10:00', value: '10:00' },
-    { label: '10:30', value: '10:30', featured: true },
-    { label: '11:00', value: '11:00' },
-    { label: '11:30', value: '11:30' },
-    { label: '12:00', value: '12:00' },
-  ];
-  
-  const categoryOptions = ['Personal', 'Work', 'Health', 'Learning', 'Home', 'Social', 'Creative'];
-  
-  const frequencyOptions = [
-    { key: 'once', label: 'Once', icon: '1️⃣' },
-    { key: 'daily', label: 'Daily', icon: '📅' },
-    { key: 'weekly', label: 'Weekly', icon: '📆' },
-    { key: 'monthly', label: 'Monthly', icon: '🗓️' },
-  ];
-  
-  const alertOptions = [
-    { key: 'start', label: 'At start of task', icon: '🔔' },
-    { key: 'end', label: 'At end of task', icon: '⏰' },
-    { key: 'before', label: '5 min before start', icon: '⚡' },
-  ];
-  const priorityOptions = [
-    { key: 'low', label: 'Low', color: colors.accentSuccess },
-    { key: 'medium', label: 'Medium', color: colors.accentPrimary },
-    { key: 'high', label: 'High', color: colors.accentWarning },
-  ];
+  function getWeekendDate() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysUntilSaturday = (6 - dayOfWeek) % 7;
+    const saturday = new Date(today.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000);
+    return saturday.toISOString().split('T')[0];
+  }
 
-  // Pan gesture for swipe to dismiss
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gestureState) => {
-      return gestureState.dy > 10 && Math.abs(gestureState.dx) < 100;
-    },
-    onPanResponderMove: (_, gestureState) => {
-      if (gestureState.dy > 0) {
-        slideAnim.setValue(gestureState.dy);
-      }
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dy > 150) {
-        handleClose();
-      } else {
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }).start();
-      }
-    },
-  });
-
-  // Show/hide animations
   useEffect(() => {
     if (visible) {
-      // Reset form when opening
+      // Reset form and step
+      setCurrentStep(0);
       setFormData({
         title: '',
         description: '',
@@ -171,257 +166,356 @@ const CreateTaskTray: React.FC<CreateTaskTrayProps> = ({ visible, onClose, onCre
         isShared: false,
       });
 
+      // Animate in
       Animated.parallel([
-        Animated.timing(backdropOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
         Animated.spring(slideAnim, {
           toValue: 0,
-          useNativeDriver: true,
           tension: 100,
           friction: 8,
-        }),
-      ]).start(() => {
-        // Show preview after tray appears
-        Animated.timing(previewOpacity, {
-          toValue: 1,
-          duration: 400,
           useNativeDriver: true,
-        }).start();
-      });
-    }
-  }, [visible]);
-
-  // Watch for title changes
-  useEffect(() => {
-    const hasTitle = formData.title.trim().length > 0;
-    
-    Animated.timing(createButtonScale, {
-      toValue: hasTitle ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [formData.title]);
-
-  // Watch for shared toggle
-  useEffect(() => {
-    Animated.timing(sharedMessageOpacity, {
-      toValue: formData.isShared ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [formData.isShared]);
-
-  const handleClose = () => {
-    Animated.parallel([
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
+        }),
+        Animated.timing(progressAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else {
+      // Animate out
       Animated.timing(slideAnim, {
         toValue: screenHeight,
         duration: 300,
         useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-    });
+      }).start();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    // Update progress bar
+    Animated.timing(progressAnim, {
+      toValue: currentStep / (steps.length - 1),
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentStep]);
+
+  const updateField = (field: keyof TaskFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleCreateTask = () => {
+  const nextStep = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleCreateTask = async () => {
     if (!formData.title.trim()) {
       Alert.alert('Missing Title', 'Please enter a task title');
       return;
     }
 
-    onCreateTask(formData);
-    handleClose();
-  };
-
-  const updateField = (field: keyof TaskForm, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-
-    // Animate emoji selection
-    if (field === 'emoji') {
-      Animated.sequence([
-        Animated.spring(emojiScale, {
-          toValue: 1.2,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 5,
-        }),
-        Animated.spring(emojiScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]).start();
+    try {
+      await onCreateTask(formData);
+      onClose();
+    } catch (error) {
+      console.error('Task creation failed:', error);
     }
   };
 
-  const toggleAlert = (alertKey: string) => {
-    setFormData(prev => ({
-      ...prev,
-      alerts: prev.alerts.includes(alertKey)
-        ? prev.alerts.filter(a => a !== alertKey)
-        : [...prev.alerts, alertKey]
-    }));
-  };
-
-  const handleTitleFocus = () => {
-    setTitleFocused(true);
-    Animated.timing(titleUnderlineWidth, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const handleTitleBlur = () => {
-    setTitleFocused(false);
-    if (!formData.title) {
-      Animated.timing(titleUnderlineWidth, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0:
+        return formData.title.trim().length > 0;
+      case 1:
+        return formData.when.length > 0;
+      case 2:
+        return true;
+      default:
+        return false;
     }
   };
 
+  const renderStep0 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>What do you want to accomplish?</Text>
+      
+      {/* Title Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Task Title</Text>
+        <TextInput
+          style={styles.titleInput}
+          placeholder="e.g., Morning workout, Buy groceries..."
+          placeholderTextColor={colors.textMuted}
+          value={formData.title}
+          onChangeText={(text) => updateField('title', text)}
+          autoFocus
+          multiline
+        />
+      </View>
 
-  // Animated Toggle Switch
-  const AnimatedToggle = () => {
-    const toggleAnim = useRef(new Animated.Value(formData.isShared ? 1 : 0)).current;
-    
-    useEffect(() => {
-      Animated.timing(toggleAnim, {
-        toValue: formData.isShared ? 1 : 0,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
-    }, [formData.isShared]);
+      {/* Emoji Selection */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Choose an Emoji</Text>
+        <TouchableOpacity 
+          style={styles.emojiSelector}
+          onPress={() => setShowEmojiPicker(true)}
+        >
+          <Text style={styles.selectedEmoji}>{formData.emoji}</Text>
+          <Text style={styles.emojiSelectorText}>Tap to change</Text>
+        </TouchableOpacity>
+      </View>
 
-    const backgroundColor = toggleAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [colors.border, colors.accentPrimary],
-    });
-
-    const translateX = toggleAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [2, 22],
-    });
-
-    return (
-      <TouchableOpacity
-        style={styles.toggleContainer}
-        onPress={() => updateField('isShared', !formData.isShared)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.toggleIcon}>🤝</Text>
-        <View style={styles.toggleText}>
-          <Text style={styles.toggleTitle}>Shared Goal</Text>
-          <Text style={styles.toggleSubtitle}>Work together</Text>
-        </View>
-        <Animated.View style={[styles.toggleTrack, { backgroundColor }]}>
-          <Animated.View 
-            style={[styles.toggleThumb, { transform: [{ translateX }] }]}
-          />
-        </Animated.View>
-      </TouchableOpacity>
-    );
-  };
-
-  // Emoji Picker Modal
-  const EmojiPicker = () => (
-    <Modal visible={showEmojiPicker} transparent animationType="slide">
-      <TouchableWithoutFeedback onPress={() => setShowEmojiPicker(false)}>
-        <View style={styles.emojiModalOverlay}>
-          <View style={styles.emojiModalContent}>
-            <View style={styles.emojiModalHeader}>
-              <Text style={styles.emojiModalTitle}>Choose Emoji</Text>
-              <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
-                <Text style={styles.emojiModalClose}>✕</Text>
+      {/* Category Quick Select */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Category</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.categoryContainer}>
+            {categories.map((category) => (
+              <TouchableOpacity
+                key={category.name}
+                style={[
+                  styles.categoryChip,
+                  { borderColor: category.color },
+                  formData.category === category.name && {
+                    backgroundColor: category.color,
+                  }
+                ]}
+                onPress={() => updateField('category', category.name)}
+              >
+                <Text style={styles.categoryIcon}>{category.icon}</Text>
+                <Text style={[
+                  styles.categoryText,
+                  formData.category === category.name && styles.categoryTextSelected
+                ]}>
+                  {category.name}
+                </Text>
               </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={styles.emojiGrid}>
-              {emojiOptions.map((emoji, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.emojiOption,
-                    formData.emoji === emoji && styles.emojiOptionSelected
-                  ]}
-                  onPress={() => {
-                    updateField('emoji', emoji);
-                    setShowEmojiPicker(false);
-                  }}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            ))}
           </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+
+  const renderStep1 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>When will you do this?</Text>
+      
+      {/* Quick Date Selection */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Day</Text>
+        <View style={styles.quickSelectContainer}>
+          {quickDates.map((dateOption) => (
+            <TouchableOpacity
+              key={dateOption.label}
+              style={[
+                styles.quickSelectChip,
+                formData.when === dateOption.value && styles.quickSelectChipSelected
+              ]}
+              onPress={() => updateField('when', dateOption.value)}
+            >
+              <Text style={styles.quickSelectIcon}>{dateOption.icon}</Text>
+              <Text style={[
+                styles.quickSelectText,
+                formData.when === dateOption.value && styles.quickSelectTextSelected
+              ]}>
+                {dateOption.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      </TouchableWithoutFeedback>
+      </View>
+
+      {/* Quick Time Selection */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Time (Optional)</Text>
+        <View style={styles.quickSelectContainer}>
+          {quickTimes.map((timeOption) => (
+            <TouchableOpacity
+              key={timeOption.label}
+              style={[
+                styles.quickSelectChip,
+                formData.time === timeOption.value && styles.quickSelectChipSelected
+              ]}
+              onPress={() => updateField('time', timeOption.value)}
+            >
+              <Text style={styles.quickSelectIcon}>{timeOption.icon}</Text>
+              <Text style={[
+                styles.quickSelectText,
+                formData.time === timeOption.value && styles.quickSelectTextSelected
+              ]}>
+                {timeOption.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Custom Time Input */}
+      {formData.time && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Specific Time</Text>
+          <TextInput
+            style={styles.timeInput}
+            placeholder="e.g., 9:30 AM"
+            placeholderTextColor={colors.textMuted}
+            value={formData.time}
+            onChangeText={(text) => updateField('time', text)}
+          />
+        </View>
+      )}
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Final details</Text>
+      
+      {/* Description */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Description (Optional)</Text>
+        <TextInput
+          style={styles.descriptionInput}
+          placeholder="Add any notes or details..."
+          placeholderTextColor={colors.textMuted}
+          value={formData.description}
+          onChangeText={(text) => updateField('description', text)}
+          multiline
+          numberOfLines={3}
+        />
+      </View>
+
+      {/* Priority */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Priority</Text>
+        <View style={styles.priorityContainer}>
+          {priorities.map((priority) => (
+            <TouchableOpacity
+              key={priority.key}
+              style={[
+                styles.priorityChip,
+                { borderColor: priority.color },
+                formData.priority === priority.key && {
+                  backgroundColor: priority.color,
+                }
+              ]}
+              onPress={() => updateField('priority', priority.key)}
+            >
+              <Text style={styles.priorityIcon}>{priority.icon}</Text>
+              <Text style={[
+                styles.priorityText,
+                formData.priority === priority.key && styles.priorityTextSelected
+              ]}>
+                {priority.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Shared Toggle */}
+      <View style={styles.inputGroup}>
+        <TouchableOpacity
+          style={styles.sharedToggle}
+          onPress={() => updateField('isShared', !formData.isShared)}
+        >
+          <View style={styles.sharedToggleLeft}>
+            <Text style={styles.sharedIcon}>🤝</Text>
+            <View>
+              <Text style={styles.sharedTitle}>Shared Goal</Text>
+              <Text style={styles.sharedSubtitle}>Work on this together</Text>
+            </View>
+          </View>
+          <View style={[
+            styles.toggle,
+            formData.isShared && styles.toggleActive
+          ]}>
+            <View style={[
+              styles.toggleThumb,
+              formData.isShared && styles.toggleThumbActive
+            ]} />
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const EmojiPickerModal = () => (
+    <Modal visible={showEmojiPicker} transparent animationType="slide">
+      <View style={styles.emojiModalOverlay}>
+        <View style={styles.emojiModalContent}>
+          <View style={styles.emojiModalHeader}>
+            <Text style={styles.emojiModalTitle}>Choose Emoji</Text>
+            <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
+              <Text style={styles.emojiModalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.emojiGrid}>
+            {emojiOptions.map((emoji, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.emojiOption,
+                  formData.emoji === emoji && styles.emojiOptionSelected
+                ]}
+                onPress={() => {
+                  updateField('emoji', emoji);
+                  setShowEmojiPicker(false);
+                }}
+              >
+                <Text style={styles.emojiText}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
     </Modal>
   );
 
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none">
+    <Modal visible={visible} animationType="none" statusBarTranslucent>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       <KeyboardAvoidingView 
         style={styles.container} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Backdrop */}
-        <TouchableWithoutFeedback onPress={handleClose}>
-          <Animated.View 
-            style={[styles.backdrop, { opacity: backdropOpacity }]} 
-          />
-        </TouchableWithoutFeedback>
-
-        {/* Tray */}
         <Animated.View 
           style={[
-            styles.tray,
+            styles.content,
             { transform: [{ translateY: slideAnim }] }
           ]}
-          {...panResponder.panHandlers}
         >
-          {/* Drag Handle */}
-          <View style={styles.dragHandle} />
-
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Create New Task</Text>
-            <Text style={styles.headerSubtitle}>What would you like to accomplish?</Text>
-          </View>
+          <SafeAreaView>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>{steps[currentStep].title}</Text>
+                <Text style={styles.headerSubtitle}>{steps[currentStep].subtitle}</Text>
+              </View>
+              
+              <Text style={styles.stepCounter}>{currentStep + 1}/{steps.length}</Text>
+            </View>
 
-          
-
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Title Input */}
-            <View style={styles.inputSection}>
-              <TextInput
-                style={styles.titleInput}
-                placeholder="What needs to be done?"
-                value={formData.title}
-                onChangeText={(text) => updateField('title', text)}
-                onFocus={handleTitleFocus}
-                onBlur={handleTitleBlur}
-                placeholderTextColor={colors.textTertiary}
-                multiline
-              />
+            {/* Progress Bar */}
+            <View style={styles.progressContainer}>
               <Animated.View 
                 style={[
-                  styles.titleUnderline,
+                  styles.progressBar,
                   {
-                    width: titleUnderlineWidth.interpolate({
+                    width: progressAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', '100%'],
                     })
@@ -429,277 +523,42 @@ const CreateTaskTray: React.FC<CreateTaskTrayProps> = ({ visible, onClose, onCre
                 ]} 
               />
             </View>
+          </SafeAreaView>
 
-            {/* Description Input */}
-            <TouchableOpacity 
-              style={styles.descriptionSection}
-              onPress={() => setDescriptionExpanded(true)}
-            >
-              {descriptionExpanded ? (
-                <TextInput
-                  style={styles.descriptionInput}
-                  placeholder="Add some details..."
-                  value={formData.description}
-                  onChangeText={(text) => updateField('description', text)}
-                  onBlur={() => !formData.description && setDescriptionExpanded(false)}
-                  placeholderTextColor={colors.textTertiary}
-                  multiline
-                  numberOfLines={3}
-                  autoFocus
-                />
-              ) : (
-                <Text style={styles.descriptionPlaceholder}>
-                  {formData.description || 'Add details...'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Emoji Selection */}
-            <TouchableOpacity 
-              style={styles.section}
-              onPress={() => setShowEmojiPicker(true)}
-            >
-              <Text style={styles.sectionIcon}>{formData.emoji}</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>Emoji</Text>
-                <Text style={styles.sectionSubtitle}>Tap to change</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Time Selection - Visual Timeline */}
-            <View style={styles.section}>
-              <Text style={styles.sectionIcon}>⏰</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>When?</Text>
-                
-                {/* Start Time */}
-                <Text style={styles.subSectionTitle}>Start Time</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.timelineContainer}>
-                    {timeOptions.map((timeOption, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.timeSlot,
-                          formData.time === timeOption.value && styles.timeSlotSelected,
-                          timeOption.featured && styles.timeSlotFeatured,
-                        ]}
-                        onPress={() => updateField('time', timeOption.value)}
-                      >
-                        <Text style={[
-                          styles.timeSlotText,
-                          formData.time === timeOption.value && styles.timeSlotTextSelected,
-                          timeOption.featured && styles.timeSlotTextFeatured,
-                        ]}>
-                          {timeOption.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-
-                {/* End Time */}
-                <Text style={styles.subSectionTitle}>End Time</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.timelineContainer}>
-                    {endTimeOptions.map((timeOption, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.timeSlot,
-                          formData.endTime === timeOption.value && styles.timeSlotSelected,
-                          timeOption.featured && styles.timeSlotFeatured,
-                        ]}
-                        onPress={() => updateField('endTime', timeOption.value)}
-                      >
-                        <Text style={[
-                          styles.timeSlotText,
-                          formData.endTime === timeOption.value && styles.timeSlotTextSelected,
-                          timeOption.featured && styles.timeSlotTextFeatured,
-                        ]}>
-                          {timeOption.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-
-                {/* Date Selection */}
-                <Text style={styles.subSectionTitle}>Date</Text>
-                <TouchableOpacity 
-                  style={styles.dateSelector}
-                  onPress={() => {
-                    // You could add a date picker modal here
-                    Alert.alert('Date Picker', 'Add a date picker component here');
-                  }}
-                >
-                  <Text style={styles.dateSelectorIcon}>📅</Text>
-                  <Text style={styles.dateSelectorText}>
-                    {new Date(formData.when).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* How Often */}
-            <View style={styles.section}>
-              <Text style={styles.sectionIcon}>🔄</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>How Often?</Text>
-                <View style={styles.frequencyContainer}>
-                  {frequencyOptions.map((freq) => (
-                    <TouchableOpacity
-                      key={freq.key}
-                      style={[
-                        styles.frequencyOption,
-                        formData.frequency === freq.key && styles.frequencyOptionSelected
-                      ]}
-                      onPress={() => updateField('frequency', freq.key)}
-                    >
-                      <Text style={styles.frequencyIcon}>{freq.icon}</Text>
-                      <Text style={[
-                        styles.frequencyText,
-                        formData.frequency === freq.key && styles.frequencyTextSelected
-                      ]}>
-                        {freq.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Alerts/Nudges */}
-            <View style={styles.section}>
-              <Text style={styles.sectionIcon}>🔔</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>Need Alerts? (Nudge)</Text>
-                <View style={styles.alertsContainer}>
-                  {alertOptions.map((alert) => (
-                    <TouchableOpacity
-                      key={alert.key}
-                      style={[
-                        styles.alertOption,
-                        formData.alerts.includes(alert.key) && styles.alertOptionSelected
-                      ]}
-                      onPress={() => toggleAlert(alert.key)}
-                    >
-                      <Text style={styles.alertIcon}>{alert.icon}</Text>
-                      <Text style={[
-                        styles.alertText,
-                        formData.alerts.includes(alert.key) && styles.alertTextSelected
-                      ]}>
-                        {alert.label}
-                      </Text>
-                      {formData.alerts.includes(alert.key) && (
-                        <Text style={styles.alertCheck}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Category Selection */}
-            <View style={styles.section}>
-              <Text style={styles.sectionIcon}>📁</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.chipContainer}>
-                    {categoryOptions.map((category, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.chip,
-                          formData.category === category && styles.chipSelected
-                        ]}
-                        onPress={() => updateField('category', category)}
-                      >
-                        <Text style={[
-                          styles.chipText,
-                          formData.category === category && styles.chipTextSelected
-                        ]}>
-                          {category}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            </View>
-
-            {/* Priority Selection */}
-            <View style={styles.section}>
-              <Text style={styles.sectionIcon}>🎯</Text>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>Priority</Text>
-                <View style={styles.priorityContainer}>
-                  {priorityOptions.map((priority) => (
-                    <TouchableOpacity
-                      key={priority.key}
-                      style={[
-                        styles.priorityOption,
-                        formData.priority === priority.key && {
-                          backgroundColor: priority.color + '20',
-                          borderColor: priority.color,
-                        }
-                      ]}
-                      onPress={() => updateField('priority', priority.key)}
-                    >
-                      <Text style={[
-                        styles.priorityText,
-                        formData.priority === priority.key && { color: priority.color }
-                      ]}>
-                        {priority.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Shared Toggle */}
-            <AnimatedToggle />
-
-            {/* Shared Message */}
-            <Animated.View 
-              style={[
-                styles.sharedMessage,
-                { opacity: sharedMessageOpacity }
-              ]}
-            >
-              <Text style={styles.sharedMessageText}>
-                🎉 You can cheer each other on!
-              </Text>
-            </Animated.View>
-
-            <View style={{ height: 100 }} />
+          {/* Step Content */}
+          <ScrollView style={styles.stepScrollView} showsVerticalScrollIndicator={false}>
+            {currentStep === 0 && renderStep0()}
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
           </ScrollView>
 
-          {/* Create Button */}
-          <Animated.View 
-            style={[
-              styles.createButtonContainer,
-              { transform: [{ scale: createButtonScale }] }
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.createButton}
-              onPress={handleCreateTask}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.createButtonText}>Create Task ✨</Text>
-            </TouchableOpacity>
-          </Animated.View>
+          {/* Bottom Actions */}
+          <SafeAreaView>
+            <View style={styles.bottomActions}>
+              {currentStep > 0 && (
+                <TouchableOpacity style={styles.backButton} onPress={prevStep}>
+                  <Text style={styles.backButtonText}>Back</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  !canProceed() && styles.nextButtonDisabled,
+                  currentStep === 0 && styles.nextButtonFullWidth
+                ]}
+                onPress={currentStep === steps.length - 1 ? handleCreateTask : nextStep}
+                disabled={!canProceed()}
+              >
+                <Text style={styles.nextButtonText}>
+                  {currentStep === steps.length - 1 ? 'Create Task ✨' : 'Next'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
         </Animated.View>
 
-        <EmojiPicker />
+        <EmojiPickerModal />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -709,306 +568,318 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.overlay,
-  },
-  tray: {
-    position: 'absolute',
-    bottom: 30, // Lift it off the bottom
-    left: screenWidth * 0.025, // 5% margin on left
-    right: screenWidth * 0.025, // 5% margin on right
-    width: screenWidth * 0.95, // 90% of screen width
-    backgroundColor: colors.surface,
-    borderRadius: 24, // Round all corners now
-    maxHeight: screenHeight * 0.8, // Slightly shorter
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 }, // Stronger shadow since it's floating
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 25,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
+  content: {
+    flex: 1,
+    backgroundColor: colors.primary,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  preview: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: colors.background,
-    marginHorizontal: 24,
-    marginVertical: 16,
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accentPrimary,
-  },
-  previewContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  previewEmoji: {
-    fontSize: 24,
-  },
-  previewText: {
-    flex: 1,
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  previewTime: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  previewWhen: {
-    fontSize: 12,
-    color: colors.accentPrimary,
-    marginTop: 2,
-  },
-  previewFrequency: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  previewSharedBadge: {
+  closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.accentPrimary + '20',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  previewSharedIcon: {
+  closeButtonText: {
     fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
   },
-  content: {
+  headerCenter: {
     flex: 1,
-    paddingHorizontal: 24,
-  },
-  inputSection: {
-    marginBottom: 24,
-  },
-  titleInput: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    paddingVertical: 12,
-    paddingBottom: 8,
-    minHeight: 40,
-  },
-  titleUnderline: {
-    height: 2,
-    backgroundColor: colors.accentPrimary,
-    borderRadius: 1,
-  },
-  descriptionSection: {
-    marginBottom: 24,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  descriptionInput: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    paddingVertical: 8,
-    minHeight: 60,
-  },
-  descriptionPlaceholder: {
-    fontSize: 16,
-    color: colors.textTertiary,
-    paddingVertical: 12,
-  },
-  section: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 16,
   },
-  sectionIcon: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.white,
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  stepCounter: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  progressContainer: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginHorizontal: 20,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 2,
+  },
+  stepScrollView: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  stepContainer: {
+    padding: 20,
+    paddingTop: 32,
+  },
+  stepTitle: {
     fontSize: 24,
-    width: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 32,
     textAlign: 'center',
   },
-  sectionContent: {
-    flex: 1,
+  inputGroup: {
+    marginBottom: 32,
   },
-  sectionTitle: {
+  label: {
     fontSize: 16,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: 8,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
   },
-  subSectionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  chip: {
-    backgroundColor: colors.background,
+  titleInput: {
+    backgroundColor: colors.white,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
+    padding: 20,
+    fontSize: 18,
+    color: colors.text,
+    borderWidth: 2,
+    borderColor: colors.border,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  emojiSelector: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  selectedEmoji: {
+    fontSize: 32,
+  },
+  emojiSelectorText: {
+    fontSize: 16,
+    color: colors.textLight,
+  },
+  categoryContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 2,
+    gap: 8,
+  },
+  categoryIcon: {
+    fontSize: 18,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  categoryTextSelected: {
+    color: colors.white,
+  },
+  quickSelectContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickSelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderWidth: 2,
+    borderColor: colors.border,
+    gap: 8,
+    minWidth: '45%',
+  },
+  quickSelectChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  quickSelectIcon: {
+    fontSize: 18,
+  },
+  quickSelectText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  quickSelectTextSelected: {
+    color: colors.white,
+  },
+  timeInput: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 2,
     borderColor: colors.border,
   },
-  chipSelected: {
-    backgroundColor: colors.accentPrimary,
-    borderColor: colors.accentPrimary,
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  chipTextSelected: {
-    color: colors.white,
+  descriptionInput: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 2,
+    borderColor: colors.border,
+    height: 100,
+    textAlignVertical: 'top',
   },
   priorityContainer: {
     flexDirection: 'row',
+    gap: 12,
+  },
+  priorityChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingVertical: 16,
+    borderWidth: 2,
     gap: 8,
   },
-  priorityOption: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+  priorityIcon: {
+    fontSize: 16,
   },
   priorityText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: colors.textPrimary,
+    fontWeight: '600',
+    color: colors.text,
   },
-  toggleContainer: {
+  priorityTextSelected: {
+    color: colors.white,
+  },
+  sharedToggle: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    justifyContent: 'space-between',
+  },
+  sharedToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
-  },
-  toggleIcon: {
-    fontSize: 24,
-    width: 32,
-    textAlign: 'center',
-  },
-  toggleText: {
     flex: 1,
   },
-  toggleTitle: {
+  sharedIcon: {
+    fontSize: 24,
+  },
+  sharedTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: colors.textPrimary,
+    fontWeight: '600',
+    color: colors.text,
   },
-  toggleSubtitle: {
+  sharedSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 2,
+    color: colors.textLight,
   },
-  toggleTrack: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.gray300,
     justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleActive: {
+    backgroundColor: colors.primary,
   },
   toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.white,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  sharedMessage: {
-    backgroundColor: colors.accentPrimary + '10',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    marginBottom: 16,
+  toggleThumbActive: {
+    transform: [{ translateX: 20 }],
   },
-  sharedMessageText: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  createButtonContainer: {
-    paddingHorizontal: 24,
+  bottomActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 32,
+    backgroundColor: colors.background,
+    gap: 12,
   },
-  createButton: {
-    backgroundColor: colors.accentPrimary,
+  backButton: {
+    flex: 1,
+    backgroundColor: colors.gray100,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: colors.accentPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    justifyContent: 'center',
   },
-  createButtonText: {
-    fontSize: 18,
+  backButtonText: {
+    fontSize: 16,
     fontWeight: '600',
+    color: colors.text,
+  },
+  nextButton: {
+    flex: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextButtonFullWidth: {
+    flex: 1,
+  },
+  nextButtonDisabled: {
+    backgroundColor: colors.gray300,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.white,
   },
+  
+  // Emoji Modal Styles
   emojiModalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   emojiModalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '60%',
   },
   emojiModalHeader: {
@@ -1016,18 +887,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingVertical: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   emojiModalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontWeight: '700',
+    color: colors.text,
   },
   emojiModalClose: {
     fontSize: 18,
-    color: colors.textSecondary,
+    color: colors.textLight,
     width: 32,
     height: 32,
     textAlign: 'center',
@@ -1037,199 +908,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    gap: 12,
+    paddingVertical: 20,
+    gap: 16,
   },
   emojiOption: {
-    width: (screenWidth - 48 - 60) / 6,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+    width: (screenWidth - 48 - 80) / 6,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.gray50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
   },
   emojiOptionSelected: {
-    backgroundColor: colors.accentPrimary + '20',
-    borderColor: colors.accentPrimary,
+    backgroundColor: colors.primary + '20',
+    borderColor: colors.primary,
   },
   emojiText: {
     fontSize: 24,
   },
-  
-  // Timeline/When Section Styles
-  timelineContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  timeSlot: {
-    backgroundColor: colors.background,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  timeSlotSelected: {
-    backgroundColor: colors.accentPrimary,
-    borderColor: colors.accentPrimary,
-  },
-  timeSlotFeatured: {
-    backgroundColor: '#FFD93D',
-    borderColor: '#FFD93D',
-    transform: [{ scale: 1.05 }],
-    shadowColor: '#FFD93D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  timeSlotText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  timeSlotTextSelected: {
-    color: colors.white,
-    fontWeight: '600',
-  },
-  timeSlotTextFeatured: {
-    color: colors.white,
-    fontWeight: '600',
-  },
-  dateSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  dateSelectorIcon: {
-    fontSize: 20,
-  },
-  dateSelectorText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  
-  // Frequency Section Styles
-  frequencyContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  frequencyOption: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  frequencyOptionSelected: {
-    backgroundColor: colors.accentPrimary,
-    borderColor: colors.accentPrimary,
-  },
-  frequencyIcon: {
-    fontSize: 20,
-  },
-  frequencyText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  frequencyTextSelected: {
-    color: colors.white,
-  },
-  
-  // Alerts Section Styles
-  alertsContainer: {
-    gap: 8,
-  },
-  alertOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  alertOptionSelected: {
-    backgroundColor: colors.accentPrimary + '20',
-    borderColor: colors.accentPrimary,
-  },
-  alertIcon: {
-    fontSize: 20,
-  },
-  alertText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  alertTextSelected: {
-    color: colors.accentPrimary,
-    fontWeight: '600',
-  },
-  alertCheck: {
-    fontSize: 16,
-    color: colors.accentPrimary,
-    fontWeight: 'bold',
-  },
 });
 
-// Usage Example Component
-const ExampleUsage: React.FC = () => {
-  const [showCreateTray, setShowCreateTray] = useState(false);
-
-  const handleCreateTask = (task: TaskForm) => {
-    console.log('Created task:', task);
-    Alert.alert('Task Created!', `"${task.title}" has been added to your timeline`);
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Your existing screen content */}
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 18, color: colors.textPrimary, marginBottom: 20 }}>
-          Your Timeline/Calendar/Profile Screen
-        </Text>
-        
-        <TouchableOpacity
-          style={{
-            backgroundColor: colors.accentPrimary,
-            borderRadius: 12,
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-          }}
-          onPress={() => setShowCreateTray(true)}
-        >
-          <Text style={{ color: colors.white, fontSize: 16, fontWeight: '600' }}>
-            Create Task
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Floating Create Task Tray */}
-      <CreateTaskTray
-        visible={showCreateTray}
-        onClose={() => setShowCreateTray(false)}
-        onCreateTask={handleCreateTask}
-      />
-    </View>
-  );
-};
-
-export default CreateTaskTray;
-export { ExampleUsage };
+export default ModernCreateTaskScreen;
