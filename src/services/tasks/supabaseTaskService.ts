@@ -1,4 +1,4 @@
-// src/services/tasks/supabaseTaskService.ts
+// src/services/tasks/supabaseTaskService.ts - Fixed date mapping
 import { supabase } from '../../config/supabase';
 
 // Enhanced task interface that matches your CreateTaskTray
@@ -8,9 +8,9 @@ interface TaskFormData {
   emoji?: string;
   time?: string;
   endTime?: string;
-  when: string; // Date string
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly';
-  alerts: string[];
+  when: string; // 'today', 'tomorrow', 'saturday', or date string
+  frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
+  alerts?: string[];
   category: string;
   priority: 'low' | 'medium' | 'high';
   isShared: boolean;
@@ -33,6 +33,55 @@ interface SimpleTask {
 }
 
 class SupabaseTaskService {
+  // Helper to convert 'today', 'tomorrow', 'saturday' to actual dates
+  private convertWhenToDate(when: string): string {
+    const today = new Date();
+    
+    switch (when) {
+      case 'today':
+        return today.toISOString().split('T')[0];
+      
+      case 'tomorrow': {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        return tomorrow.toISOString().split('T')[0];
+      }
+      
+      case 'saturday': {
+        const saturday = new Date(today);
+        const daysUntilSaturday = (6 - today.getDay()) % 7;
+        saturday.setDate(today.getDate() + daysUntilSaturday);
+        return saturday.toISOString().split('T')[0];
+      }
+      
+      default:
+        // If it's already a date string, return as is
+        return when;
+    }
+  }
+
+  // Helper to convert date back to 'today', 'tomorrow', 'saturday' keys
+  private convertDateToWhen(dateString: string): string {
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    // Get next Saturday
+    const todayDate = new Date();
+    const saturday = new Date(todayDate);
+    const daysUntilSaturday = (6 - todayDate.getDay()) % 7;
+    saturday.setDate(todayDate.getDate() + daysUntilSaturday);
+    const saturdayStr = saturday.toISOString().split('T')[0];
+
+    if (dateString === today) return 'today';
+    if (dateString === tomorrowStr) return 'tomorrow';
+    if (dateString === saturdayStr) return 'saturday';
+    
+    // For any other date, return the date string itself
+    return dateString;
+  }
+
   // Create a new task from the CreateTaskTray form
   async createTaskFromForm(formData: TaskFormData): Promise<SimpleTask> {
     console.log('🚀 Creating task from form:', formData.title);
@@ -42,22 +91,25 @@ class SupabaseTaskService {
       throw new Error('Not authenticated');
     }
 
+    // Convert 'when' to actual date
+    const actualDate = this.convertWhenToDate(formData.when);
+    console.log('📅 Converting when:', formData.when, '→', actualDate);
+
     const { data, error } = await supabase
       .from('tasks')
       .insert({
-        title: formData.title,
-        subtitle: formData.description,
+        title: formData.title.trim(),
+        subtitle: formData.description?.trim() || null,
         emoji: formData.emoji || '✨',
-        time: formData.time,
-        end_time: formData.endTime,
-        date: formData.when,
+        time: formData.time || null,
+        end_time: formData.endTime || null,
+        date: actualDate, // Use the converted date
         is_shared: formData.isShared,
         is_completed: false,
         category: formData.category,
         priority: formData.priority,
         created_by: user.user.id,
         assigned_to: [user.user.id], // For now, just assign to current user
-        // Note: frequency and alerts aren't in our DB schema yet, we'll add them later
       })
       .select()
       .single();
@@ -67,7 +119,7 @@ class SupabaseTaskService {
       throw new Error(`Failed to create task: ${error.message}`);
     }
 
-    console.log('✅ Task created successfully:', data.id);
+    console.log('✅ Task created successfully:', data.id, 'for date:', actualDate);
     return this.mapDatabaseTask(data);
   }
 
@@ -108,7 +160,7 @@ class SupabaseTaskService {
     return this.mapDatabaseTask(data);
   }
 
-  // Get tasks for the timeline
+  // Get tasks for the timeline with proper grouping
   async getTasksForTimeline(): Promise<Record<string, SimpleTask[]>> {
     console.log('🔍 Fetching tasks for timeline...');
 
@@ -137,24 +189,12 @@ class SupabaseTaskService {
 
     console.log('✅ Fetched', data.length, 'tasks');
 
-    // Group tasks by date keys for your timeline
+    // Group tasks by 'today', 'tomorrow', 'saturday' keys
     const groupedTasks: Record<string, SimpleTask[]> = {};
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     data.forEach(task => {
-      const taskDate = task.date;
-      let dateKey: string;
-
-      if (taskDate === todayStr) {
-        dateKey = 'today';
-      } else if (taskDate === tomorrowStr) {
-        dateKey = 'tomorrow';
-      } else {
-        // For other dates, use the actual date as key
-        dateKey = taskDate;
-      }
-
+      const dateKey = this.convertDateToWhen(task.date);
+      
       if (!groupedTasks[dateKey]) {
         groupedTasks[dateKey] = [];
       }
@@ -162,6 +202,7 @@ class SupabaseTaskService {
       groupedTasks[dateKey].push(this.mapDatabaseTask(task));
     });
 
+    console.log('📊 Grouped tasks by keys:', Object.keys(groupedTasks));
     return groupedTasks;
   }
 

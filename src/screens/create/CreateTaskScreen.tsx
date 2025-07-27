@@ -1,49 +1,33 @@
-// src/screens/create/ModernCreateTaskScreen.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Animated,
   Modal,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  StatusBar,
+  PanResponder,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Clean modern color palette
+// Clean color palette matching your timeline
 const colors = {
-  background: '#F8F9FA',
+  background: '#FAFAFA',
   surface: '#FFFFFF',
-  primary: '#6366F1',
-  primaryLight: '#A5B4FC',
-  primaryDark: '#4338CA',
-  secondary: '#EC4899',
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  gray50: '#F9FAFB',
-  gray100: '#F3F4F6',
-  gray200: '#E5E7EB',
-  gray300: '#D1D5DB',
-  gray400: '#9CA3AF',
-  gray500: '#6B7280',
-  gray600: '#4B5563',
-  gray700: '#374151',
-  gray800: '#1F2937',
-  gray900: '#111827',
-  text: '#1F2937',
-  textLight: '#6B7280',
-  textMuted: '#9CA3AF',
-  border: '#E5E7EB',
+  border: '#F0F0F0',
+  primary: '#FF6B9D',
+  secondary: '#6B73FF',
+  success: '#4CAF50',
+  text: '#333333',
+  textSecondary: '#666666',
+  textTertiary: '#999999',
   white: '#FFFFFF',
   black: '#000000',
 };
@@ -52,422 +36,61 @@ interface TaskFormData {
   title: string;
   description?: string;
   emoji?: string;
-  time?: string;
-  endTime?: string;
-  when: string;
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly';
-  alerts: string[];
-  category: string;
-  priority: 'low' | 'medium' | 'high';
+  dueDate?: Date;
+  dueTime?: string;
+  repeat: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
+  tags: string[];
   isShared: boolean;
+  isGroupTask: boolean;
+  groupId?: string;
+  reward?: string;
 }
 
-interface ModernCreateTaskProps {
+interface CreateTaskProps {
   visible: boolean;
   onClose: () => void;
   onCreateTask: (task: TaskFormData) => void;
 }
 
-const ModernCreateTaskScreen: React.FC<ModernCreateTaskProps> = ({
-  visible,
-  onClose,
-  onCreateTask,
-}) => {
-  const [formData, setFormData] = useState<TaskFormData>({
-    title: '',
-    description: '',
-    emoji: '✨',
-    time: '',
-    endTime: '',
-    when: new Date().toISOString().split('T')[0],
-    frequency: 'once',
-    alerts: [],
-    category: 'Personal',
-    priority: 'medium',
-    isShared: false,
-  });
-
-  const [currentStep, setCurrentStep] = useState(0);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  const steps = [
-    { id: 0, title: 'What?', subtitle: 'What do you want to do?' },
-    { id: 1, title: 'When?', subtitle: 'When will you do it?' },
-    { id: 2, title: 'Details', subtitle: 'Final touches' },
-  ];
-
-  const quickTimes = [
-    { label: 'Morning', value: '09:00', icon: '🌅' },
-    { label: 'Afternoon', value: '14:00', icon: '☀️' },
-    { label: 'Evening', value: '18:00', icon: '🌅' },
-    { label: 'Night', value: '21:00', icon: '🌙' },
-  ];
-
-  const quickDates = [
-    { label: 'Today', value: new Date().toISOString().split('T')[0], icon: '📅' },
-    { 
-      label: 'Tomorrow', 
-      value: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
-      icon: '📆' 
-    },
-    { 
-      label: 'This Weekend', 
-      value: getWeekendDate(), 
-      icon: '🏖️' 
-    },
-  ];
-
-  const categories = [
-    { name: 'Personal', icon: '👤', color: colors.primary },
-    { name: 'Work', icon: '💼', color: colors.secondary },
-    { name: 'Health', icon: '💪', color: colors.success },
-    { name: 'Learning', icon: '📚', color: colors.warning },
-    { name: 'Home', icon: '🏠', color: colors.error },
-    { name: 'Social', icon: '👥', color: colors.primaryLight },
-  ];
-
-  const priorities = [
-    { key: 'low', label: 'Low', color: colors.gray400, icon: '⬇️' },
-    { key: 'medium', label: 'Medium', color: colors.warning, icon: '➡️' },
-    { key: 'high', label: 'High', color: colors.error, icon: '⬆️' },
-  ];
-
-  const emojiOptions = [
+// Emoji Picker Component
+const EmojiPicker: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (emoji: string) => void;
+  selectedEmoji?: string;
+}> = ({ visible, onClose, onSelect, selectedEmoji }) => {
+  const emojis = [
     '✨', '💪', '🎯', '📚', '🏃‍♂️', '🧘‍♀️', '💼', '🎨',
     '🍽️', '🛒', '🏠', '💡', '🌟', '🔥', '💖', '🎉',
-    '🚀', '⚡', '🌈', '🦋', '🎵', '📝', '❤️', '🌱'
+    '🚀', '⚡', '🌈', '🦋', '🎵', '📝', '❤️', '🌱',
+    '🎪', '🎭', '🎨', '🎲', '🎸', '🎺', '🎼', '🎤',
+    '☕', '🍕', '🍎', '🥗', '🍔', '🌮', '🍜', '🍰',
+    '🚗', '🚲', '✈️', '🚂', '🏖️', '🏔️', '🌊', '🌸'
   ];
 
-  function getWeekendDate() {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysUntilSaturday = (6 - dayOfWeek) % 7;
-    const saturday = new Date(today.getTime() + daysUntilSaturday * 24 * 60 * 60 * 1000);
-    return saturday.toISOString().split('T')[0];
-  }
+  if (!visible) return null;
 
-  useEffect(() => {
-    if (visible) {
-      // Reset form and step
-      setCurrentStep(0);
-      setFormData({
-        title: '',
-        description: '',
-        emoji: '✨',
-        time: '',
-        endTime: '',
-        when: new Date().toISOString().split('T')[0],
-        frequency: 'once',
-        alerts: [],
-        category: 'Personal',
-        priority: 'medium',
-        isShared: false,
-      });
-
-      // Animate in
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(progressAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
-    } else {
-      // Animate out
-      Animated.timing(slideAnim, {
-        toValue: screenHeight,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
-
-  useEffect(() => {
-    // Update progress bar
-    Animated.timing(progressAnim, {
-      toValue: currentStep / (steps.length - 1),
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [currentStep]);
-
-  const updateField = (field: keyof TaskFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const nextStep = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleCreateTask = async () => {
-    if (!formData.title.trim()) {
-      Alert.alert('Missing Title', 'Please enter a task title');
-      return;
-    }
-
-    try {
-      await onCreateTask(formData);
-      onClose();
-    } catch (error) {
-      console.error('Task creation failed:', error);
-    }
-  };
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.title.trim().length > 0;
-      case 1:
-        return formData.when.length > 0;
-      case 2:
-        return true;
-      default:
-        return false;
-    }
-  };
-
-  const renderStep0 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>What do you want to accomplish?</Text>
-      
-      {/* Title Input */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Task Title</Text>
-        <TextInput
-          style={styles.titleInput}
-          placeholder="e.g., Morning workout, Buy groceries..."
-          placeholderTextColor={colors.textMuted}
-          value={formData.title}
-          onChangeText={(text) => updateField('title', text)}
-          autoFocus
-          multiline
-        />
-      </View>
-
-      {/* Emoji Selection */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Choose an Emoji</Text>
-        <TouchableOpacity 
-          style={styles.emojiSelector}
-          onPress={() => setShowEmojiPicker(true)}
-        >
-          <Text style={styles.selectedEmoji}>{formData.emoji}</Text>
-          <Text style={styles.emojiSelectorText}>Tap to change</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Category Quick Select */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.categoryContainer}>
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category.name}
-                style={[
-                  styles.categoryChip,
-                  { borderColor: category.color },
-                  formData.category === category.name && {
-                    backgroundColor: category.color,
-                  }
-                ]}
-                onPress={() => updateField('category', category.name)}
-              >
-                <Text style={styles.categoryIcon}>{category.icon}</Text>
-                <Text style={[
-                  styles.categoryText,
-                  formData.category === category.name && styles.categoryTextSelected
-                ]}>
-                  {category.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    </View>
-  );
-
-  const renderStep1 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>When will you do this?</Text>
-      
-      {/* Quick Date Selection */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Day</Text>
-        <View style={styles.quickSelectContainer}>
-          {quickDates.map((dateOption) => (
-            <TouchableOpacity
-              key={dateOption.label}
-              style={[
-                styles.quickSelectChip,
-                formData.when === dateOption.value && styles.quickSelectChipSelected
-              ]}
-              onPress={() => updateField('when', dateOption.value)}
-            >
-              <Text style={styles.quickSelectIcon}>{dateOption.icon}</Text>
-              <Text style={[
-                styles.quickSelectText,
-                formData.when === dateOption.value && styles.quickSelectTextSelected
-              ]}>
-                {dateOption.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Quick Time Selection */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Time (Optional)</Text>
-        <View style={styles.quickSelectContainer}>
-          {quickTimes.map((timeOption) => (
-            <TouchableOpacity
-              key={timeOption.label}
-              style={[
-                styles.quickSelectChip,
-                formData.time === timeOption.value && styles.quickSelectChipSelected
-              ]}
-              onPress={() => updateField('time', timeOption.value)}
-            >
-              <Text style={styles.quickSelectIcon}>{timeOption.icon}</Text>
-              <Text style={[
-                styles.quickSelectText,
-                formData.time === timeOption.value && styles.quickSelectTextSelected
-              ]}>
-                {timeOption.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Custom Time Input */}
-      {formData.time && (
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Specific Time</Text>
-          <TextInput
-            style={styles.timeInput}
-            placeholder="e.g., 9:30 AM"
-            placeholderTextColor={colors.textMuted}
-            value={formData.time}
-            onChangeText={(text) => updateField('time', text)}
-          />
-        </View>
-      )}
-    </View>
-  );
-
-  const renderStep2 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Final details</Text>
-      
-      {/* Description */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Description (Optional)</Text>
-        <TextInput
-          style={styles.descriptionInput}
-          placeholder="Add any notes or details..."
-          placeholderTextColor={colors.textMuted}
-          value={formData.description}
-          onChangeText={(text) => updateField('description', text)}
-          multiline
-          numberOfLines={3}
-        />
-      </View>
-
-      {/* Priority */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Priority</Text>
-        <View style={styles.priorityContainer}>
-          {priorities.map((priority) => (
-            <TouchableOpacity
-              key={priority.key}
-              style={[
-                styles.priorityChip,
-                { borderColor: priority.color },
-                formData.priority === priority.key && {
-                  backgroundColor: priority.color,
-                }
-              ]}
-              onPress={() => updateField('priority', priority.key)}
-            >
-              <Text style={styles.priorityIcon}>{priority.icon}</Text>
-              <Text style={[
-                styles.priorityText,
-                formData.priority === priority.key && styles.priorityTextSelected
-              ]}>
-                {priority.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Shared Toggle */}
-      <View style={styles.inputGroup}>
-        <TouchableOpacity
-          style={styles.sharedToggle}
-          onPress={() => updateField('isShared', !formData.isShared)}
-        >
-          <View style={styles.sharedToggleLeft}>
-            <Text style={styles.sharedIcon}>🤝</Text>
-            <View>
-              <Text style={styles.sharedTitle}>Shared Goal</Text>
-              <Text style={styles.sharedSubtitle}>Work on this together</Text>
-            </View>
-          </View>
-          <View style={[
-            styles.toggle,
-            formData.isShared && styles.toggleActive
-          ]}>
-            <View style={[
-              styles.toggleThumb,
-              formData.isShared && styles.toggleThumbActive
-            ]} />
-          </View>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const EmojiPickerModal = () => (
-    <Modal visible={showEmojiPicker} transparent animationType="slide">
+  return (
+    <Modal transparent visible={visible} animationType="slide">
       <View style={styles.emojiModalOverlay}>
         <View style={styles.emojiModalContent}>
           <View style={styles.emojiModalHeader}>
             <Text style={styles.emojiModalTitle}>Choose Emoji</Text>
-            <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
+            <TouchableOpacity onPress={onClose}>
               <Text style={styles.emojiModalClose}>✕</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.emojiGrid}>
-            {emojiOptions.map((emoji, index) => (
+            {emojis.map((emoji, index) => (
               <TouchableOpacity
                 key={index}
                 style={[
                   styles.emojiOption,
-                  formData.emoji === emoji && styles.emojiOptionSelected
+                  selectedEmoji === emoji && styles.emojiOptionSelected
                 ]}
                 onPress={() => {
-                  updateField('emoji', emoji);
-                  setShowEmojiPicker(false);
+                  onSelect(emoji);
+                  onClose();
                 }}
               >
                 <Text style={styles.emojiText}>{emoji}</Text>
@@ -478,99 +101,533 @@ const ModernCreateTaskScreen: React.FC<ModernCreateTaskProps> = ({
       </View>
     </Modal>
   );
+};
+
+// Date Picker Component
+const DateTimePicker: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  onSelectDate: (date: Date) => void;
+  onSelectTime: (time: string) => void;
+  selectedDate?: Date;
+  selectedTime?: string;
+}> = ({ visible, onClose, onSelectDate, onSelectTime, selectedDate, selectedTime }) => {
+  const [activeDate, setActiveDate] = useState(selectedDate || new Date());
+  const [activeTime, setActiveTime] = useState(selectedTime || '');
+
+  if (!visible) return null;
+
+  // Generate calendar days for current month
+  const generateCalendarDays = () => {
+    const today = new Date();
+    const currentMonth = activeDate.getMonth();
+    const currentYear = activeDate.getFullYear();
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      days.push({
+        date,
+        isCurrentMonth: date.getMonth() === currentMonth,
+        isToday: date.toDateString() === today.toDateString(),
+        isSelected: activeDate.toDateString() === date.toDateString(),
+      });
+    }
+    return days;
+  };
+
+  const times = [
+    '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+    '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM',
+    '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'
+  ];
+
+  return (
+    <Modal transparent visible={visible} animationType="slide">
+      <View style={styles.datePickerOverlay}>
+        <View style={styles.datePickerContent}>
+          <View style={styles.datePickerHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.datePickerCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.datePickerTitle}>Select Date & Time</Text>
+            <TouchableOpacity onPress={() => {
+              onSelectDate(activeDate);
+              if (activeTime) onSelectTime(activeTime);
+              onClose();
+            }}>
+              <Text style={styles.datePickerDone}>Done</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView>
+            {/* Calendar */}
+            <View style={styles.calendarSection}>
+              <Text style={styles.sectionTitle}>Date</Text>
+              <View style={styles.calendarGrid}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
+                  <Text key={day} style={styles.calendarHeader}>{day}</Text>
+                ))}
+                {generateCalendarDays().map((day, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.calendarDay,
+                      !day.isCurrentMonth && styles.calendarDayInactive,
+                      day.isToday && styles.calendarDayToday,
+                      day.isSelected && styles.calendarDaySelected,
+                    ]}
+                    onPress={() => setActiveDate(day.date)}
+                  >
+                    <Text style={[
+                      styles.calendarDayText,
+                      !day.isCurrentMonth && styles.calendarDayTextInactive,
+                      day.isToday && styles.calendarDayTextToday,
+                      day.isSelected && styles.calendarDayTextSelected,
+                    ]}>
+                      {day.date.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Time */}
+            <View style={styles.timeSection}>
+              <Text style={styles.sectionTitle}>Time (Optional)</Text>
+              <View style={styles.timeGrid}>
+                {times.map(time => (
+                  <TouchableOpacity
+                    key={time}
+                    style={[
+                      styles.timeOption,
+                      activeTime === time && styles.timeOptionSelected
+                    ]}
+                    onPress={() => setActiveTime(activeTime === time ? '' : time)}
+                  >
+                    <Text style={[
+                      styles.timeOptionText,
+                      activeTime === time && styles.timeOptionTextSelected
+                    ]}>
+                      {time}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const CreateTaskScreen: React.FC<CreateTaskProps> = ({
+  visible,
+  onClose,
+  onCreateTask,
+}) => {
+  const [formData, setFormData] = useState<TaskFormData>({
+    title: '',
+    description: '',
+    emoji: '✨',
+    dueDate: undefined,
+    dueTime: undefined,
+    repeat: 'none',
+    tags: [],
+    isShared: false,
+    isGroupTask: false,
+    reward: '',
+  });
+
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const titleRef = useRef<TextInput>(null);
+
+  const repeatOptions = [
+    { label: 'None', value: 'none' },
+    { label: 'Daily', value: 'daily' },
+    { label: 'Weekly', value: 'weekly' },
+    { label: 'Monthly', value: 'monthly' },
+  ];
+
+  useEffect(() => {
+    if (visible) {
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        emoji: '✨',
+        dueDate: undefined,
+        dueTime: undefined,
+        repeat: 'none',
+        tags: [],
+        isShared: false,
+        isGroupTask: false,
+        reward: '',
+      });
+
+      // Animate in
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setTimeout(() => titleRef.current?.focus(), 100);
+      });
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.8,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const updateField = <K extends keyof TaskFormData>(field: K, value: TaskFormData[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addTag = () => {
+    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
+      updateField('tags', [...formData.tags, newTag.trim()]);
+      setNewTag('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    updateField('tags', formData.tags.filter(t => t !== tag));
+  };
+
+  const handleCreateTask = async () => {
+    if (!formData.title.trim()) return;
+
+    try {
+      await onCreateTask(formData);
+      onClose();
+    } catch (error) {
+      console.error('Task creation failed:', error);
+    }
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
 
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="none" statusBarTranslucent>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-      <KeyboardAvoidingView 
-        style={styles.container} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <Animated.View 
+    <Modal transparent visible={visible} animationType="none">
+      <Animated.View style={[styles.overlay, { opacity: slideAnim }]}>
+        <Animated.View
           style={[
-            styles.content,
-            { transform: [{ translateY: slideAnim }] }
+            styles.floatingCard,
+            {
+              transform: [{ scale: scaleAnim }],
+            },
           ]}
         >
           {/* Header */}
-          <SafeAreaView>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.headerCenter}>
-                <Text style={styles.headerTitle}>{steps[currentStep].title}</Text>
-                <Text style={styles.headerSubtitle}>{steps[currentStep].subtitle}</Text>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.cancelButton}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Create Task</Text>
+            <TouchableOpacity 
+              onPress={handleCreateTask}
+              disabled={!formData.title.trim()}
+            >
+              <Text style={[
+                styles.doneButton,
+                !formData.title.trim() && styles.doneButtonDisabled
+              ]}>
+                Create
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView 
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+              {/* Task Title */}
+              <View style={styles.inputSection}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>📝</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Task Title *</Text>
+                    <TextInput
+                      ref={titleRef}
+                      style={styles.textInput}
+                      value={formData.title}
+                      onChangeText={(text) => updateField('title', text)}
+                      placeholder="What needs to be done?"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                </View>
               </View>
-              
-              <Text style={styles.stepCounter}>{currentStep + 1}/{steps.length}</Text>
-            </View>
 
-            {/* Progress Bar */}
-            <View style={styles.progressContainer}>
-              <Animated.View 
-                style={[
-                  styles.progressBar,
-                  {
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    })
-                  }
-                ]} 
-              />
-            </View>
-          </SafeAreaView>
+              {/* Emoji Picker */}
+              <View style={styles.inputSection}>
+                <TouchableOpacity 
+                  style={styles.inputContainer}
+                  onPress={() => setShowEmojiPicker(true)}
+                >
+                  <Text style={styles.inputIcon}>🎨</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Icon</Text>
+                    <View style={styles.emojiDisplay}>
+                      <Text style={styles.selectedEmoji}>{formData.emoji}</Text>
+                      <Text style={styles.tapToChange}>Tap to change</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Step Content */}
-          <ScrollView style={styles.stepScrollView} showsVerticalScrollIndicator={false}>
-            {currentStep === 0 && renderStep0()}
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
+              {/* Due Date & Time */}
+              <View style={styles.inputSection}>
+                <TouchableOpacity 
+                  style={styles.inputContainer}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={styles.inputIcon}>📅</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Due Date & Time</Text>
+                    <Text style={styles.inputValue}>
+                      {formData.dueDate ? 
+                        `${formatDate(formData.dueDate)}${formData.dueTime ? ` at ${formData.dueTime}` : ''}` : 
+                        'Select date'
+                      }
+                    </Text>
+                  </View>
+                  <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Repeat */}
+              <View style={styles.inputSection}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>🔄</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Repeat</Text>
+                    <View style={styles.segmentedControl}>
+                      {repeatOptions.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[
+                            styles.segment,
+                            formData.repeat === option.value && styles.segmentActive
+                          ]}
+                          onPress={() => updateField('repeat', option.value as any)}
+                        >
+                          <Text style={[
+                            styles.segmentText,
+                            formData.repeat === option.value && styles.segmentTextActive
+                          ]}>
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Tags */}
+              <View style={styles.inputSection}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>🏷️</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Tags</Text>
+                    <View style={styles.tagsContainer}>
+                      {formData.tags.map((tag, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.tag}
+                          onPress={() => removeTag(tag)}
+                        >
+                          <Text style={styles.tagText}>{tag}</Text>
+                          <Text style={styles.tagRemove}>×</Text>
+                        </TouchableOpacity>
+                      ))}
+                      <View style={styles.addTagContainer}>
+                        <TextInput
+                          style={styles.addTagInput}
+                          value={newTag}
+                          onChangeText={setNewTag}
+                          placeholder="Add tag"
+                          placeholderTextColor={colors.textTertiary}
+                          onSubmitEditing={addTag}
+                          returnKeyType="done"
+                        />
+                        <TouchableOpacity onPress={addTag} style={styles.addTagButton}>
+                          <Text style={styles.addTagButtonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Shared Goal */}
+              <View style={styles.inputSection}>
+                <TouchableOpacity 
+                  style={styles.inputContainer}
+                  onPress={() => updateField('isShared', !formData.isShared)}
+                >
+                  <Text style={styles.inputIcon}>🤝</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Shared Goal</Text>
+                    <Text style={styles.inputSubtitle}>Work on this together</Text>
+                  </View>
+                  <View style={[
+                    styles.toggle,
+                    formData.isShared && styles.toggleActive
+                  ]}>
+                    <View style={[
+                      styles.toggleThumb,
+                      formData.isShared && styles.toggleThumbActive
+                    ]} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Group Task */}
+              <View style={styles.inputSection}>
+                <TouchableOpacity 
+                  style={styles.inputContainer}
+                  onPress={() => updateField('isGroupTask', !formData.isGroupTask)}
+                >
+                  <Text style={styles.inputIcon}>👥</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Group Task</Text>
+                    <Text style={styles.inputSubtitle}>Link to group rewards</Text>
+                  </View>
+                  <View style={[
+                    styles.toggle,
+                    formData.isGroupTask && styles.toggleActive
+                  ]}>
+                    <View style={[
+                      styles.toggleThumb,
+                      formData.isGroupTask && styles.toggleThumbActive
+                    ]} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Reward */}
+              <View style={styles.inputSection}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>🎁</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Reward (Optional)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={formData.reward}
+                      onChangeText={(text) => updateField('reward', text)}
+                      placeholder="e.g., Movie night, treat yourself"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.inputSection}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>📋</Text>
+                  <View style={styles.inputContent}>
+                    <Text style={styles.inputLabel}>Description (Optional)</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textInputMultiline]}
+                      value={formData.description}
+                      onChangeText={(text) => updateField('description', text)}
+                      placeholder="Add any notes or details..."
+                      placeholderTextColor={colors.textTertiary}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              <View style={{ height: 50 }} />
+            </KeyboardAvoidingView>
           </ScrollView>
 
-          {/* Bottom Actions */}
-          <SafeAreaView>
-            <View style={styles.bottomActions}>
-              {currentStep > 0 && (
-                <TouchableOpacity style={styles.backButton} onPress={prevStep}>
-                  <Text style={styles.backButtonText}>Back</Text>
-                </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity
-                style={[
-                  styles.nextButton,
-                  !canProceed() && styles.nextButtonDisabled,
-                  currentStep === 0 && styles.nextButtonFullWidth
-                ]}
-                onPress={currentStep === steps.length - 1 ? handleCreateTask : nextStep}
-                disabled={!canProceed()}
-              >
-                <Text style={styles.nextButtonText}>
-                  {currentStep === steps.length - 1 ? 'Create Task ✨' : 'Next'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </Animated.View>
+          {/* Modals */}
+          <EmojiPicker
+            visible={showEmojiPicker}
+            onClose={() => setShowEmojiPicker(false)}
+            onSelect={(emoji) => updateField('emoji', emoji)}
+            selectedEmoji={formData.emoji}
+          />
 
-        <EmojiPickerModal />
-      </KeyboardAvoidingView>
+          <DateTimePicker
+            visible={showDatePicker}
+            onClose={() => setShowDatePicker(false)}
+            onSelectDate={(date) => updateField('dueDate', date)}
+            onSelectTime={(time) => updateField('dueTime', time)}
+            selectedDate={formData.dueDate}
+            selectedTime={formData.dueTime}
+          />
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  content: {
-    flex: 1,
-    backgroundColor: colors.primary,
+  floatingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    width: '100%',
+    height: '85%',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 16,
   },
   header: {
     flexDirection: 'row',
@@ -578,238 +635,181 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
+  cancelButton: {
     fontSize: 16,
-    color: colors.white,
-    fontWeight: '600',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
+    color: colors.textSecondary,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.white,
-    marginBottom: 2,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  stepCounter: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '500',
-  },
-  progressContainer: {
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: 20,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: colors.white,
-    borderRadius: 2,
-  },
-  stepScrollView: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  stepContainer: {
-    padding: 20,
-    paddingTop: 32,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 32,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
   },
-  titleInput: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    fontSize: 18,
-    color: colors.text,
-    borderWidth: 2,
-    borderColor: colors.border,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  emojiSelector: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  selectedEmoji: {
-    fontSize: 32,
-  },
-  emojiSelectorText: {
+  doneButton: {
     fontSize: 16,
-    color: colors.textLight,
+    fontWeight: '600',
+    color: colors.primary,
   },
-  categoryContainer: {
-    flexDirection: 'row',
-    gap: 12,
+  doneButtonDisabled: {
+    color: colors.textTertiary,
+  },
+  content: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
+  inputSection: {
+    paddingHorizontal: 20,
     paddingVertical: 8,
   },
-  categoryChip: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 2,
-    gap: 8,
-  },
-  categoryIcon: {
-    fontSize: 18,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  categoryTextSelected: {
-    color: colors.white,
-  },
-  quickSelectContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
     gap: 12,
   },
-  quickSelectChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderWidth: 2,
-    borderColor: colors.border,
-    gap: 8,
-    minWidth: '45%',
+  inputIcon: {
+    fontSize: 20,
   },
-  quickSelectChipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  inputContent: {
+    flex: 1,
   },
-  quickSelectIcon: {
-    fontSize: 18,
-  },
-  quickSelectText: {
+  inputLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 4,
   },
-  quickSelectTextSelected: {
-    color: colors.white,
+  inputSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  timeInput: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
+  inputValue: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  textInput: {
     fontSize: 16,
     color: colors.text,
-    borderWidth: 2,
-    borderColor: colors.border,
+    padding: 0,
   },
-  descriptionInput: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    fontSize: 16,
-    color: colors.text,
-    borderWidth: 2,
-    borderColor: colors.border,
-    height: 100,
+  textInputMultiline: {
+    minHeight: 60,
     textAlignVertical: 'top',
   },
-  priorityContainer: {
-    flexDirection: 'row',
-    gap: 12,
+  chevron: {
+    fontSize: 18,
+    color: colors.textTertiary,
   },
-  priorityChip: {
-    flex: 1,
+  
+  // Emoji Display
+  emojiDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingVertical: 16,
-    borderWidth: 2,
     gap: 8,
   },
-  priorityIcon: {
-    fontSize: 16,
-  },
-  priorityText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  priorityTextSelected: {
-    color: colors.white,
-  },
-  sharedToggle: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sharedToggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    flex: 1,
-  },
-  sharedIcon: {
+  selectedEmoji: {
     fontSize: 24,
   },
-  sharedTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sharedSubtitle: {
+  tapToChange: {
     fontSize: 14,
-    color: colors.textLight,
+    color: colors.textSecondary,
   },
+
+  // Segmented Control
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 8,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  segmentActive: {
+    backgroundColor: colors.primary,
+  },
+  segmentText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  segmentTextActive: {
+    color: colors.white,
+    fontWeight: '600',
+  },
+
+  // Tags
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '20',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  tagText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  tagRemove: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  addTagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  addTagInput: {
+    fontSize: 14,
+    color: colors.text,
+    minWidth: 80,
+  },
+  addTagButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addTagButtonText: {
+    fontSize: 14,
+    color: colors.white,
+    fontWeight: '600',
+  },
+
+  // Toggle
   toggle: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.gray300,
+    width: 52,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 2,
   },
@@ -817,117 +817,197 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.white,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
   toggleThumbActive: {
     transform: [{ translateX: 20 }],
   },
-  bottomActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: colors.background,
-    gap: 12,
-  },
-  backButton: {
-    flex: 1,
-    backgroundColor: colors.gray100,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  nextButton: {
-    flex: 2,
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonFullWidth: {
-    flex: 1,
-  },
-  nextButtonDisabled: {
-    backgroundColor: colors.gray300,
-  },
-  nextButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  
-  // Emoji Modal Styles
+
+  // Emoji Modal
   emojiModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   emojiModalContent: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '60%',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '70%',
   },
   emojiModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   emojiModalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
   },
   emojiModalClose: {
     fontSize: 18,
-    color: colors.textLight,
-    width: 32,
-    height: 32,
-    textAlign: 'center',
-    lineHeight: 32,
+    color: colors.textSecondary,
   },
   emojiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    gap: 16,
+    padding: 20,
+    gap: 12,
   },
   emojiOption: {
-    width: (screenWidth - 48 - 80) / 6,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.gray50,
+    width: (screenWidth - 104) / 6,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
   },
   emojiOptionSelected: {
     backgroundColor: colors.primary + '20',
-    borderColor: colors.primary,
   },
   emojiText: {
     fontSize: 24,
   },
+
+  // Date Picker Modal
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  datePickerContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  datePickerDone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  
+  // Calendar Section
+  calendarSection: {
+    padding: 20,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarHeader: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+    borderRadius: 8,
+  },
+  calendarDayInactive: {
+    opacity: 0.3,
+  },
+  calendarDayToday: {
+    backgroundColor: colors.secondary + '20',
+  },
+  calendarDaySelected: {
+    backgroundColor: colors.primary,
+  },
+  calendarDayText: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  calendarDayTextInactive: {
+    color: colors.textTertiary,
+  },
+  calendarDayTextToday: {
+    color: colors.secondary,
+    fontWeight: '600',
+  },
+  calendarDayTextSelected: {
+    color: colors.white,
+    fontWeight: '600',
+  },
+
+  // Time Section
+  timeSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  timeOptionSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  timeOptionText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  timeOptionTextSelected: {
+    color: colors.white,
+    fontWeight: '600',
+  },
 });
 
-export default ModernCreateTaskScreen;
+export default CreateTaskScreen;

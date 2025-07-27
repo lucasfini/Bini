@@ -13,7 +13,7 @@ import { Clock, Calendar, Plus, Settings, User, BookOpen } from '@tamagui/lucide
 
 import TimelineScreen from '../screens/timeline/TimelineScreen';
 import CalendarScreen from '../screens/calendar/CalendarScreen';
-import CreateTaskTray from '../screens/create/CreateTaskScreen';
+import SimpleCreateTaskTray from '../screens/create/CreateTaskScreen'; // Make sure this path is correct
 import KnowledgeScreen from '../screens/knowledge/KnowledgeScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
@@ -31,12 +31,13 @@ const colors = {
   black: '#000000',
 };
 
-// Task form interface (should match your CreateTaskTray)
-interface TaskForm {
+// Task form interface (matching your CreateTaskScreen)
+interface TaskFormData {
   title: string;
-  description: string;
-  emoji: string;
-  time: string;
+  description?: string;
+  emoji?: string;
+  time?: string;
+  when: string;
   category: string;
   priority: 'low' | 'medium' | 'high';
   isShared: boolean;
@@ -59,20 +60,37 @@ const AppNavigator: React.FC = () => {
   // State for the Create Task tray
   const [showCreateTray, setShowCreateTray] = useState(false);
 
-  // Handle task creation
-  const handleCreateTask = (task: TaskForm) => {
-    console.log('New task created:', task);
+  // Handle task creation - updated to match your TaskFormData interface
+  const handleCreateTask = async (taskData: TaskFormData) => {
+    console.log('New task created:', taskData);
     
-    // Here you would typically:
-    // 1. Save to your backend/database
-    // 2. Add to your local state/context
-    // 3. Show success message
-    
-    Alert.alert(
-      'Task Created! 🎉',
-      `"${task.title}" has been added to your timeline`,
-      [{ text: 'Great!' }]
-    );
+    try {
+      // Here you would typically:
+      // 1. Save to your backend/database using your SupabaseTaskService
+      // 2. Add to your local state/context
+      // 3. Show success message
+      
+      // For now, we'll just show a success message
+      Alert.alert(
+        'Task Created! 🎉',
+        `"${taskData.title}" has been added to your ${taskData.when} timeline`,
+        [{ text: 'Great!' }]
+      );
+
+      // You can uncomment this when you want to integrate with your task service:
+      /*
+      const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
+      await SupabaseTaskService.createTaskFromForm(taskData);
+      */
+      
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      Alert.alert(
+        'Error',
+        'Failed to create task. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   // Minimal Custom Tab Bar
@@ -88,7 +106,7 @@ const AppNavigator: React.FC = () => {
           return <Calendar size={iconSize} color={iconColor} />;
         case 'Create':
           return <Plus size={24} color={colors.white} />;
-          case 'Knowledge': // CHANGED from Settings
+        case 'Knowledge':
           return <BookOpen size={iconSize} color={iconColor} />;
         case 'Profile':
           return <User size={iconSize} color={iconColor} />;
@@ -164,7 +182,7 @@ const AppNavigator: React.FC = () => {
       </Tab.Navigator>
 
       {/* Floating Create Task Tray - This overlays everything */}
-      <CreateTaskTray
+      <SimpleCreateTaskTray
         visible={showCreateTray}
         onClose={() => setShowCreateTray(false)}
         onCreateTask={handleCreateTask}
