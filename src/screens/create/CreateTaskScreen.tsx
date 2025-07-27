@@ -5,15 +5,24 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Animated,
   Modal,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  PanResponder,
   ScrollView,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedGestureHandler,
+  withSpring,
+  withTiming,
+  runOnJS,
+  interpolate,
+  Extrapolate,
+} from 'react-native-reanimated';
+import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -21,6 +30,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const colors = {
   background: '#FAFAFA',
   surface: '#FFFFFF',
+  parchment: '#F7F3E9',
   border: '#F0F0F0',
   primary: '#FF6B9D',
   secondary: '#6B73FF',
@@ -30,6 +40,7 @@ const colors = {
   textTertiary: '#999999',
   white: '#FFFFFF',
   black: '#000000',
+  dragHandle: '#CCCCCC',
 };
 
 interface TaskFormData {
@@ -103,7 +114,7 @@ const EmojiPicker: React.FC<{
   );
 };
 
-// Date Picker Component
+// Date Picker Component (simplified for demo)
 const DateTimePicker: React.FC<{
   visible: boolean;
   onClose: () => void;
@@ -115,37 +126,13 @@ const DateTimePicker: React.FC<{
   const [activeDate, setActiveDate] = useState(selectedDate || new Date());
   const [activeTime, setActiveTime] = useState(selectedTime || '');
 
-  if (!visible) return null;
-
-  // Generate calendar days for current month
-  const generateCalendarDays = () => {
-    const today = new Date();
-    const currentMonth = activeDate.getMonth();
-    const currentYear = activeDate.getFullYear();
-    const firstDay = new Date(currentYear, currentMonth, 1);
-    const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
-    const days = [];
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      days.push({
-        date,
-        isCurrentMonth: date.getMonth() === currentMonth,
-        isToday: date.toDateString() === today.toDateString(),
-        isSelected: activeDate.toDateString() === date.toDateString(),
-      });
-    }
-    return days;
-  };
-
   const times = [
     '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
     '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM',
     '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'
   ];
+
+  if (!visible) return null;
 
   return (
     <Modal transparent visible={visible} animationType="slide">
@@ -165,60 +152,26 @@ const DateTimePicker: React.FC<{
             </TouchableOpacity>
           </View>
 
-          <ScrollView>
-            {/* Calendar */}
-            <View style={styles.calendarSection}>
-              <Text style={styles.sectionTitle}>Date</Text>
-              <View style={styles.calendarGrid}>
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
-                  <Text key={day} style={styles.calendarHeader}>{day}</Text>
-                ))}
-                {generateCalendarDays().map((day, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.calendarDay,
-                      !day.isCurrentMonth && styles.calendarDayInactive,
-                      day.isToday && styles.calendarDayToday,
-                      day.isSelected && styles.calendarDaySelected,
-                    ]}
-                    onPress={() => setActiveDate(day.date)}
-                  >
-                    <Text style={[
-                      styles.calendarDayText,
-                      !day.isCurrentMonth && styles.calendarDayTextInactive,
-                      day.isToday && styles.calendarDayTextToday,
-                      day.isSelected && styles.calendarDayTextSelected,
-                    ]}>
-                      {day.date.getDate()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Time */}
-            <View style={styles.timeSection}>
-              <Text style={styles.sectionTitle}>Time (Optional)</Text>
-              <View style={styles.timeGrid}>
-                {times.map(time => (
-                  <TouchableOpacity
-                    key={time}
-                    style={[
-                      styles.timeOption,
-                      activeTime === time && styles.timeOptionSelected
-                    ]}
-                    onPress={() => setActiveTime(activeTime === time ? '' : time)}
-                  >
-                    <Text style={[
-                      styles.timeOptionText,
-                      activeTime === time && styles.timeOptionTextSelected
-                    ]}>
-                      {time}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+          <ScrollView style={styles.timeSection}>
+            <Text style={styles.sectionTitle}>Quick Times</Text>
+            <View style={styles.timeGrid}>
+              {times.map(time => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timeOption,
+                    activeTime === time && styles.timeOptionSelected
+                  ]}
+                  onPress={() => setActiveTime(activeTime === time ? '' : time)}
+                >
+                  <Text style={[
+                    styles.timeOptionText,
+                    activeTime === time && styles.timeOptionTextSelected
+                  ]}>
+                    {time}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </ScrollView>
         </View>
@@ -248,9 +201,12 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newTag, setNewTag] = useState('');
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const titleRef = useRef<TextInput>(null);
+
+  // Reanimated values - Initialize properly
+  const translateY = useSharedValue(screenHeight);
+  const opacity = useSharedValue(0);
+  const contentOpacity = useSharedValue(0);
 
   const repeatOptions = [
     { label: 'None', value: 'none' },
@@ -259,6 +215,90 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
     { label: 'Monthly', value: 'monthly' },
   ];
 
+  // Animation functions
+  const showTray = () => {
+    'worklet';
+    opacity.value = withTiming(1, { duration: 300 });
+    translateY.value = withSpring(0, {
+      damping: 15,
+      stiffness: 100,
+      mass: 1,
+    });
+    contentOpacity.value = withTiming(1, { duration: 400 });
+  };
+
+  const hideTray = (callback?: () => void) => {
+    'worklet';
+    contentOpacity.value = withTiming(0, { duration: 200 });
+    translateY.value = withTiming(screenHeight, { 
+      duration: 300,
+    });
+    opacity.value = withTiming(0, { duration: 250 }, (finished) => {
+      if (finished && callback) {
+        runOnJS(callback)();
+      }
+    });
+  };
+
+  // Gesture handler - Fixed worklet annotations
+  const gestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      'worklet';
+      // Store initial position
+    },
+    onActive: (event) => {
+      'worklet';
+      if (event.translationY > 0) {
+        translateY.value = event.translationY;
+        // Fade out content as user drags down
+        const progress = interpolate(
+          event.translationY,
+          [0, screenHeight * 0.3],
+          [1, 0],
+          Extrapolate.CLAMP
+        );
+        contentOpacity.value = progress;
+      }
+    },
+    onEnd: (event) => {
+      'worklet';
+      const shouldDismiss = event.translationY > screenHeight * 0.25 || event.velocityY > 1000;
+      
+      if (shouldDismiss) {
+        runOnJS(() => {
+          hideTray(() => onClose());
+        })();
+      } else {
+        // Snap back
+        translateY.value = withSpring(0);
+        contentOpacity.value = withTiming(1);
+      }
+    },
+  });
+
+  // Animated styles - Fixed worklet annotations
+  const backdropStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      opacity: opacity.value,
+    };
+  });
+
+  const trayStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ translateY: translateY.value }],
+    };
+  });
+
+  const contentStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      opacity: contentOpacity.value,
+    };
+  });
+
+  // Effects
   useEffect(() => {
     if (visible) {
       // Reset form
@@ -275,35 +315,21 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
         reward: '',
       });
 
-      // Animate in
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setTimeout(() => titleRef.current?.focus(), 100);
-      });
+      // Start from bottom and animate up
+      translateY.value = screenHeight;
+      opacity.value = 0;
+      contentOpacity.value = 0;
+      
+      // Trigger animations
+      setTimeout(() => {
+        showTray();
+        setTimeout(() => titleRef.current?.focus(), 600);
+      }, 50);
     } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // Reset to hidden position
+      translateY.value = screenHeight;
+      opacity.value = 0;
+      contentOpacity.value = 0;
     }
   }, [visible]);
 
@@ -327,10 +353,14 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
 
     try {
       await onCreateTask(formData);
-      onClose();
+      hideTray(() => onClose());
     } catch (error) {
       console.error('Task creation failed:', error);
     }
+  };
+
+  const handleBackdropPress = () => {
+    hideTray(() => onClose());
   };
 
   const formatDate = (date: Date) => {
@@ -344,290 +374,318 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none">
-      <Animated.View style={[styles.overlay, { opacity: slideAnim }]}>
-        <Animated.View
-          style={[
-            styles.floatingCard,
-            {
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.cancelButton}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Create Task</Text>
-            <TouchableOpacity 
-              onPress={handleCreateTask}
-              disabled={!formData.title.trim()}
-            >
-              <Text style={[
-                styles.doneButton,
-                !formData.title.trim() && styles.doneButtonDisabled
-              ]}>
-                Create
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView 
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-              {/* Task Title */}
-              <View style={styles.inputSection}>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>📝</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Task Title *</Text>
-                    <TextInput
-                      ref={titleRef}
-                      style={styles.textInput}
-                      value={formData.title}
-                      onChangeText={(text) => updateField('title', text)}
-                      placeholder="What needs to be done?"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              {/* Emoji Picker */}
-              <View style={styles.inputSection}>
-                <TouchableOpacity 
-                  style={styles.inputContainer}
-                  onPress={() => setShowEmojiPicker(true)}
-                >
-                  <Text style={styles.inputIcon}>🎨</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Icon</Text>
-                    <View style={styles.emojiDisplay}>
-                      <Text style={styles.selectedEmoji}>{formData.emoji}</Text>
-                      <Text style={styles.tapToChange}>Tap to change</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Due Date & Time */}
-              <View style={styles.inputSection}>
-                <TouchableOpacity 
-                  style={styles.inputContainer}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Text style={styles.inputIcon}>📅</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Due Date & Time</Text>
-                    <Text style={styles.inputValue}>
-                      {formData.dueDate ? 
-                        `${formatDate(formData.dueDate)}${formData.dueTime ? ` at ${formData.dueTime}` : ''}` : 
-                        'Select date'
-                      }
-                    </Text>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Repeat */}
-              <View style={styles.inputSection}>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>🔄</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Repeat</Text>
-                    <View style={styles.segmentedControl}>
-                      {repeatOptions.map((option) => (
-                        <TouchableOpacity
-                          key={option.value}
-                          style={[
-                            styles.segment,
-                            formData.repeat === option.value && styles.segmentActive
-                          ]}
-                          onPress={() => updateField('repeat', option.value as any)}
-                        >
-                          <Text style={[
-                            styles.segmentText,
-                            formData.repeat === option.value && styles.segmentTextActive
-                          ]}>
-                            {option.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* Tags */}
-              <View style={styles.inputSection}>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>🏷️</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Tags</Text>
-                    <View style={styles.tagsContainer}>
-                      {formData.tags.map((tag, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={styles.tag}
-                          onPress={() => removeTag(tag)}
-                        >
-                          <Text style={styles.tagText}>{tag}</Text>
-                          <Text style={styles.tagRemove}>×</Text>
-                        </TouchableOpacity>
-                      ))}
-                      <View style={styles.addTagContainer}>
-                        <TextInput
-                          style={styles.addTagInput}
-                          value={newTag}
-                          onChangeText={setNewTag}
-                          placeholder="Add tag"
-                          placeholderTextColor={colors.textTertiary}
-                          onSubmitEditing={addTag}
-                          returnKeyType="done"
-                        />
-                        <TouchableOpacity onPress={addTag} style={styles.addTagButton}>
-                          <Text style={styles.addTagButtonText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* Shared Goal */}
-              <View style={styles.inputSection}>
-                <TouchableOpacity 
-                  style={styles.inputContainer}
-                  onPress={() => updateField('isShared', !formData.isShared)}
-                >
-                  <Text style={styles.inputIcon}>🤝</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Shared Goal</Text>
-                    <Text style={styles.inputSubtitle}>Work on this together</Text>
-                  </View>
-                  <View style={[
-                    styles.toggle,
-                    formData.isShared && styles.toggleActive
-                  ]}>
-                    <View style={[
-                      styles.toggleThumb,
-                      formData.isShared && styles.toggleThumbActive
-                    ]} />
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              {/* Group Task */}
-              <View style={styles.inputSection}>
-                <TouchableOpacity 
-                  style={styles.inputContainer}
-                  onPress={() => updateField('isGroupTask', !formData.isGroupTask)}
-                >
-                  <Text style={styles.inputIcon}>👥</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Group Task</Text>
-                    <Text style={styles.inputSubtitle}>Link to group rewards</Text>
-                  </View>
-                  <View style={[
-                    styles.toggle,
-                    formData.isGroupTask && styles.toggleActive
-                  ]}>
-                    <View style={[
-                      styles.toggleThumb,
-                      formData.isGroupTask && styles.toggleThumbActive
-                    ]} />
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              {/* Reward */}
-              <View style={styles.inputSection}>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>🎁</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Reward (Optional)</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={formData.reward}
-                      onChangeText={(text) => updateField('reward', text)}
-                      placeholder="e.g., Movie night, treat yourself"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              {/* Description */}
-              <View style={styles.inputSection}>
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>📋</Text>
-                  <View style={styles.inputContent}>
-                    <Text style={styles.inputLabel}>Description (Optional)</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textInputMultiline]}
-                      value={formData.description}
-                      onChangeText={(text) => updateField('description', text)}
-                      placeholder="Add any notes or details..."
-                      placeholderTextColor={colors.textTertiary}
-                      multiline
-                      numberOfLines={3}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <View style={{ height: 50 }} />
-            </KeyboardAvoidingView>
-          </ScrollView>
-
-          {/* Modals */}
-          <EmojiPicker
-            visible={showEmojiPicker}
-            onClose={() => setShowEmojiPicker(false)}
-            onSelect={(emoji) => updateField('emoji', emoji)}
-            selectedEmoji={formData.emoji}
-          />
-
-          <DateTimePicker
-            visible={showDatePicker}
-            onClose={() => setShowDatePicker(false)}
-            onSelectDate={(date) => updateField('dueDate', date)}
-            onSelectTime={(time) => updateField('dueTime', time)}
-            selectedDate={formData.dueDate}
-            selectedTime={formData.dueTime}
+    <GestureHandlerRootView style={StyleSheet.absoluteFillObject}>
+      <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
+        <StatusBar backgroundColor="rgba(0,0,0,0.4)" barStyle="light-content" />
+        
+        {/* Backdrop */}
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFillObject} 
+            onPress={handleBackdropPress}
+            activeOpacity={1}
           />
         </Animated.View>
-      </Animated.View>
-    </Modal>
+
+        {/* Tray */}
+        <PanGestureHandler onGestureEvent={gestureHandler}>
+          <Animated.View style={[styles.trayContainer, trayStyle]}>
+            <View style={styles.tray}>
+              {/* Drag Handle */}
+              <View style={styles.dragHandle} />
+
+              {/* Header */}
+              <Animated.View style={[styles.header, contentStyle]}>
+                <TouchableOpacity onPress={() => hideTray(() => onClose())}>
+                  <Text style={styles.cancelButton}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Create Task</Text>
+                <TouchableOpacity 
+                  onPress={handleCreateTask}
+                  disabled={!formData.title.trim()}
+                >
+                  <Text style={[
+                    styles.doneButton,
+                    !formData.title.trim() && styles.doneButtonDisabled
+                  ]}>
+                    Create
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+
+              {/* Content */}
+              <Animated.View style={[styles.content, contentStyle]}>
+                <KeyboardAvoidingView 
+                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                  style={styles.keyboardView}
+                >
+                  <ScrollView 
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                  >
+                    {/* Task Title */}
+                    <View style={styles.inputSection}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputIcon}>📝</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Task Title *</Text>
+                          <TextInput
+                            ref={titleRef}
+                            style={styles.textInput}
+                            value={formData.title}
+                            onChangeText={(text) => updateField('title', text)}
+                            placeholder="What needs to be done?"
+                            placeholderTextColor={colors.textTertiary}
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Emoji Picker */}
+                    <View style={styles.inputSection}>
+                      <TouchableOpacity 
+                        style={styles.inputContainer}
+                        onPress={() => setShowEmojiPicker(true)}
+                      >
+                        <Text style={styles.inputIcon}>🎨</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Icon</Text>
+                          <View style={styles.emojiDisplay}>
+                            <Text style={styles.selectedEmoji}>{formData.emoji}</Text>
+                            <Text style={styles.tapToChange}>Tap to change</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.chevron}>›</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Due Date & Time */}
+                    <View style={styles.inputSection}>
+                      <TouchableOpacity 
+                        style={styles.inputContainer}
+                        onPress={() => setShowDatePicker(true)}
+                      >
+                        <Text style={styles.inputIcon}>📅</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Due Date & Time</Text>
+                          <Text style={styles.inputValue}>
+                            {formData.dueDate ? 
+                              `${formatDate(formData.dueDate)}${formData.dueTime ? ` at ${formData.dueTime}` : ''}` : 
+                              'Select date'
+                            }
+                          </Text>
+                        </View>
+                        <Text style={styles.chevron}>›</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Repeat */}
+                    <View style={styles.inputSection}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputIcon}>🔄</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Repeat</Text>
+                          <View style={styles.segmentedControl}>
+                            {repeatOptions.map((option) => (
+                              <TouchableOpacity
+                                key={option.value}
+                                style={[
+                                  styles.segment,
+                                  formData.repeat === option.value && styles.segmentActive
+                                ]}
+                                onPress={() => updateField('repeat', option.value as any)}
+                              >
+                                <Text style={[
+                                  styles.segmentText,
+                                  formData.repeat === option.value && styles.segmentTextActive
+                                ]}>
+                                  {option.label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Tags */}
+                    <View style={styles.inputSection}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputIcon}>🏷️</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Tags</Text>
+                          <View style={styles.tagsContainer}>
+                            {formData.tags.map((tag, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={styles.tag}
+                                onPress={() => removeTag(tag)}
+                              >
+                                <Text style={styles.tagText}>{tag}</Text>
+                                <Text style={styles.tagRemove}>×</Text>
+                              </TouchableOpacity>
+                            ))}
+                            <View style={styles.addTagContainer}>
+                              <TextInput
+                                style={styles.addTagInput}
+                                value={newTag}
+                                onChangeText={setNewTag}
+                                placeholder="Add tag"
+                                placeholderTextColor={colors.textTertiary}
+                                onSubmitEditing={addTag}
+                                returnKeyType="done"
+                              />
+                              <TouchableOpacity onPress={addTag} style={styles.addTagButton}>
+                                <Text style={styles.addTagButtonText}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Shared Goal */}
+                    <View style={styles.inputSection}>
+                      <TouchableOpacity 
+                        style={styles.inputContainer}
+                        onPress={() => updateField('isShared', !formData.isShared)}
+                      >
+                        <Text style={styles.inputIcon}>🤝</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Shared Goal</Text>
+                          <Text style={styles.inputSubtitle}>Work on this together</Text>
+                        </View>
+                        <View style={[
+                          styles.toggle,
+                          formData.isShared && styles.toggleActive
+                        ]}>
+                          <View style={[
+                            styles.toggleThumb,
+                            formData.isShared && styles.toggleThumbActive
+                          ]} />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Group Task */}
+                    <View style={styles.inputSection}>
+                      <TouchableOpacity 
+                        style={styles.inputContainer}
+                        onPress={() => updateField('isGroupTask', !formData.isGroupTask)}
+                      >
+                        <Text style={styles.inputIcon}>👥</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Group Task</Text>
+                          <Text style={styles.inputSubtitle}>Link to group rewards</Text>
+                        </View>
+                        <View style={[
+                          styles.toggle,
+                          formData.isGroupTask && styles.toggleActive
+                        ]}>
+                          <View style={[
+                            styles.toggleThumb,
+                            formData.isGroupTask && styles.toggleThumbActive
+                          ]} />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Reward */}
+                    <View style={styles.inputSection}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputIcon}>🎁</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Reward (Optional)</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={formData.reward}
+                            onChangeText={(text) => updateField('reward', text)}
+                            placeholder="e.g., Movie night, treat yourself"
+                            placeholderTextColor={colors.textTertiary}
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Description */}
+                    <View style={styles.inputSection}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.inputIcon}>📋</Text>
+                        <View style={styles.inputContent}>
+                          <Text style={styles.inputLabel}>Description (Optional)</Text>
+                          <TextInput
+                            style={[styles.textInput, styles.textInputMultiline]}
+                            value={formData.description}
+                            onChangeText={(text) => updateField('description', text)}
+                            placeholder="Add any notes or details..."
+                            placeholderTextColor={colors.textTertiary}
+                            multiline
+                            numberOfLines={3}
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={{ height: 50 }} />
+                  </ScrollView>
+                </KeyboardAvoidingView>
+              </Animated.View>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
+
+        {/* Modals */}
+        <EmojiPicker
+          visible={showEmojiPicker}
+          onClose={() => setShowEmojiPicker(false)}
+          onSelect={(emoji) => updateField('emoji', emoji)}
+          selectedEmoji={formData.emoji}
+        />
+
+        <DateTimePicker
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          onSelectDate={(date) => updateField('dueDate', date)}
+          onSelectTime={(time) => updateField('dueTime', time)}
+          selectedDate={formData.dueDate}
+          selectedTime={formData.dueTime}
+        />
+      </Modal>
+    </GestureHandlerRootView>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
-  floatingCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    width: '100%',
+  trayContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: '85%',
+  },
+  tray: {
+    flex: 1,
+    backgroundColor: colors.parchment,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 16,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: colors.dragHandle,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -657,10 +715,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 20,
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingBottom: 20,
   },
   inputSection: {
@@ -670,10 +729,15 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     gap: 12,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   inputIcon: {
     fontSize: 20,
@@ -726,7 +790,7 @@ const styles = StyleSheet.create({
   // Segmented Control
   segmentedControl: {
     flexDirection: 'row',
-    backgroundColor: colors.white,
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 4,
     marginTop: 8,
@@ -779,7 +843,7 @@ const styles = StyleSheet.create({
   addTagContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.background,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -896,7 +960,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '70%',
   },
   datePickerHeader: {
     flexDirection: 'row',
@@ -926,55 +990,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
-  },
-  
-  // Calendar Section
-  calendarSection: {
-    padding: 20,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  calendarHeader: {
-    width: '14.28%',
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  calendarDay: {
-    width: '14.28%',
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-    borderRadius: 8,
-  },
-  calendarDayInactive: {
-    opacity: 0.3,
-  },
-  calendarDayToday: {
-    backgroundColor: colors.secondary + '20',
-  },
-  calendarDaySelected: {
-    backgroundColor: colors.primary,
-  },
-  calendarDayText: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  calendarDayTextInactive: {
-    color: colors.textTertiary,
-  },
-  calendarDayTextToday: {
-    color: colors.secondary,
-    fontWeight: '600',
-  },
-  calendarDayTextSelected: {
-    color: colors.white,
-    fontWeight: '600',
   },
 
   // Time Section

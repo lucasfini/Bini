@@ -1146,7 +1146,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNReanimated (3.10.1):
+  - RNReanimated (3.8.1):
     - DoubleConversion
     - glog
     - RCT-Folly (= 2024.01.01.00)
@@ -1461,7 +1461,7 @@ SPEC CHECKSUMS:
   ReactNativeUiLib: 237cd5430e9569575778f228547d03c485b010de
   RNCAsyncStorage: b44e8a4e798c3e1f56bffccd0f591f674fb9198f
   RNGestureHandler: 535900401230aa705436f4470e366a2dcf5338a1
-  RNReanimated: 76f916b85bb322b7075f1f9022e4bc0c3f59b7c6
+  RNReanimated: deb12f1bd42fc63496ef626d0ccbefa9e80e5a03
   RNScreens: cec3075e13c6061901ea9762649d85ca4ec54483
   RNSVG: ff728783849deecdeb6a270ab35e9cb1db3cbe0f
   RNVectorIcons: 0816de14f77317e7c29bfc96a9dc90cdd44f0014

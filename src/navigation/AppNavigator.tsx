@@ -9,11 +9,11 @@ import {
   Text,
   Alert,
 } from 'react-native';
-import { Clock, Calendar, Plus, Settings, User, BookOpen } from '@tamagui/lucide-icons';
+import { Clock, Calendar, Plus, BookOpen, User } from '@tamagui/lucide-icons';
 
 import TimelineScreen from '../screens/timeline/TimelineScreen';
 import CalendarScreen from '../screens/calendar/CalendarScreen';
-import SimpleCreateTaskTray from '../screens/create/CreateTaskScreen'; // Make sure this path is correct
+import CreateTaskScreen from '../screens/create/CreateTaskScreen'; // Import your CreateTaskScreen
 import KnowledgeScreen from '../screens/knowledge/KnowledgeScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
@@ -36,11 +36,14 @@ interface TaskFormData {
   title: string;
   description?: string;
   emoji?: string;
-  time?: string;
-  when: string;
-  category: string;
-  priority: 'low' | 'medium' | 'high';
+  dueDate?: Date;
+  dueTime?: string;
+  repeat: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
+  tags: string[];
   isShared: boolean;
+  isGroupTask: boolean;
+  groupId?: string;
+  reward?: string;
 }
 
 // Simple Settings screen component
@@ -60,28 +63,37 @@ const AppNavigator: React.FC = () => {
   // State for the Create Task tray
   const [showCreateTray, setShowCreateTray] = useState(false);
 
-  // Handle task creation - updated to match your TaskFormData interface
+  // Handle task creation - Convert from your TaskFormData to a simpler format for the alert
   const handleCreateTask = async (taskData: TaskFormData) => {
     console.log('New task created:', taskData);
     
     try {
-      // Here you would typically:
-      // 1. Save to your backend/database using your SupabaseTaskService
-      // 2. Add to your local state/context
-      // 3. Show success message
+      // Here you would typically integrate with your task service:
+      // const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
+      // 
+      // Convert TaskFormData to the format expected by your service:
+      // const taskForService = {
+      //   title: taskData.title,
+      //   description: taskData.description,
+      //   emoji: taskData.emoji || '✨',
+      //   when: taskData.dueDate ? taskData.dueDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      //   time: taskData.dueTime,
+      //   category: 'Personal', // You might want to add this to TaskFormData
+      //   priority: 'medium' as const, // You might want to add this to TaskFormData
+      //   isShared: taskData.isShared,
+      //   frequency: taskData.repeat,
+      //   alerts: [], // You might want to add this to TaskFormData
+      // };
+      // 
+      // await SupabaseTaskService.createTaskFromForm(taskForService);
       
-      // For now, we'll just show a success message
+      // For now, just show a success message
+      const dateStr = taskData.dueDate ? taskData.dueDate.toLocaleDateString() : 'today';
       Alert.alert(
         'Task Created! 🎉',
-        `"${taskData.title}" has been added to your ${taskData.when} timeline`,
+        `"${taskData.title}" has been added for ${dateStr}`,
         [{ text: 'Great!' }]
       );
-
-      // You can uncomment this when you want to integrate with your task service:
-      /*
-      const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
-      await SupabaseTaskService.createTaskFromForm(taskData);
-      */
       
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -182,7 +194,7 @@ const AppNavigator: React.FC = () => {
       </Tab.Navigator>
 
       {/* Floating Create Task Tray - This overlays everything */}
-      <SimpleCreateTaskTray
+      <CreateTaskScreen
         visible={showCreateTray}
         onClose={() => setShowCreateTray(false)}
         onCreateTask={handleCreateTask}
