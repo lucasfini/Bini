@@ -1,6 +1,6 @@
 // IMPORTANT: This must be the very first import!
 import 'react-native-url-polyfill/auto';
-
+import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { createTamagui, TamaguiProvider } from 'tamagui';
 import { defaultConfig } from '@tamagui/config/v4';
