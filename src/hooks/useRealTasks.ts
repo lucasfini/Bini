@@ -4,18 +4,38 @@ import { useAuth } from '../context/AuthContext';
 
 interface SimpleTask {
   id: string;
-  title: string;
-  subtitle?: string;
-  emoji?: string;
-  time?: string;
-  endTime?: string;
+  title: string;  
   date: string;
   isShared: boolean;
   isCompleted: boolean;
-  category?: string;
-  priority?: 'low' | 'medium' | 'high';
+  // Primary fields (new schema)
+  emoji?: string;
+  start_time?: string;
+  end_time?: string;
+  duration?: number;
+  frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
+  reoccurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
+  alerts?: string[];
+  details?: string;
+  steps?: { id: string; title: string; completed: boolean }[];
   assignedTo: string[];
   reactions: any[];
+  // Backward compatibility fields
+  subtitle?: string; // Maps to details
+  time?: string; // Maps to start_time
+  endTime?: string; // Maps to end_time
+  subtasks?: { id: string; title: string; completed: boolean }[]; // Maps to steps
+  recurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  }; // Maps to reoccurrence
+  category?: string;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 export const useRealTasks = () => {

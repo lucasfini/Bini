@@ -62,33 +62,44 @@ const colors = {
 interface EnhancedTask {
   id: string;
   title: string;
-  subtitle?: string;
-  emoji?: string;
-  time?: string;
-  endTime?: string;
   date: string;
   isShared: boolean;
   isCompleted: boolean;
   assignedTo: string[];
-  category?: string;
-  groupId?: string;
   reactions: Array<{
     emoji: string;
     count: number;
     isFromPartner: boolean;
     users: string[];
   }>;
-  priority?: 'low' | 'medium' | 'high';
-  progress?: number;
-  notes?: string;
-  // Missing fields needed for task details
-  subtasks?: { id: string; title: string; completed: boolean }[];
-  alerts?: string[];
-  recurrence?: {
+  // New schema fields
+  emoji?: string;
+  start_time?: string;
+  end_time?: string;
+  duration?: number;
+  reoccurrence?: {
     frequency: 'none' | 'daily' | 'weekly' | 'monthly';
     interval: number;
     daysOfWeek?: string[];
   };
+  alerts?: string[];
+  details?: string;
+  steps?: { id: string; title: string; completed: boolean }[];
+  // Backward compatibility fields
+  subtitle?: string; // Maps to details
+  time?: string; // Maps to start_time
+  endTime?: string; // Maps to end_time
+  subtasks?: { id: string; title: string; completed: boolean }[]; // Maps to steps
+  recurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  }; // Maps to reoccurrence
+  category?: string;
+  groupId?: string;
+  priority?: 'low' | 'medium' | 'high';
+  progress?: number;
+  notes?: string;
 }
 
 // Task Group interface
@@ -177,22 +188,29 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
 
   // Format time range display
   const getTimeRangeDisplay = () => {
-    if (!task.time || task.time === 'TODO') {
+    const startTime = task.time || task.start_time;
+    const endTime = task.endTime || task.end_time;
+    
+    if (!startTime || startTime === 'TODO') {
       return 'No specific time set';
     }
-    if (task.endTime) {
-      return `${task.time} - ${task.endTime}`;
+    if (endTime) {
+      return `${startTime} - ${endTime}`;
     }
-    return task.time;
+    if (task.duration) {
+      return `${startTime} (${task.duration} min)`;
+    }
+    return startTime;
   };
 
   // Format recurrence display
   const getRecurrenceDisplay = () => {
-    if (!task.recurrence || task.recurrence.frequency === 'none') {
+    const recurrenceData = task.recurrence || task.reoccurrence;
+    if (!recurrenceData || recurrenceData.frequency === 'none') {
       return 'One-time task';
     }
     
-    const { frequency, interval } = task.recurrence;
+    const { frequency, interval } = recurrenceData;
     const intervalText = interval > 1 ? `${interval} ` : '';
     const frequencyText = frequency === 'daily' ? 'day' :
                          frequency === 'weekly' ? 'week' :
@@ -236,8 +254,8 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
           style={[
             styles.trayContainer,
             {
-              minHeight: '50%',
-              maxHeight: '80%',
+              minHeight: '70%',
+              maxHeight: '90%',
               transform: [
                 {
                   translateY: slideAnim.interpolate({
@@ -252,9 +270,12 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
             <View style={styles.trayHandle} />
             
             <ScrollView 
-              style={[styles.trayScrollView, { minHeight: 200 }]} 
+              style={styles.trayScrollView} 
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ flexGrow: 1 }}
+              contentContainerStyle={{ 
+                flexGrow: 1,
+                paddingBottom: 40 // Extra padding to ensure buttons are visible
+              }}
             >
             
             {/* Task Header */}
@@ -288,7 +309,7 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
                 <Text style={styles.detailLabel}>Details</Text>
               </View>
               <Text style={styles.detailValue}>
-                {task.subtitle || 'No details added'}
+                {task.subtitle || task.details || 'No details added'}
               </Text>
             </View>
 
@@ -297,13 +318,13 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
               <View style={styles.detailHeader}>
                 <Check size={18} color={colors.textSecondary} />
                 <Text style={styles.detailLabel}>
-                  Steps {task.subtasks && task.subtasks.length > 0 && 
-                    `(${task.subtasks.filter(s => s.completed).length}/${task.subtasks.length})`}
+                  Steps {(task.subtasks || task.steps) && (task.subtasks || task.steps)!.length > 0 && 
+                    `(${(task.subtasks || task.steps)!.filter(s => s.completed).length}/${(task.subtasks || task.steps)!.length})`}
                 </Text>
               </View>
-              {task.subtasks && task.subtasks.length > 0 ? (
+              {(task.subtasks || task.steps) && (task.subtasks || task.steps)!.length > 0 ? (
                 <View style={styles.subtasksList}>
-                  {task.subtasks.map((subtask, index) => (
+                  {(task.subtasks || task.steps)!.map((subtask, index) => (
                     <TouchableOpacity
                       key={subtask.id}
                       style={styles.subtaskItem}
@@ -363,56 +384,63 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
               </View>
             )}
 
-            {/* Actions */}
-            <View style={styles.actionsSection}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.editButton]}
-                onPress={() => onEdit(task)}
-              >
-                <Edit3 size={18} color={colors.textPrimary} />
-                <Text style={styles.actionButtonText}>Edit</Text>
-              </TouchableOpacity>
+            {/* Spacer to ensure buttons are always visible */}
+            <View style={{ height: 20 }} />
+            
+            {/* Action Buttons Section */}
+            <View style={styles.bottomActionsContainer}>
+              {/* Three Action Buttons Row */}
+              <View style={styles.actionsSection}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={() => onEdit(task)}
+                >
+                  <Edit3 size={18} color={colors.textPrimary} />
+                  <Text style={styles.actionButtonText}>Edit</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionButton, styles.duplicateButton]}
-                onPress={() => onDuplicate(task)}
-              >
-                <Copy size={18} color={colors.textPrimary} />
-                <Text style={styles.actionButtonText}>Duplicate</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.duplicateButton]}
+                  onPress={() => onDuplicate(task)}
+                >
+                  <Copy size={18} color={colors.textPrimary} />
+                  <Text style={styles.actionButtonText}>Duplicate</Text>
+                </TouchableOpacity>
 
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => onDelete(task.id)}
+                >
+                  <Trash2 size={18} color={colors.accentWarning} />
+                  <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Complete Button */}
               <TouchableOpacity
-                style={[styles.actionButton, styles.deleteButton]}
-                onPress={() => onDelete(task.id)}
+                style={[
+                  styles.completeButton,
+                  task.isCompleted && styles.uncompleteButton,
+                  !allSubtasksCompleted && !task.isCompleted && styles.completeButtonDisabled
+                ]}
+                onPress={() => onComplete(task.id)}
+                disabled={!allSubtasksCompleted && !task.isCompleted}
               >
-                <Trash2 size={18} color={colors.accentWarning} />
-                <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
+                <Check size={20} color={colors.white} />
+                <Text style={styles.completeButtonText}>
+                  {task.isCompleted ? 'Mark Incomplete' : 'Complete Task'}
+                </Text>
               </TouchableOpacity>
+              
+              {!allSubtasksCompleted && !task.isCompleted && (
+                <Text style={styles.completeDisabledText}>
+                  Complete all steps first to mark this task as done
+                </Text>
+              )}
             </View>
 
-            {/* Complete/Uncomplete Button */}
-            <TouchableOpacity
-              style={[
-                styles.completeButton,
-                task.isCompleted && styles.uncompleteButton,
-                !allSubtasksCompleted && !task.isCompleted && styles.completeButtonDisabled
-              ]}
-              onPress={() => onComplete(task.id)}
-              disabled={!allSubtasksCompleted && !task.isCompleted}
-            >
-              <Check size={20} color={colors.white} />
-              <Text style={styles.completeButtonText}>
-                {task.isCompleted ? 'Mark Incomplete' : 'Complete Task'}
-              </Text>
-            </TouchableOpacity>
-            
-            {!allSubtasksCompleted && !task.isCompleted && (
-              <Text style={styles.completeDisabledText}>
-                Complete all steps first to mark this task as done
-              </Text>
-            )}
-
-            <View style={{ height: 40 }} />
+            {/* Bottom Spacer */}
+            <View style={{ height: 60 }} />
           </ScrollView>
         </Animated.View>
       </Pressable>
@@ -552,7 +580,7 @@ const TimelineScreen: React.FC = () => {
           title: task.title || 'Untitled Task',
           subtitle: task.subtitle || task.details || undefined,
           emoji: task.emoji || '✨',
-          time: task.time || 'TODO',
+          time: task.time || task.start_time || 'TODO',
           endTime: task.endTime || task.end_time || undefined,
           date: task.date,
           isShared: task.isShared || false,
@@ -563,18 +591,21 @@ const TimelineScreen: React.FC = () => {
           reactions: task.reactions || [],
           priority: task.priority || 'medium',
           progress: task.progress || undefined,
-          // Add missing fields for the enhanced task detail - ensure proper mapping
-          subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
-          alerts: Array.isArray(task.alerts) ? task.alerts : [],
-          recurrence: task.recurrence && typeof task.recurrence === 'object' ? {
-            frequency: task.recurrence.frequency || 'none',
-            interval: task.recurrence.interval || 1,
-            daysOfWeek: task.recurrence.daysOfWeek || [],
-          } : {
+          // Add missing fields for the enhanced task detail
+          subtasks: task.subtasks || task.steps || [],
+          alerts: task.alerts || [],
+          recurrence: task.recurrence || task.reoccurrence || {
             frequency: 'none',
             interval: 1,
             daysOfWeek: [],
           },
+          // Add new schema fields
+          duration: task.duration || undefined,
+          start_time: task.start_time || task.time || undefined,
+          end_time: task.end_time || task.endTime || undefined,
+          details: task.details || task.subtitle || undefined,
+          steps: task.steps || task.subtasks || [],
+          reoccurrence: task.reoccurrence || task.recurrence || undefined,
         };
         
         console.log(`✅ Enhanced task created:`, JSON.stringify(enhancedTask, null, 2));
@@ -731,19 +762,20 @@ const TimelineScreen: React.FC = () => {
       const allTasks = Object.values(realTasks).flat();
       const task = allTasks.find(t => t.id === taskId);
       
-      if (!task || !task.subtasks) {
-        throw new Error('Task or subtasks not found');
+      const taskSteps = task?.subtasks || task?.steps;
+      if (!task || !taskSteps) {
+        throw new Error('Task or steps not found');
       }
       
       // Toggle the subtask completion
-      const updatedSubtasks = task.subtasks.map(subtask => 
-        subtask.id === subtaskId 
-          ? { ...subtask, completed: !subtask.completed }
-          : subtask
+      const updatedSteps = taskSteps.map(step => 
+        step.id === subtaskId 
+          ? { ...step, completed: !step.completed }
+          : step
       );
       
-      // Update in database
-      await SupabaseTaskService.updateSubtasks(taskId, updatedSubtasks);
+      // Update in database (using the new method name)
+      await SupabaseTaskService.updateSteps(taskId, updatedSteps);
       
       // Refresh tasks to get updated data
       await refreshTasks();
@@ -1163,12 +1195,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
-    maxHeight: '90%',
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 20,
+    flex: 1,
+    maxHeight: '90%',
   },
   trayHandle: {
     width: 40,
@@ -1314,6 +1347,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  bottomActionsContainer: {
+    backgroundColor: colors.background,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderTopWidth: 2,
+    borderTopColor: colors.border,
+    marginHorizontal: -20, // Extend to edges
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
   actionsSection: {
     flexDirection: 'row',
     gap: 12,
@@ -1324,22 +1367,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     gap: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   editButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
+    borderColor: colors.accentSecondary,
   },
   duplicateButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   deleteButton: {
-    borderWidth: 1,
-    borderColor: colors.accentWarning + '40',
+    borderWidth: 1.5,
+    borderColor: colors.accentWarning,
+    backgroundColor: colors.accentWarning + '10',
   },
   actionButtonText: {
     fontSize: 14,
@@ -1352,9 +1401,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 8,
+    shadowColor: colors.accentSuccess,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   uncompleteButton: {
     backgroundColor: colors.textTertiary,

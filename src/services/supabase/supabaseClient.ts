@@ -22,14 +22,12 @@ class SupabaseAuthService {
     if (!data.user) throw new Error('User creation failed');
 
     // Create profile
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: data.user.id,
-        email: credentials.email,
-        name: credentials.name,
-        partner_code: this.generatePartnerCode(),
-      });
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      email: credentials.email,
+      name: credentials.name,
+      partner_code: this.generatePartnerCode(),
+    });
 
     if (profileError) throw profileError;
 
@@ -68,8 +66,10 @@ class SupabaseAuthService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) return null;
 
     const { data: profile, error } = await supabase
@@ -102,13 +102,11 @@ class SupabaseAuthService {
     if (findError || !partner) throw new Error('Partner not found');
 
     // Create partnership
-    const { error } = await supabase
-      .from('partnerships')
-      .insert({
-        user1_id: user.id,
-        user2_id: partner.id,
-        status: 'pending',
-      });
+    const { error } = await supabase.from('partnerships').insert({
+      user1_id: user.id,
+      user2_id: partner.id,
+      status: 'pending',
+    });
 
     if (error) throw error;
 
@@ -123,7 +121,11 @@ class SupabaseAuthService {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
-  private mapSupabaseUser(supabaseUser: any, name: string, partnerId?: string): User {
+  private mapSupabaseUser(
+    supabaseUser: any,
+    name: string,
+    partnerId?: string,
+  ): User {
     return {
       id: supabaseUser.id,
       email: supabaseUser.email!,
@@ -142,7 +144,9 @@ import { supabase } from './supabaseClient';
 import { EnhancedTask, TaskGroup } from '../../types/tasks';
 
 class SupabaseTaskService {
-  async createTask(task: Omit<EnhancedTask, 'id' | 'reactions'>): Promise<EnhancedTask> {
+  async createTask(
+    task: Omit<EnhancedTask, 'id' | 'reactions'>,
+  ): Promise<EnhancedTask> {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
 
@@ -156,7 +160,8 @@ class SupabaseTaskService {
         end_time: task.endTime,
         date: task.date,
         is_shared: task.isShared,
-        assigned_to: task.assignedTo.length > 0 ? task.assignedTo : [user.user.id],
+        assigned_to:
+          task.assignedTo.length > 0 ? task.assignedTo : [user.user.id],
         category: task.category,
         priority: task.priority,
         group_id: task.groupId,
@@ -170,10 +175,11 @@ class SupabaseTaskService {
     return this.mapDatabaseTask(data);
   }
 
-  async getTasks(dateRange?: { start: string; end: string }): Promise<EnhancedTask[]> {
-    let query = supabase
-      .from('tasks')
-      .select(`
+  async getTasks(dateRange?: {
+    start: string;
+    end: string;
+  }): Promise<EnhancedTask[]> {
+    let query = supabase.from('tasks').select(`
         *,
         task_reactions (
           emoji,
@@ -183,9 +189,7 @@ class SupabaseTaskService {
       `);
 
     if (dateRange) {
-      query = query
-        .gte('date', dateRange.start)
-        .lte('date', dateRange.end);
+      query = query.gte('date', dateRange.start).lte('date', dateRange.end);
     }
 
     const { data, error } = await query.order('date', { ascending: true });
@@ -195,7 +199,10 @@ class SupabaseTaskService {
     return data.map(this.mapDatabaseTask);
   }
 
-  async updateTask(taskId: string, updates: Partial<EnhancedTask>): Promise<void> {
+  async updateTask(
+    taskId: string,
+    updates: Partial<EnhancedTask>,
+  ): Promise<void> {
     const { error } = await supabase
       .from('tasks')
       .update({
@@ -211,10 +218,7 @@ class SupabaseTaskService {
   }
 
   async deleteTask(taskId: string): Promise<void> {
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', taskId);
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
 
     if (error) throw error;
   }
@@ -223,13 +227,11 @@ class SupabaseTaskService {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
 
-    const { error } = await supabase
-      .from('task_reactions')
-      .upsert({
-        task_id: taskId,
-        user_id: user.user.id,
-        emoji: emoji,
-      });
+    const { error } = await supabase.from('task_reactions').upsert({
+      task_id: taskId,
+      user_id: user.user.id,
+      emoji: emoji,
+    });
 
     if (error) throw error;
   }
@@ -262,7 +264,7 @@ class SupabaseTaskService {
         () => {
           // Refetch tasks when changes occur
           this.getTasks().then(callback);
-        }
+        },
       )
       .subscribe();
   }
@@ -277,7 +279,7 @@ class SupabaseTaskService {
           schema: 'public',
           table: 'task_reactions',
         },
-        callback
+        callback,
       )
       .subscribe();
   }

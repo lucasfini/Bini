@@ -24,19 +24,28 @@ interface TaskFormData {
 interface SimpleTask {
   id?: string;
   title: string;
-  subtitle?: string;
-  emoji?: string;
-  time?: string;
-  endTime?: string;
   date: string;
   isShared: boolean;
   isCompleted: boolean;
-  category?: string;
-  priority?: 'low' | 'medium' | 'high';
+  emoji?: string;
+  time?: string; // Keep for backward compatibility
+  start_time?: string;
+  endTime?: string;
+  end_time?: string;
+  duration?: number;
   frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
+  reoccurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
   alerts?: string[];
+  details?: string;
+  steps?: { id: string; title: string; completed: boolean }[];
   assignedTo?: string[];
   reactions?: any[];
+  // Keep old fields for backward compatibility
+  subtitle?: string;
   subtasks?: { id: string; title: string; completed: boolean }[];
   recurrence?: {
     frequency: 'none' | 'daily' | 'weekly' | 'monthly';
@@ -98,6 +107,7 @@ class SupabaseTaskService {
   // Create a new task from the CreateTaskScreen form
   async createTaskFromForm(formData: TaskFormData): Promise<SimpleTask> {
     console.log('🚀 Creating task from form:', formData.title);
+    console.log('📝 Full form data received:', JSON.stringify(formData, null, 2));
 
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) {
@@ -125,18 +135,20 @@ class SupabaseTaskService {
       created_by: user.user.id,
     };
 
-    // Try to add common fields
+    // Try to add common fields with new schema
     try {
-      taskData.subtitle = formData.details?.trim() || null;
       taskData.emoji = formData.emoji || '✨';
-      taskData.time = formData.when.time;
+      taskData.start_time = formData.when.time;
       taskData.end_time = endTime;
-      taskData.assigned_to = [user.user.id];
-      taskData.subtasks = formData.subtasks || [];
-      taskData.alerts = formData.alerts || [];
+      taskData.duration = formData.durationMinutes;
       taskData.frequency = formData.recurrence.frequency === 'none' ? 'once' : formData.recurrence.frequency;
-      // Store the full recurrence object for enhanced data
-      taskData.recurrence = formData.recurrence;
+      taskData.reoccurrence = formData.recurrence;
+      taskData.alerts = formData.alerts || [];
+      taskData.details = formData.details?.trim() || null;
+      taskData.steps = formData.subtasks || [];
+      taskData.assigned_to = [user.user.id];
+      
+      console.log('📋 Task data prepared for database:', JSON.stringify(taskData, null, 2));
     } catch (e) {
       // Continue with basic fields
       console.log('⚠️ Failed to add extended fields:', e);
@@ -172,13 +184,14 @@ class SupabaseTaskService {
 
     if (error) {
       console.error('❌ Task creation failed:', error);
+      console.error('💾 Failed task data was:', JSON.stringify(taskData, null, 2));
       
       // Provide helpful message for database schema issues
-      if (error.message.includes('column') && error.message.includes('schema cache')) {
-        throw new Error(`Database schema needs to be updated. Please run the SQL commands from database-schema.sql in your Supabase dashboard. Original error: ${error.message}`);
+      if (error.message.includes('column') || error.code === '42703') {
+        throw new Error(`Database column doesn't exist. Please run the migration script in database-migration.sql. Error: ${error.message}`);
       }
       
-      throw new Error(`Failed to create task: ${error.message}`);
+      throw new Error(`Failed to create task: ${error.message} (Code: ${error.code})`);
     }
 
     console.log('✅ Task created successfully:', data.id, 'for date:', formData.when.date);
@@ -198,15 +211,17 @@ class SupabaseTaskService {
       .from('tasks')
       .insert({
         title: task.title,
-        subtitle: task.subtitle,
+        details: task.subtitle,
         emoji: task.emoji || '✨',
-        time: task.time,
+        start_time: task.time,
         end_time: task.endTime,
         date: task.date,
         is_shared: task.isShared,
         is_completed: task.isCompleted,
-        category: task.category || 'Personal',
-        priority: task.priority || 'medium',
+        frequency: task.frequency || 'once',
+        reoccurrence: task.recurrence || {},
+        alerts: task.alerts || [],
+        steps: task.subtasks || [],
         created_by: user.user.id,
         assigned_to: [user.user.id],
       })
@@ -307,12 +322,14 @@ class SupabaseTaskService {
       .from('tasks')
       .update({
         title: updates.title,
-        subtitle: updates.subtitle,
+        details: updates.subtitle,
         is_completed: updates.isCompleted,
-        time: updates.time,
+        start_time: updates.time,
         end_time: updates.endTime,
-        category: updates.category,
-        priority: updates.priority,
+        frequency: updates.frequency,
+        reoccurrence: updates.recurrence,
+        alerts: updates.alerts,
+        steps: updates.subtasks,
       })
       .eq('id', taskId);
 
@@ -355,21 +372,21 @@ class SupabaseTaskService {
     return newCompletionState;
   }
 
-  // Update subtasks for a task
-  async updateSubtasks(taskId: string, subtasks: { id: string; title: string; completed: boolean }[]): Promise<void> {
-    console.log('📝 Updating subtasks for task:', taskId);
+  // Update steps for a task
+  async updateSteps(taskId: string, steps: { id: string; title: string; completed: boolean }[]): Promise<void> {
+    console.log('📝 Updating steps for task:', taskId);
 
     const { error } = await supabase
       .from('tasks')
-      .update({ subtasks })
+      .update({ steps })
       .eq('id', taskId);
 
     if (error) {
-      console.error('❌ Subtask update failed:', error);
-      throw new Error(`Failed to update subtasks: ${error.message}`);
+      console.error('❌ Steps update failed:', error);
+      throw new Error(`Failed to update steps: ${error.message}`);
     }
 
-    console.log('✅ Subtasks updated');
+    console.log('✅ Steps updated');
   }
 
   // Delete a task
@@ -396,29 +413,32 @@ class SupabaseTaskService {
     const mappedTask = {
       id: dbTask.id,
       title: dbTask.title || 'Untitled Task',
-      subtitle: dbTask.subtitle || undefined,
+      subtitle: dbTask.details || undefined,  // Map details to subtitle for backward compatibility
       emoji: dbTask.emoji || '✨',
-      time: dbTask.time || undefined,
+      time: dbTask.start_time || undefined,   // Map start_time to time
       endTime: dbTask.end_time || undefined,
       date: dbTask.date,
       isShared: dbTask.is_shared || false,
       isCompleted: dbTask.is_completed || false,
-      category: dbTask.category || 'Personal',
-      priority: dbTask.priority || 'medium',
       frequency: dbTask.frequency || 'once',
       alerts: Array.isArray(dbTask.alerts) ? dbTask.alerts : [],
       assignedTo: Array.isArray(dbTask.assigned_to) ? dbTask.assigned_to : [],
       reactions: [],
-      subtasks: Array.isArray(dbTask.subtasks) ? dbTask.subtasks : [],
-      recurrence: dbTask.recurrence && typeof dbTask.recurrence === 'object' ? {
-        frequency: dbTask.recurrence.frequency || (dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none'),
-        interval: dbTask.recurrence.interval || 1,
-        daysOfWeek: dbTask.recurrence.daysOfWeek || [],
+      subtasks: Array.isArray(dbTask.steps) ? dbTask.steps : [], // Map steps to subtasks for backward compatibility
+      recurrence: dbTask.reoccurrence && typeof dbTask.reoccurrence === 'object' ? {
+        frequency: dbTask.reoccurrence.frequency || (dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none'),
+        interval: dbTask.reoccurrence.interval || 1,
+        daysOfWeek: dbTask.reoccurrence.daysOfWeek || [],
       } : {
         frequency: dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none',
         interval: 1,
         daysOfWeek: [],
       },
+      // Add new direct mappings
+      duration: dbTask.duration || undefined,
+      details: dbTask.details || undefined,
+      steps: Array.isArray(dbTask.steps) ? dbTask.steps : [],
+      reoccurrence: dbTask.reoccurrence || undefined, // Add direct reoccurrence mapping
     };
     
     console.log('✅ Mapped task result:', JSON.stringify(mappedTask, null, 2));

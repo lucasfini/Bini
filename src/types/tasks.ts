@@ -15,23 +15,35 @@ export interface TaskGroup {
 export interface EnhancedTask {
   id: string;
   title: string;
-  subtitle?: string;
-  emoji?: string;
-  time: string;
-  endTime?: string;
   date: string;
-  isShared: boolean;
-  isCompleted: boolean;
-  assignedTo: string[];
-  category?: string;
+  is_shared: boolean;
+  is_completed: boolean;
+  created_by: string;
+  emoji?: string;
+  start_time?: string; // Renamed from time for clarity
+  end_time?: string;
+  duration?: number; // Duration in minutes
+  frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
+  reoccurrence?: { // Renamed from recurrence 
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
+  alerts?: string[];
+  details?: string; // Renamed from subtitle
+  steps?: Array<{ // Renamed from subtasks
+    id: string;
+    title: string;
+    completed: boolean;
+  }>;
+  assignedTo?: string[];
   groupId?: string; // Link to task group
-  reactions: Array<{
+  reactions?: Array<{
     emoji: string;
     count: number;
     isFromPartner: boolean;
     users: string[];
   }>;
-  priority: 'low' | 'medium' | 'high';
   progress?: number;
 }
 
