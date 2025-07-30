@@ -34,16 +34,21 @@ const colors = {
 // Task form interface (matching your CreateTaskScreen)
 interface TaskFormData {
   title: string;
-  description?: string;
-  emoji?: string;
-  dueDate?: Date;
-  dueTime?: string;
-  repeat: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
-  tags: string[];
+  emoji: string;
+  when: {
+    date: string;
+    time: string;
+  };
+  durationMinutes: number;
+  recurrence: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
+  alerts: string[];
+  details: string;
   isShared: boolean;
-  isGroupTask: boolean;
-  groupId?: string;
-  reward?: string;
+  subtasks: { id: string; title: string; completed: boolean }[];
 }
 
 // Simple Settings screen component
@@ -57,43 +62,45 @@ const SettingsScreen = () => (
 // Dummy Create screen (won't be used since we're using the tray)
 const CreateScreen = () => null;
 
+// Timeline wrapper to allow refreshing
+const TimelineWrapper: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
+  return <TimelineScreen key={refreshKey} />;
+};
+
 const Tab = createBottomTabNavigator();
 
 const AppNavigator: React.FC = () => {
   // State for the Create Task tray
   const [showCreateTray, setShowCreateTray] = useState(false);
+  
+  // Key to force timeline refresh
+  const [timelineKey, setTimelineKey] = useState(0);
 
-  // Handle task creation - Convert from your TaskFormData to a simpler format for the alert
+  // Handle task creation - Save to database
   const handleCreateTask = async (taskData: TaskFormData) => {
-    console.log('New task created:', taskData);
+    console.log('🚀 New task created in AppNavigator:', JSON.stringify(taskData, null, 2));
     
     try {
-      // Here you would typically integrate with your task service:
-      // const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
-      // 
-      // Convert TaskFormData to the format expected by your service:
-      // const taskForService = {
-      //   title: taskData.title,
-      //   description: taskData.description,
-      //   emoji: taskData.emoji || '✨',
-      //   when: taskData.dueDate ? taskData.dueDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      //   time: taskData.dueTime,
-      //   category: 'Personal', // You might want to add this to TaskFormData
-      //   priority: 'medium' as const, // You might want to add this to TaskFormData
-      //   isShared: taskData.isShared,
-      //   frequency: taskData.repeat,
-      //   alerts: [], // You might want to add this to TaskFormData
-      // };
-      // 
-      // await SupabaseTaskService.createTaskFromForm(taskForService);
+      // Import and use the Supabase task service
+      const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
       
-      // For now, just show a success message
-      const dateStr = taskData.dueDate ? taskData.dueDate.toLocaleDateString() : 'today';
+      // Create the task in the database
+      const newTask = await SupabaseTaskService.createTaskFromForm(taskData);
+      
+      // Show success message
+      const dateObj = new Date(taskData.when.date);
+      const dateStr = dateObj.toLocaleDateString();
+      
       Alert.alert(
         'Task Created! 🎉',
-        `"${taskData.title}" has been added for ${dateStr}`,
+        `"${taskData.title}" has been added for ${dateStr} at ${taskData.when.time}`,
         [{ text: 'Great!' }]
       );
+
+      console.log('✅ Task created successfully:', newTask.id);
+      
+      // Refresh the timeline to show the new task
+      setTimelineKey(prev => prev + 1);
       
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -186,7 +193,9 @@ const AppNavigator: React.FC = () => {
         tabBar={(props) => <CustomTabBar {...props} />}
         screenOptions={{ headerShown: false }}
       >
-        <Tab.Screen name="Timeline" component={TimelineScreen} />
+        <Tab.Screen name="Timeline">
+          {() => <TimelineWrapper refreshKey={timelineKey} />}
+        </Tab.Screen>
         <Tab.Screen name="Calendar" component={CalendarScreen} />
         <Tab.Screen name="Create" component={CreateScreen} />
         <Tab.Screen name="Knowledge" component={KnowledgeScreen} />

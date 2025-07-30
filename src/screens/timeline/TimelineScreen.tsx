@@ -14,7 +14,7 @@ import {
   PanResponder,
   Dimensions,
 } from 'react-native';
-import { Calendar, Users, Edit3, Trash2, Copy, Check } from '@tamagui/lucide-icons';
+import { Calendar, Users, Edit3, Trash2, Copy, Check, Clock, Bell, RotateCcw, Share2 } from '@tamagui/lucide-icons';
 import { typography, spacing, shadows } from '../../styles';
 import { useReactions, ReactionDisplay } from '../../components/reactions/ReactionSystem';
 
@@ -81,6 +81,14 @@ interface EnhancedTask {
   priority?: 'low' | 'medium' | 'high';
   progress?: number;
   notes?: string;
+  // Missing fields needed for task details
+  subtasks?: { id: string; title: string; completed: boolean }[];
+  alerts?: string[];
+  recurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
 }
 
 // Task Group interface
@@ -108,6 +116,7 @@ interface TaskDetailTrayProps {
   onDelete: (taskId: string) => void;
   onDuplicate: (task: EnhancedTask) => void;
   onComplete: (taskId: string) => void;
+  onSubtaskToggle: (taskId: string, subtaskId: string) => void;
   groupProgress?: { completed: number; total: number };
 }
 
@@ -120,11 +129,27 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
   onDelete,
   onDuplicate,
   onComplete,
+  onSubtaskToggle,
   groupProgress,
 }) => {
   const [slideAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
+    console.log('🎭 TaskDetailTray visibility changed:', visible);
+    console.log('📝 TaskDetailTray received task:', task ? task.title : 'null');
+    if (task) {
+      console.log('📋 TaskDetailTray task details:', JSON.stringify({
+        id: task.id,
+        title: task.title,
+        subtitle: task.subtitle,
+        time: task.time,
+        endTime: task.endTime,
+        subtasks: task.subtasks,
+        alerts: task.alerts,
+        recurrence: task.recurrence,
+      }, null, 2));
+    }
+    
     if (visible) {
       Animated.spring(slideAnim, {
         toValue: 1,
@@ -139,9 +164,65 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, task]);
 
-  if (!task) return null;
+  if (!task) {
+    console.log('❌ TaskDetailTray: No task provided, returning null');
+    return null;
+  }
+
+  // Check if all subtasks are completed
+  const allSubtasksCompleted = !task.subtasks || task.subtasks.length === 0 || 
+    task.subtasks.every(subtask => subtask.completed);
+
+  // Format time range display
+  const getTimeRangeDisplay = () => {
+    if (!task.time || task.time === 'TODO') {
+      return 'No specific time set';
+    }
+    if (task.endTime) {
+      return `${task.time} - ${task.endTime}`;
+    }
+    return task.time;
+  };
+
+  // Format recurrence display
+  const getRecurrenceDisplay = () => {
+    if (!task.recurrence || task.recurrence.frequency === 'none') {
+      return 'One-time task';
+    }
+    
+    const { frequency, interval } = task.recurrence;
+    const intervalText = interval > 1 ? `${interval} ` : '';
+    const frequencyText = frequency === 'daily' ? 'day' :
+                         frequency === 'weekly' ? 'week' :
+                         frequency === 'monthly' ? 'month' : frequency;
+    const pluralSuffix = interval > 1 ? 's' : '';
+    
+    return `Every ${intervalText}${frequencyText}${pluralSuffix}`;
+  };
+
+  // Format alerts display
+  const getAlertsDisplay = () => {
+    if (!task.alerts || task.alerts.length === 0) {
+      return 'No alerts set';
+    }
+    
+    const alertLabels = task.alerts.map(alertId => {
+      switch (alertId) {
+        case 'start': return 'At start';
+        case 'end': return 'At end';
+        case '5min': return '5 min before';
+        case '10min': return '10 min before';
+        case '15min': return '15 min before';
+        case '30min': return '30 min before';
+        case '1hour': return '1 hour before';
+        default: return alertId;
+      }
+    });
+    
+    return alertLabels.join(', ');
+  };
 
   return (
     <Modal
@@ -155,91 +236,184 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
           style={[
             styles.trayContainer,
             {
+              minHeight: '50%',
+              maxHeight: '80%',
               transform: [
                 {
                   translateY: slideAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [400, 0],
+                    outputRange: [500, 0],
                   }),
                 },
               ],
             },
           ]}
         >
-          <View style={styles.trayHandle} />
-          
-          {/* Task Header */}
-          <View style={styles.trayHeader}>
-            <View style={styles.trayTitleRow}>
-              {task.emoji && <Text style={styles.trayEmoji}>{task.emoji}</Text>}
-              <Text style={styles.trayTitle}>{task.title}</Text>
-            </View>
-            {task.time && (
-              <Text style={styles.trayTime}>{task.time}</Text>
-            )}
-          </View>
-
-          {/* Group Info */}
-          {group && (
-            <View style={[styles.groupInfoSection, { backgroundColor: colors.groupColors[group.color] + '20' }]}>
-              <View style={styles.groupInfoHeader}>
-                <View style={[styles.groupDot, { backgroundColor: colors.groupColors[group.color] }]} />
-                <Text style={styles.groupInfoTitle}>Part of {group.title}</Text>
+            <View style={styles.trayHandle} />
+            
+            <ScrollView 
+              style={[styles.trayScrollView, { minHeight: 200 }]} 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ flexGrow: 1 }}
+            >
+            
+            {/* Task Header */}
+            <View style={styles.trayHeader}>
+              
+              <View style={styles.trayTitleRow}>
+                {task.emoji && <Text style={styles.trayEmoji}>{task.emoji}</Text>}
+                <Text style={styles.trayTitle}>{task.title}</Text>
+                {task.isShared && (
+                  <View style={styles.sharedBadge}>
+                    <Share2 size={14} color={colors.accentPrimary} />
+                  </View>
+                )}
               </View>
-              {groupProgress && (
-                <Text style={styles.groupProgress}>
-                  {groupProgress.completed}/{groupProgress.total} complete
+              <Text style={styles.taskCategory}>{task.category || 'Personal'}</Text>
+            </View>
+
+            {/* Time Range */}
+            <View style={styles.detailSection}>
+              <View style={styles.detailHeader}>
+                <Clock size={18} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}>Time</Text>
+              </View>
+              <Text style={styles.detailValue}>{getTimeRangeDisplay()}</Text>
+            </View>
+
+            {/* Task Details/Notes */}
+            <View style={styles.detailSection}>
+              <View style={styles.detailHeader}>
+                <Edit3 size={18} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}>Details</Text>
+              </View>
+              <Text style={styles.detailValue}>
+                {task.subtitle || 'No details added'}
+              </Text>
+            </View>
+
+            {/* Subtasks/Steps */}
+            <View style={styles.detailSection}>
+              <View style={styles.detailHeader}>
+                <Check size={18} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}>
+                  Steps {task.subtasks && task.subtasks.length > 0 && 
+                    `(${task.subtasks.filter(s => s.completed).length}/${task.subtasks.length})`}
                 </Text>
+              </View>
+              {task.subtasks && task.subtasks.length > 0 ? (
+                <View style={styles.subtasksList}>
+                  {task.subtasks.map((subtask, index) => (
+                    <TouchableOpacity
+                      key={subtask.id}
+                      style={styles.subtaskItem}
+                      onPress={() => onSubtaskToggle(task.id, subtask.id)}
+                    >
+                      <View style={[
+                        styles.subtaskCheckbox,
+                        subtask.completed && styles.subtaskCheckboxCompleted
+                      ]}>
+                        {subtask.completed && <Check size={12} color={colors.white} />}
+                      </View>
+                      <Text style={[
+                        styles.subtaskText,
+                        subtask.completed && styles.subtaskTextCompleted
+                      ]}>
+                        {subtask.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.detailValue}>No steps added</Text>
               )}
-              <Text style={styles.groupReward}>🎁 {group.reward}</Text>
             </View>
-          )}
 
-          {/* Task Notes */}
-          {task.subtitle && (
-            <View style={styles.notesSection}>
-              <Text style={styles.notesLabel}>Notes</Text>
-              <Text style={styles.notesText}>{task.subtitle}</Text>
+            {/* Recurrence */}
+            <View style={styles.detailSection}>
+              <View style={styles.detailHeader}>
+                <RotateCcw size={18} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}>Recurrence</Text>
+              </View>
+              <Text style={styles.detailValue}>{getRecurrenceDisplay()}</Text>
             </View>
-          )}
 
-          {/* Actions */}
-          <View style={styles.actionsSection}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.editButton]}
-              onPress={() => onEdit(task)}
-            >
-              <Edit3 size={18} color={colors.textPrimary} />
-              <Text style={styles.actionButtonText}>Edit</Text>
-            </TouchableOpacity>
+            {/* Alerts */}
+            <View style={styles.detailSection}>
+              <View style={styles.detailHeader}>
+                <Bell size={18} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}>Alerts</Text>
+              </View>
+              <Text style={styles.detailValue}>{getAlertsDisplay()}</Text>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.duplicateButton]}
-              onPress={() => onDuplicate(task)}
-            >
-              <Copy size={18} color={colors.textPrimary} />
-              <Text style={styles.actionButtonText}>Duplicate</Text>
-            </TouchableOpacity>
+            {/* Group Info */}
+            {group && (
+              <View style={[styles.groupInfoSection, { backgroundColor: colors.groupColors[group.color] + '20' }]}>
+                <View style={styles.groupInfoHeader}>
+                  <View style={[styles.groupDot, { backgroundColor: colors.groupColors[group.color] }]} />
+                  <Text style={styles.groupInfoTitle}>Part of {group.title}</Text>
+                </View>
+                {groupProgress && (
+                  <Text style={styles.groupProgress}>
+                    {groupProgress.completed}/{groupProgress.total} complete
+                  </Text>
+                )}
+                <Text style={styles.groupReward}>🎁 {group.reward}</Text>
+              </View>
+            )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => onDelete(task.id)}
-            >
-              <Trash2 size={18} color={colors.accentWarning} />
-              <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Actions */}
+            <View style={styles.actionsSection}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.editButton]}
+                onPress={() => onEdit(task)}
+              >
+                <Edit3 size={18} color={colors.textPrimary} />
+                <Text style={styles.actionButtonText}>Edit</Text>
+              </TouchableOpacity>
 
-          {/* Complete Button */}
-          {!task.isCompleted && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.duplicateButton]}
+                onPress={() => onDuplicate(task)}
+              >
+                <Copy size={18} color={colors.textPrimary} />
+                <Text style={styles.actionButtonText}>Duplicate</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => onDelete(task.id)}
+              >
+                <Trash2 size={18} color={colors.accentWarning} />
+                <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Complete/Uncomplete Button */}
             <TouchableOpacity
-              style={styles.completeButton}
+              style={[
+                styles.completeButton,
+                task.isCompleted && styles.uncompleteButton,
+                !allSubtasksCompleted && !task.isCompleted && styles.completeButtonDisabled
+              ]}
               onPress={() => onComplete(task.id)}
+              disabled={!allSubtasksCompleted && !task.isCompleted}
             >
               <Check size={20} color={colors.white} />
-              <Text style={styles.completeButtonText}>Complete Task</Text>
+              <Text style={styles.completeButtonText}>
+                {task.isCompleted ? 'Mark Incomplete' : 'Complete Task'}
+              </Text>
             </TouchableOpacity>
-          )}
+            
+            {!allSubtasksCompleted && !task.isCompleted && (
+              <Text style={styles.completeDisabledText}>
+                Complete all steps first to mark this task as done
+              </Text>
+            )}
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </Animated.View>
       </Pressable>
     </Modal>
@@ -330,6 +504,9 @@ const TimelineScreen: React.FC = () => {
     deleteTask
   } = useRealTasks();
 
+  // Debug log the real tasks
+  console.log('🏠 useRealTasks returned:', JSON.stringify(realTasks, null, 2));
+
   // Task Groups State
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([
     {
@@ -360,21 +537,52 @@ const TimelineScreen: React.FC = () => {
 
   // Convert SimpleTask to EnhancedTask to add missing properties
   const convertToEnhancedTasks = (simpleTasks: Record<string, any[]>): Record<string, EnhancedTask[]> => {
+    console.log('🔄 Converting simple tasks to enhanced tasks...');
+    console.log('📥 Raw simple tasks:', JSON.stringify(simpleTasks, null, 2));
+    
     const enhancedTasks: Record<string, EnhancedTask[]> = {};
     
     Object.keys(simpleTasks).forEach(dateKey => {
-      enhancedTasks[dateKey] = simpleTasks[dateKey].map(task => ({
-        ...task,
-        // Ensure all required properties exist with defaults
-        time: task.time || 'TODO',
-        reactions: task.reactions || [],
-        priority: task.priority || 'medium',
-        groupId: task.groupId || undefined,
-        progress: task.progress || undefined,
-        notes: task.notes || undefined,
-      }));
+      console.log(`📅 Processing date key: ${dateKey}`);
+      enhancedTasks[dateKey] = (simpleTasks[dateKey] || []).map(task => {
+        console.log(`🔍 Converting task: ${task.title} (${task.id})`);
+        
+        const enhancedTask = {
+          id: task.id,
+          title: task.title || 'Untitled Task',
+          subtitle: task.subtitle || task.details || undefined,
+          emoji: task.emoji || '✨',
+          time: task.time || 'TODO',
+          endTime: task.endTime || task.end_time || undefined,
+          date: task.date,
+          isShared: task.isShared || false,
+          isCompleted: task.isCompleted || false,
+          assignedTo: task.assignedTo || [],
+          category: task.category || 'Personal',
+          groupId: task.groupId || undefined,
+          reactions: task.reactions || [],
+          priority: task.priority || 'medium',
+          progress: task.progress || undefined,
+          // Add missing fields for the enhanced task detail - ensure proper mapping
+          subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+          alerts: Array.isArray(task.alerts) ? task.alerts : [],
+          recurrence: task.recurrence && typeof task.recurrence === 'object' ? {
+            frequency: task.recurrence.frequency || 'none',
+            interval: task.recurrence.interval || 1,
+            daysOfWeek: task.recurrence.daysOfWeek || [],
+          } : {
+            frequency: 'none',
+            interval: 1,
+            daysOfWeek: [],
+          },
+        };
+        
+        console.log(`✅ Enhanced task created:`, JSON.stringify(enhancedTask, null, 2));
+        return enhancedTask;
+      });
     });
     
+    console.log('📤 Final enhanced tasks:', JSON.stringify(enhancedTasks, null, 2));
     return enhancedTasks;
   };
 
@@ -384,9 +592,10 @@ const TimelineScreen: React.FC = () => {
   const timelineDates = generateTimelineDates();
   
   // Get tasks for a specific date key with filtering
-  const getTasksForDate = (dateKey: string, isToday: boolean) => {
+  const getTasksForDate = (dateKey: string, isToday: boolean, fullDate: Date) => {
     let taskList: EnhancedTask[] = [];
     
+    // Try to get tasks by the date key first (for timeline grouping)
     if (isToday) {
       taskList = tasks['today'] || [];
     } else if (dateKey === 'tomorrow') {
@@ -395,8 +604,33 @@ const TimelineScreen: React.FC = () => {
       taskList = tasks['saturday'] || [];
     }
     
+    // If no tasks found by key, try to find by actual date string
+    if (taskList.length === 0) {
+      const dateString = fullDate.toISOString().split('T')[0];
+      taskList = tasks[dateString] || [];
+    }
+    
+    // Also check all date keys that match this date
+    const allTasks: EnhancedTask[] = [];
+    Object.keys(tasks).forEach(key => {
+      const keyTasks = tasks[key] || [];
+      keyTasks.forEach(task => {
+        const taskDate = new Date(task.date).toISOString().split('T')[0];
+        const targetDate = fullDate.toISOString().split('T')[0];
+        if (taskDate === targetDate) {
+          allTasks.push(task);
+        }
+      });
+    });
+    
+    // Combine and deduplicate
+    const combinedTasks = [...taskList, ...allTasks];
+    const uniqueTasks = combinedTasks.filter((task, index, arr) => 
+      arr.findIndex(t => t.id === task.id) === index
+    );
+    
     // Apply filter
-    return taskList.filter(task => {
+    return uniqueTasks.filter(task => {
       return selectedFilter === 'All' || 
         (selectedFilter === 'Mine' && !task.isShared) ||
         (selectedFilter === 'Shared' && task.isShared);
@@ -486,6 +720,40 @@ const TimelineScreen: React.FC = () => {
     setTaskDetailTrayVisible(false);
   };
 
+  const handleSubtaskToggle = async (taskId: string, subtaskId: string) => {
+    try {
+      console.log('🔄 Toggling subtask:', subtaskId, 'for task:', taskId);
+      
+      // Import task service
+      const { default: SupabaseTaskService } = await import('../../services/tasks/supabaseTaskService');
+      
+      // Find the task in our local state
+      const allTasks = Object.values(realTasks).flat();
+      const task = allTasks.find(t => t.id === taskId);
+      
+      if (!task || !task.subtasks) {
+        throw new Error('Task or subtasks not found');
+      }
+      
+      // Toggle the subtask completion
+      const updatedSubtasks = task.subtasks.map(subtask => 
+        subtask.id === subtaskId 
+          ? { ...subtask, completed: !subtask.completed }
+          : subtask
+      );
+      
+      // Update in database
+      await SupabaseTaskService.updateSubtasks(taskId, updatedSubtasks);
+      
+      // Refresh tasks to get updated data
+      await refreshTasks();
+      
+      console.log('✅ Subtask toggled successfully');
+    } catch (err) {
+      console.error('❌ Failed to toggle subtask:', err);
+    }
+  };
+
   const TaskItem: React.FC<{ task: EnhancedTask }> = ({ task }) => {
     const { reactions } = useReactions(task.reactions);
     const [translateX] = useState(new Animated.Value(0));
@@ -495,6 +763,9 @@ const TimelineScreen: React.FC = () => {
     const swipeHandler = createSwipeHandler(task);
 
     const handleTaskPress = () => {
+      console.log('🔍 Task pressed:', task.title, 'ID:', task.id);
+      console.log('📊 Task data:', JSON.stringify(task, null, 2));
+      console.log('🎭 Setting task detail tray visible to true');
       setSelectedTaskForDetail(task);
       setTaskDetailTrayVisible(true);
     };
@@ -595,7 +866,8 @@ const TimelineScreen: React.FC = () => {
       dateInfo.isToday ? 'today' : 
       dateInfo.day === 'Thursday' ? 'tomorrow' : 
       dateInfo.day === 'Saturday' ? 'saturday' : 'none', 
-      dateInfo.isToday
+      dateInfo.isToday,
+      dateInfo.fullDate
     );
 
     if (tasks.length === 0) return null;
@@ -682,11 +954,15 @@ const TimelineScreen: React.FC = () => {
         task={selectedTaskForDetail}
         group={selectedTaskForDetail?.groupId ? getGroupById(selectedTaskForDetail.groupId) : null}
         groupProgress={selectedTaskForDetail?.groupId ? getGroupProgress(selectedTaskForDetail.groupId) : undefined}
-        onClose={() => setTaskDetailTrayVisible(false)}
+        onClose={() => {
+          console.log('🚪 TaskDetailTray onClose called');
+          setTaskDetailTrayVisible(false);
+        }}
         onEdit={handleTaskEdit}
         onDelete={handleTaskDelete}
         onDuplicate={handleTaskDuplicate}
         onComplete={handleTaskComplete}
+        onSubtaskToggle={handleSubtaskToggle}
       />
 
       {/* Encouragement Modal */}
@@ -887,9 +1163,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    minHeight: 300,
+    maxHeight: '90%',
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
@@ -898,20 +1172,24 @@ const styles = StyleSheet.create({
   },
   trayHandle: {
     width: 40,
-    height: 4,
+    height: 4,  
     backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
   },
+  trayScrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   trayHeader: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   trayTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 15,
+    marginBottom: 8,
   },
   trayEmoji: {
     fontSize: 24,
@@ -922,10 +1200,74 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
   },
+  sharedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  taskCategory: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   trayTime: {
     fontSize: 16,
     color: colors.accentPrimary,
     fontWeight: '500',
+  },
+  detailSection: {
+    marginBottom: 20,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  subtasksList: {
+    gap: 12,
+  },
+  subtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  subtaskCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subtaskCheckboxCompleted: {
+    backgroundColor: colors.accentSuccess,
+    borderColor: colors.accentSuccess,
+  },
+  subtaskText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  subtaskTextCompleted: {
+    color: colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   groupInfoSection: {
     borderRadius: 12,
@@ -1012,11 +1354,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     gap: 8,
+    marginBottom: 16,
+  },
+  uncompleteButton: {
+    backgroundColor: colors.textTertiary,
+  },
+  completeButtonDisabled: {
+    backgroundColor: colors.border,
+    opacity: 0.6,
   },
   completeButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
+  },
+  completeDisabledText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontStyle: 'italic',
   },
   
   // Encouragement Modal Styles

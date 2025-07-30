@@ -1,19 +1,24 @@
 // src/services/tasks/supabaseTaskService.ts - Fixed date mapping
 import { supabase } from '../../config/supabase';
 
-// Enhanced task interface that matches your CreateTaskTray
+// Enhanced task interface that matches your CreateTaskScreen
 interface TaskFormData {
   title: string;
-  description?: string;
-  emoji?: string;
-  time?: string;
-  endTime?: string;
-  when: string; // 'today', 'tomorrow', 'saturday', or date string
-  frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
-  alerts?: string[];
-  category: string;
-  priority: 'low' | 'medium' | 'high';
+  emoji: string;
+  when: {
+    date: string;
+    time: string;
+  };
+  durationMinutes: number;
+  recurrence: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
+  alerts: string[];
+  details: string;
   isShared: boolean;
+  subtasks: { id: string; title: string; completed: boolean }[];
 }
 
 interface SimpleTask {
@@ -30,6 +35,14 @@ interface SimpleTask {
   priority?: 'low' | 'medium' | 'high';
   frequency?: 'once' | 'daily' | 'weekly' | 'monthly';
   alerts?: string[];
+  assignedTo?: string[];
+  reactions?: any[];
+  subtasks?: { id: string; title: string; completed: boolean }[];
+  recurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    daysOfWeek?: string[];
+  };
 }
 
 class SupabaseTaskService {
@@ -82,7 +95,7 @@ class SupabaseTaskService {
     return dateString;
   }
 
-  // Create a new task from the CreateTaskTray form
+  // Create a new task from the CreateTaskScreen form
   async createTaskFromForm(formData: TaskFormData): Promise<SimpleTask> {
     console.log('🚀 Creating task from form:', formData.title);
 
@@ -91,35 +104,84 @@ class SupabaseTaskService {
       throw new Error('Not authenticated');
     }
 
-    // Convert 'when' to actual date
-    const actualDate = this.convertWhenToDate(formData.when);
-    console.log('📅 Converting when:', formData.when, '→', actualDate);
+    // Calculate end time based on duration
+    const calculateEndTime = (startTime: string, durationMinutes: number) => {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + durationMinutes;
+      const endHours = Math.floor(endMinutes / 60) % 24;
+      const endMins = endMinutes % 60;
+      return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+    };
 
-    const { data, error } = await supabase
+    const endTime = calculateEndTime(formData.when.time, formData.durationMinutes);
+
+    // Start with minimal required fields
+    let taskData: any = {
+      title: formData.title.trim(),
+      date: formData.when.date,
+      is_shared: formData.isShared,
+      is_completed: false,
+      created_by: user.user.id,
+    };
+
+    // Try to add common fields
+    try {
+      taskData.subtitle = formData.details?.trim() || null;
+      taskData.emoji = formData.emoji || '✨';
+      taskData.time = formData.when.time;
+      taskData.end_time = endTime;
+      taskData.assigned_to = [user.user.id];
+      taskData.subtasks = formData.subtasks || [];
+      taskData.alerts = formData.alerts || [];
+      taskData.frequency = formData.recurrence.frequency === 'none' ? 'once' : formData.recurrence.frequency;
+      // Store the full recurrence object for enhanced data
+      taskData.recurrence = formData.recurrence;
+    } catch (e) {
+      // Continue with basic fields
+      console.log('⚠️ Failed to add extended fields:', e);
+    }
+
+    let { data, error } = await supabase
       .from('tasks')
-      .insert({
-        title: formData.title.trim(),
-        subtitle: formData.description?.trim() || null,
-        emoji: formData.emoji || '✨',
-        time: formData.time || null,
-        end_time: formData.endTime || null,
-        date: actualDate, // Use the converted date
-        is_shared: formData.isShared,
-        is_completed: false,
-        category: formData.category,
-        priority: formData.priority,
-        created_by: user.user.id,
-        assigned_to: [user.user.id], // For now, just assign to current user
-      })
+      .insert(taskData)
       .select()
       .single();
 
+    // If we get a column error, try with even more basic fields
+    if (error && error.message.includes('column') && error.message.includes('schema cache')) {
+      console.log('⚠️ Some database columns missing, trying with minimal fields...');
+      
+      taskData = {
+        title: formData.title.trim(),
+        date: formData.when.date,
+        is_shared: formData.isShared,
+        is_completed: false,
+        created_by: user.user.id,
+      };
+
+      const result = await supabase
+        .from('tasks')
+        .insert(taskData)
+        .select()
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    }
+
     if (error) {
       console.error('❌ Task creation failed:', error);
+      
+      // Provide helpful message for database schema issues
+      if (error.message.includes('column') && error.message.includes('schema cache')) {
+        throw new Error(`Database schema needs to be updated. Please run the SQL commands from database-schema.sql in your Supabase dashboard. Original error: ${error.message}`);
+      }
+      
       throw new Error(`Failed to create task: ${error.message}`);
     }
 
-    console.log('✅ Task created successfully:', data.id, 'for date:', actualDate);
+    console.log('✅ Task created successfully:', data.id, 'for date:', formData.when.date);
     return this.mapDatabaseTask(data);
   }
 
@@ -293,6 +355,23 @@ class SupabaseTaskService {
     return newCompletionState;
   }
 
+  // Update subtasks for a task
+  async updateSubtasks(taskId: string, subtasks: { id: string; title: string; completed: boolean }[]): Promise<void> {
+    console.log('📝 Updating subtasks for task:', taskId);
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({ subtasks })
+      .eq('id', taskId);
+
+    if (error) {
+      console.error('❌ Subtask update failed:', error);
+      throw new Error(`Failed to update subtasks: ${error.message}`);
+    }
+
+    console.log('✅ Subtasks updated');
+  }
+
   // Delete a task
   async deleteTask(taskId: string): Promise<void> {
     console.log('🗑️ Deleting task:', taskId);
@@ -312,19 +391,38 @@ class SupabaseTaskService {
 
   // Helper to map database task to our interface
   private mapDatabaseTask(dbTask: any): SimpleTask {
-    return {
+    console.log('🔄 Mapping database task:', JSON.stringify(dbTask, null, 2));
+    
+    const mappedTask = {
       id: dbTask.id,
-      title: dbTask.title,
-      subtitle: dbTask.subtitle,
-      emoji: dbTask.emoji,
-      time: dbTask.time,
-      endTime: dbTask.end_time,
+      title: dbTask.title || 'Untitled Task',
+      subtitle: dbTask.subtitle || undefined,
+      emoji: dbTask.emoji || '✨',
+      time: dbTask.time || undefined,
+      endTime: dbTask.end_time || undefined,
       date: dbTask.date,
-      isShared: dbTask.is_shared,
-      isCompleted: dbTask.is_completed,
-      category: dbTask.category,
-      priority: dbTask.priority,
+      isShared: dbTask.is_shared || false,
+      isCompleted: dbTask.is_completed || false,
+      category: dbTask.category || 'Personal',
+      priority: dbTask.priority || 'medium',
+      frequency: dbTask.frequency || 'once',
+      alerts: Array.isArray(dbTask.alerts) ? dbTask.alerts : [],
+      assignedTo: Array.isArray(dbTask.assigned_to) ? dbTask.assigned_to : [],
+      reactions: [],
+      subtasks: Array.isArray(dbTask.subtasks) ? dbTask.subtasks : [],
+      recurrence: dbTask.recurrence && typeof dbTask.recurrence === 'object' ? {
+        frequency: dbTask.recurrence.frequency || (dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none'),
+        interval: dbTask.recurrence.interval || 1,
+        daysOfWeek: dbTask.recurrence.daysOfWeek || [],
+      } : {
+        frequency: dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none',
+        interval: 1,
+        daysOfWeek: [],
+      },
     };
+    
+    console.log('✅ Mapped task result:', JSON.stringify(mappedTask, null, 2));
+    return mappedTask;
   }
 }
 
