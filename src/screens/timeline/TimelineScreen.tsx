@@ -14,9 +14,24 @@ import {
   PanResponder,
   Dimensions,
 } from 'react-native';
-import { Calendar, Users, Edit3, Trash2, Copy, Check, Clock, Bell, RotateCcw, Share2 } from '@tamagui/lucide-icons';
+import {
+  Calendar,
+  Users,
+  Edit3,
+  Trash2,
+  Copy,
+  Check,
+  Clock,
+  Bell,
+  RotateCcw,
+  Share2,
+} from '@tamagui/lucide-icons';
 import { typography, spacing, shadows } from '../../styles';
-import { useReactions, ReactionDisplay } from '../../components/reactions/ReactionSystem';
+import {
+  useReactions,
+  ReactionDisplay,
+} from '../../components/reactions/ReactionSystem';
+import { UnifiedTask } from '../../types/tasks'; // Use unified task interface
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -26,81 +41,37 @@ const colors = {
   background: '#FAFAFA',
   surface: '#FFFFFF',
   border: '#F0F0F0',
-  
+
   // Text colors
   textPrimary: '#333333',
   textSecondary: '#666666',
   textTertiary: '#999999',
   textDisabled: '#CCCCCC',
-  
+
   // Accent colors (configurable based on user preference)
-  accentPrimary: '#FF6B9D',    // Pink for shared/today
-  accentSecondary: '#6B73FF',  // Blue for default
-  accentWarning: '#FF6B6B',    // Red for high priority
-  accentSuccess: '#4CAF50',    // Green for completed
-  
+  accentPrimary: '#FF6B9D', // Pink for shared/today
+  accentSecondary: '#6B73FF', // Blue for default
+  accentWarning: '#FF6B6B', // Red for high priority
+  accentSuccess: '#4CAF50', // Green for completed
+
   // Status colors
   completed: '#999999',
   todo: '#FF6B9D',
-  
+
   // Group colors (soft pastels, Zelda-inspired)
   groupColors: {
-    health: '#B8E6B8',      // Soft mint green
-    home: '#FFE4B5',        // Soft peach
-    work: '#E6E6FA',        // Soft lavender
-    social: '#FFB6C1',      // Soft pink
-    learning: '#B0E0E6',    // Soft powder blue
-    creative: '#FFEFD5',    // Soft papaya
+    health: '#B8E6B8', // Soft mint green
+    home: '#FFE4B5', // Soft peach
+    work: '#E6E6FA', // Soft lavender
+    social: '#FFB6C1', // Soft pink
+    learning: '#B0E0E6', // Soft powder blue
+    creative: '#FFEFD5', // Soft papaya
   },
-  
+
   // Special
   white: '#FFFFFF',
   black: '#000000',
 } as const;
-
-// Enhanced Task interface that matches your SimpleTask but with additional fields
-interface EnhancedTask {
-  id: string;
-  title: string;
-  date: string;
-  isShared: boolean;
-  isCompleted: boolean;
-  assignedTo: string[];
-  reactions: Array<{
-    emoji: string;
-    count: number;
-    isFromPartner: boolean;
-    users: string[];
-  }>;
-  // New schema fields
-  emoji?: string;
-  start_time?: string;
-  end_time?: string;
-  duration?: number;
-  reoccurrence?: {
-    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
-    interval: number;
-    daysOfWeek?: string[];
-  };
-  alerts?: string[];
-  details?: string;
-  steps?: { id: string; title: string; completed: boolean }[];
-  // Backward compatibility fields
-  subtitle?: string; // Maps to details
-  time?: string; // Maps to start_time
-  endTime?: string; // Maps to end_time
-  subtasks?: { id: string; title: string; completed: boolean }[]; // Maps to steps
-  recurrence?: {
-    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
-    interval: number;
-    daysOfWeek?: string[];
-  }; // Maps to reoccurrence
-  category?: string;
-  groupId?: string;
-  priority?: 'low' | 'medium' | 'high';
-  progress?: number;
-  notes?: string;
-}
 
 // Task Group interface
 interface TaskGroup {
@@ -120,12 +91,12 @@ interface TaskGroup {
 // Task Detail Tray Component
 interface TaskDetailTrayProps {
   visible: boolean;
-  task: EnhancedTask | null;
+  task: UnifiedTask | null;
   group?: TaskGroup | null;
   onClose: () => void;
-  onEdit: (task: EnhancedTask) => void;
+  onEdit: (task: UnifiedTask) => void;
   onDelete: (taskId: string) => void;
-  onDuplicate: (task: EnhancedTask) => void;
+  onDuplicate: (task: UnifiedTask) => void;
   onComplete: (taskId: string) => void;
   onSubtaskToggle: (taskId: string, subtaskId: string) => void;
   groupProgress?: { completed: number; total: number };
@@ -149,18 +120,25 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
     console.log('🎭 TaskDetailTray visibility changed:', visible);
     console.log('📝 TaskDetailTray received task:', task ? task.title : 'null');
     if (task) {
-      console.log('📋 TaskDetailTray task details:', JSON.stringify({
-        id: task.id,
-        title: task.title,
-        subtitle: task.subtitle,
-        time: task.time,
-        endTime: task.endTime,
-        subtasks: task.subtasks,
-        alerts: task.alerts,
-        recurrence: task.recurrence,
-      }, null, 2));
+      console.log(
+        '📋 TaskDetailTray task details:',
+        JSON.stringify(
+          {
+            id: task.id,
+            title: task.title,
+            details: task.details,
+            startTime: task.startTime,
+            endTime: task.endTime,
+            steps: task.steps,
+            alerts: task.alerts,
+            recurrence: task.recurrence,
+          },
+          null,
+          2,
+        ),
+      );
     }
-    
+
     if (visible) {
       Animated.spring(slideAnim, {
         toValue: 1,
@@ -182,15 +160,22 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
     return null;
   }
 
-  // Check if all subtasks are completed
-  const allSubtasksCompleted = !task.subtasks || task.subtasks.length === 0 || 
-    task.subtasks.every(subtask => subtask.completed);
+  // FIXED: Get task steps using unified fields
+  const getTaskSteps = () => {
+    return task.steps || task.subtasks || [];
+  };
 
-  // Format time range display
+  // FIXED: Check if all subtasks are completed
+  const allSubtasksCompleted = () => {
+    const steps = getTaskSteps();
+    return steps.length === 0 || steps.every(step => step.completed);
+  };
+
+  // FIXED: Format time range display using unified fields
   const getTimeRangeDisplay = () => {
-    const startTime = task.time || task.start_time;
-    const endTime = task.endTime || task.end_time;
-    
+    const startTime = task.startTime || task.time;
+    const endTime = task.endTime;
+
     if (!startTime || startTime === 'TODO') {
       return 'No specific time set';
     }
@@ -203,43 +188,104 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
     return startTime;
   };
 
-  // Format recurrence display
+  // FIXED: Format recurrence display using unified fields
   const getRecurrenceDisplay = () => {
-    const recurrenceData = task.recurrence || task.reoccurrence;
+    const recurrenceData = task.recurrence;
     if (!recurrenceData || recurrenceData.frequency === 'none') {
       return 'One-time task';
     }
-    
+
     const { frequency, interval } = recurrenceData;
     const intervalText = interval > 1 ? `${interval} ` : '';
-    const frequencyText = frequency === 'daily' ? 'day' :
-                         frequency === 'weekly' ? 'week' :
-                         frequency === 'monthly' ? 'month' : frequency;
+    const frequencyText =
+      frequency === 'daily'
+        ? 'day'
+        : frequency === 'weekly'
+        ? 'week'
+        : frequency === 'monthly'
+        ? 'month'
+        : frequency;
     const pluralSuffix = interval > 1 ? 's' : '';
-    
+
     return `Every ${intervalText}${frequencyText}${pluralSuffix}`;
   };
 
-  // Format alerts display
+  // FIXED: Format alerts display
   const getAlertsDisplay = () => {
     if (!task.alerts || task.alerts.length === 0) {
       return 'No alerts set';
     }
-    
+
     const alertLabels = task.alerts.map(alertId => {
       switch (alertId) {
-        case 'start': return 'At start';
-        case 'end': return 'At end';
-        case '5min': return '5 min before';
-        case '10min': return '10 min before';
-        case '15min': return '15 min before';
-        case '30min': return '30 min before';
-        case '1hour': return '1 hour before';
-        default: return alertId;
+        case 'start':
+          return 'At start';
+        case 'end':
+          return 'At end';
+        case '5min':
+          return '5 min before';
+        case '10min':
+          return '10 min before';
+        case '15min':
+          return '15 min before';
+        case '30min':
+          return '30 min before';
+        case '1hour':
+          return '1 hour before';
+        default:
+          return alertId;
       }
     });
-    
+
     return alertLabels.join(', ');
+  };
+
+  // FIXED: Render steps section using unified fields
+  const renderStepsSection = () => {
+    const steps = getTaskSteps();
+
+    return (
+      <View style={styles.detailSection}>
+        <View style={styles.detailHeader}>
+          <Check size={18} color={colors.textSecondary} />
+          <Text style={styles.detailLabel}>
+            Steps{' '}
+            {steps.length > 0 &&
+              `(${steps.filter(s => s.completed).length}/${steps.length})`}
+          </Text>
+        </View>
+        {steps.length > 0 ? (
+          <View style={styles.subtasksList}>
+            {steps.map((step, index) => (
+              <TouchableOpacity
+                key={step.id}
+                style={styles.subtaskItem}
+                onPress={() => onSubtaskToggle(task.id, step.id)}
+              >
+                <View
+                  style={[
+                    styles.subtaskCheckbox,
+                    step.completed && styles.subtaskCheckboxCompleted,
+                  ]}
+                >
+                  {step.completed && <Check size={12} color={colors.white} />}
+                </View>
+                <Text
+                  style={[
+                    styles.subtaskText,
+                    step.completed && styles.subtaskTextCompleted,
+                  ]}
+                >
+                  {step.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.detailValue}>No steps added</Text>
+        )}
+      </View>
+    );
   };
 
   return (
@@ -267,22 +313,22 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
             },
           ]}
         >
-            <View style={styles.trayHandle} />
-            
-            <ScrollView 
-              style={styles.trayScrollView} 
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ 
-                flexGrow: 1,
-                paddingBottom: 40 // Extra padding to ensure buttons are visible
-              }}
-            >
-            
+          <View style={styles.trayHandle} />
+
+          <ScrollView
+            style={styles.trayScrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingBottom: 40,
+            }}
+          >
             {/* Task Header */}
             <View style={styles.trayHeader}>
-              
               <View style={styles.trayTitleRow}>
-                {task.emoji && <Text style={styles.trayEmoji}>{task.emoji}</Text>}
+                {task.emoji && (
+                  <Text style={styles.trayEmoji}>{task.emoji}</Text>
+                )}
                 <Text style={styles.trayTitle}>{task.title}</Text>
                 {task.isShared && (
                   <View style={styles.sharedBadge}>
@@ -290,7 +336,9 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
                   </View>
                 )}
               </View>
-              <Text style={styles.taskCategory}>{task.category || 'Personal'}</Text>
+              <Text style={styles.taskCategory}>
+                {task.category || 'Personal'}
+              </Text>
             </View>
 
             {/* Time Range */}
@@ -302,53 +350,19 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
               <Text style={styles.detailValue}>{getTimeRangeDisplay()}</Text>
             </View>
 
-            {/* Task Details/Notes */}
+            {/* FIXED: Task Details using unified fields */}
             <View style={styles.detailSection}>
               <View style={styles.detailHeader}>
                 <Edit3 size={18} color={colors.textSecondary} />
                 <Text style={styles.detailLabel}>Details</Text>
               </View>
               <Text style={styles.detailValue}>
-                {task.subtitle || task.details || 'No details added'}
+                {task.details || task.subtitle || 'No details added'}
               </Text>
             </View>
 
-            {/* Subtasks/Steps */}
-            <View style={styles.detailSection}>
-              <View style={styles.detailHeader}>
-                <Check size={18} color={colors.textSecondary} />
-                <Text style={styles.detailLabel}>
-                  Steps {(task.subtasks || task.steps) && (task.subtasks || task.steps)!.length > 0 && 
-                    `(${(task.subtasks || task.steps)!.filter(s => s.completed).length}/${(task.subtasks || task.steps)!.length})`}
-                </Text>
-              </View>
-              {(task.subtasks || task.steps) && (task.subtasks || task.steps)!.length > 0 ? (
-                <View style={styles.subtasksList}>
-                  {(task.subtasks || task.steps)!.map((subtask, index) => (
-                    <TouchableOpacity
-                      key={subtask.id}
-                      style={styles.subtaskItem}
-                      onPress={() => onSubtaskToggle(task.id, subtask.id)}
-                    >
-                      <View style={[
-                        styles.subtaskCheckbox,
-                        subtask.completed && styles.subtaskCheckboxCompleted
-                      ]}>
-                        {subtask.completed && <Check size={12} color={colors.white} />}
-                      </View>
-                      <Text style={[
-                        styles.subtaskText,
-                        subtask.completed && styles.subtaskTextCompleted
-                      ]}>
-                        {subtask.title}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.detailValue}>No steps added</Text>
-              )}
-            </View>
+            {/* FIXED: Steps section using unified fields */}
+            {renderStepsSection()}
 
             {/* Recurrence */}
             <View style={styles.detailSection}>
@@ -370,10 +384,22 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
 
             {/* Group Info */}
             {group && (
-              <View style={[styles.groupInfoSection, { backgroundColor: colors.groupColors[group.color] + '20' }]}>
+              <View
+                style={[
+                  styles.groupInfoSection,
+                  { backgroundColor: colors.groupColors[group.color] + '20' },
+                ]}
+              >
                 <View style={styles.groupInfoHeader}>
-                  <View style={[styles.groupDot, { backgroundColor: colors.groupColors[group.color] }]} />
-                  <Text style={styles.groupInfoTitle}>Part of {group.title}</Text>
+                  <View
+                    style={[
+                      styles.groupDot,
+                      { backgroundColor: colors.groupColors[group.color] },
+                    ]}
+                  />
+                  <Text style={styles.groupInfoTitle}>
+                    Part of {group.title}
+                  </Text>
                 </View>
                 {groupProgress && (
                   <Text style={styles.groupProgress}>
@@ -386,7 +412,7 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
 
             {/* Spacer to ensure buttons are always visible */}
             <View style={{ height: 20 }} />
-            
+
             {/* Action Buttons Section */}
             <View style={styles.bottomActionsContainer}>
               {/* Three Action Buttons Row */}
@@ -412,27 +438,36 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
                   onPress={() => onDelete(task.id)}
                 >
                   <Trash2 size={18} color={colors.accentWarning} />
-                  <Text style={[styles.actionButtonText, { color: colors.accentWarning }]}>Delete</Text>
+                  <Text
+                    style={[
+                      styles.actionButtonText,
+                      { color: colors.accentWarning },
+                    ]}
+                  >
+                    Delete
+                  </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Complete Button */}
+              {/* FIXED: Complete Button with unified logic */}
               <TouchableOpacity
                 style={[
                   styles.completeButton,
                   task.isCompleted && styles.uncompleteButton,
-                  !allSubtasksCompleted && !task.isCompleted && styles.completeButtonDisabled
+                  !allSubtasksCompleted() &&
+                    !task.isCompleted &&
+                    styles.completeButtonDisabled,
                 ]}
                 onPress={() => onComplete(task.id)}
-                disabled={!allSubtasksCompleted && !task.isCompleted}
+                disabled={!allSubtasksCompleted() && !task.isCompleted}
               >
                 <Check size={20} color={colors.white} />
                 <Text style={styles.completeButtonText}>
                   {task.isCompleted ? 'Mark Incomplete' : 'Complete Task'}
                 </Text>
               </TouchableOpacity>
-              
-              {!allSubtasksCompleted && !task.isCompleted && (
+
+              {!allSubtasksCompleted() && !task.isCompleted && (
                 <Text style={styles.completeDisabledText}>
                   Complete all steps first to mark this task as done
                 </Text>
@@ -463,14 +498,19 @@ const EncouragementModal: React.FC<EncouragementModalProps> = ({
   const encouragementOptions = [
     { emoji: '💪', label: 'You got this!' },
     { emoji: '🔥', label: 'On fire!' },
-    { emoji: '⭐', label: 'You\'re a star!' },
-    { emoji: '🎉', label: 'Let\'s celebrate!' },
+    { emoji: '⭐', label: "You're a star!" },
+    { emoji: '🎉', label: "Let's celebrate!" },
   ];
 
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.encouragementOverlay} onPress={onClose}>
         <View style={styles.encouragementContainer}>
           <Text style={styles.encouragementTitle}>Send Encouragement</Text>
@@ -496,9 +536,30 @@ const EncouragementModal: React.FC<EncouragementModalProps> = ({
 const generateTimelineDates = () => {
   const today = new Date();
   const dates = [];
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  
+  const days = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
   for (let i = -2; i <= 4; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
@@ -516,20 +577,26 @@ const generateTimelineDates = () => {
 };
 
 const TimelineScreen: React.FC = () => {
-  const [selectedFilter, setSelectedFilter] = useState<'All' | 'Mine' | 'Shared'>('All');
+  const [selectedFilter, setSelectedFilter] = useState<
+    'All' | 'Mine' | 'Shared'
+  >('All');
   const [refreshing, setRefreshing] = useState(false);
-  const [encouragementModalVisible, setEncouragementModalVisible] = useState(false);
-  const [selectedTaskForEncouragement, setSelectedTaskForEncouragement] = useState<string | null>(null);
+  const [encouragementModalVisible, setEncouragementModalVisible] =
+    useState(false);
+  const [selectedTaskForEncouragement, setSelectedTaskForEncouragement] =
+    useState<string | null>(null);
   const [taskDetailTrayVisible, setTaskDetailTrayVisible] = useState(false);
-  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<EnhancedTask | null>(null);
+  const [selectedTaskForDetail, setSelectedTaskForDetail] =
+    useState<UnifiedTask | null>(null);
 
-  // Get real tasks using your existing hook
-  const { 
-    tasks: realTasks, 
-    loading: tasksLoading, 
+  // FIXED: Get real tasks using updated hook
+  const {
+    tasks: realTasks,
+    loading: tasksLoading,
     toggleTaskCompletion,
     refreshTasks,
-    deleteTask
+    deleteTask,
+    updateSteps, // Make sure this is available from the updated hook
   } = useRealTasks();
 
   // Debug log the real tasks
@@ -540,7 +607,7 @@ const TimelineScreen: React.FC = () => {
     {
       id: 'group1',
       title: 'Healthy Week Challenge',
-      description: 'Let\'s build healthy habits together',
+      description: "Let's build healthy habits together",
       emoji: '🏃‍♀️',
       reward: 'Spa Day Together',
       createdAt: new Date(),
@@ -560,72 +627,22 @@ const TimelineScreen: React.FC = () => {
       participants: ['Alex', 'Blake'],
       color: 'home',
       shortName: 'Home Org',
-    }
+    },
   ]);
 
-  // Convert SimpleTask to EnhancedTask to add missing properties
-  const convertToEnhancedTasks = (simpleTasks: Record<string, any[]>): Record<string, EnhancedTask[]> => {
-    console.log('🔄 Converting simple tasks to enhanced tasks...');
-    console.log('📥 Raw simple tasks:', JSON.stringify(simpleTasks, null, 2));
-    
-    const enhancedTasks: Record<string, EnhancedTask[]> = {};
-    
-    Object.keys(simpleTasks).forEach(dateKey => {
-      console.log(`📅 Processing date key: ${dateKey}`);
-      enhancedTasks[dateKey] = (simpleTasks[dateKey] || []).map(task => {
-        console.log(`🔍 Converting task: ${task.title} (${task.id})`);
-        
-        const enhancedTask = {
-          id: task.id,
-          title: task.title || 'Untitled Task',
-          subtitle: task.subtitle || task.details || undefined,
-          emoji: task.emoji || '✨',
-          time: task.time || task.start_time || 'TODO',
-          endTime: task.endTime || task.end_time || undefined,
-          date: task.date,
-          isShared: task.isShared || false,
-          isCompleted: task.isCompleted || false,
-          assignedTo: task.assignedTo || [],
-          category: task.category || 'Personal',
-          groupId: task.groupId || undefined,
-          reactions: task.reactions || [],
-          priority: task.priority || 'medium',
-          progress: task.progress || undefined,
-          // Add missing fields for the enhanced task detail
-          subtasks: task.subtasks || task.steps || [],
-          alerts: task.alerts || [],
-          recurrence: task.recurrence || task.reoccurrence || {
-            frequency: 'none',
-            interval: 1,
-            daysOfWeek: [],
-          },
-          // Add new schema fields
-          duration: task.duration || undefined,
-          start_time: task.start_time || task.time || undefined,
-          end_time: task.end_time || task.endTime || undefined,
-          details: task.details || task.subtitle || undefined,
-          steps: task.steps || task.subtasks || [],
-          reoccurrence: task.reoccurrence || task.recurrence || undefined,
-        };
-        
-        console.log(`✅ Enhanced task created:`, JSON.stringify(enhancedTask, null, 2));
-        return enhancedTask;
-      });
-    });
-    
-    console.log('📤 Final enhanced tasks:', JSON.stringify(enhancedTasks, null, 2));
-    return enhancedTasks;
-  };
+  // FIXED: Use tasks directly (they're already UnifiedTask[])
+  const tasks = realTasks; // No conversion needed!
 
-  // Convert real tasks to enhanced tasks
-  const tasks = convertToEnhancedTasks(realTasks);
-  
   const timelineDates = generateTimelineDates();
-  
+
   // Get tasks for a specific date key with filtering
-  const getTasksForDate = (dateKey: string, isToday: boolean, fullDate: Date) => {
-    let taskList: EnhancedTask[] = [];
-    
+  const getTasksForDate = (
+    dateKey: string,
+    isToday: boolean,
+    fullDate: Date,
+  ) => {
+    let taskList: UnifiedTask[] = [];
+
     // Try to get tasks by the date key first (for timeline grouping)
     if (isToday) {
       taskList = tasks['today'] || [];
@@ -634,15 +651,15 @@ const TimelineScreen: React.FC = () => {
     } else if (dateKey === 'saturday') {
       taskList = tasks['saturday'] || [];
     }
-    
+
     // If no tasks found by key, try to find by actual date string
     if (taskList.length === 0) {
       const dateString = fullDate.toISOString().split('T')[0];
       taskList = tasks[dateString] || [];
     }
-    
+
     // Also check all date keys that match this date
-    const allTasks: EnhancedTask[] = [];
+    const allTasks: UnifiedTask[] = [];
     Object.keys(tasks).forEach(key => {
       const keyTasks = tasks[key] || [];
       keyTasks.forEach(task => {
@@ -653,18 +670,20 @@ const TimelineScreen: React.FC = () => {
         }
       });
     });
-    
+
     // Combine and deduplicate
     const combinedTasks = [...taskList, ...allTasks];
-    const uniqueTasks = combinedTasks.filter((task, index, arr) => 
-      arr.findIndex(t => t.id === task.id) === index
+    const uniqueTasks = combinedTasks.filter(
+      (task, index, arr) => arr.findIndex(t => t.id === task.id) === index,
     );
-    
+
     // Apply filter
     return uniqueTasks.filter(task => {
-      return selectedFilter === 'All' || 
+      return (
+        selectedFilter === 'All' ||
         (selectedFilter === 'Mine' && !task.isShared) ||
-        (selectedFilter === 'Shared' && task.isShared);
+        (selectedFilter === 'Shared' && task.isShared)
+      );
     });
   };
 
@@ -682,12 +701,14 @@ const TimelineScreen: React.FC = () => {
   };
 
   // Handle swipe to complete
-  const createSwipeHandler = (task: EnhancedTask) => {
+  const createSwipeHandler = (task: UnifiedTask) => {
     const translateX = new Animated.Value(0);
-    
+
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 100;
+        return (
+          Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 100
+        );
       },
       onPanResponderGrant: () => {
         translateX.setOffset(translateX._value);
@@ -697,7 +718,7 @@ const TimelineScreen: React.FC = () => {
       },
       onPanResponderRelease: (_, gestureState) => {
         translateX.flattenOffset();
-        
+
         if (Math.abs(gestureState.dx) > screenWidth * 0.3) {
           // Complete the task
           Animated.timing(translateX, {
@@ -727,7 +748,7 @@ const TimelineScreen: React.FC = () => {
   }, [refreshTasks]);
 
   // Task action handlers
-  const handleTaskEdit = (task: EnhancedTask) => {
+  const handleTaskEdit = (task: UnifiedTask) => {
     console.log('Edit task:', task.title);
     setTaskDetailTrayVisible(false);
   };
@@ -741,7 +762,7 @@ const TimelineScreen: React.FC = () => {
     }
   };
 
-  const handleTaskDuplicate = (task: EnhancedTask) => {
+  const handleTaskDuplicate = (task: UnifiedTask) => {
     console.log('Duplicate task:', task.title);
     setTaskDetailTrayVisible(false);
   };
@@ -751,46 +772,39 @@ const TimelineScreen: React.FC = () => {
     setTaskDetailTrayVisible(false);
   };
 
+  // FIXED: Updated subtask toggle handler using unified fields
   const handleSubtaskToggle = async (taskId: string, subtaskId: string) => {
     try {
       console.log('🔄 Toggling subtask:', subtaskId, 'for task:', taskId);
-      
-      // Import task service
-      const { default: SupabaseTaskService } = await import('../../services/tasks/supabaseTaskService');
-      
+
       // Find the task in our local state
       const allTasks = Object.values(realTasks).flat();
       const task = allTasks.find(t => t.id === taskId);
-      
-      const taskSteps = task?.subtasks || task?.steps;
-      if (!task || !taskSteps) {
+
+      // FIXED: Use unified field names
+      const taskSteps = task?.steps || task?.subtasks || [];
+      if (!task || taskSteps.length === 0) {
         throw new Error('Task or steps not found');
       }
-      
+
       // Toggle the subtask completion
-      const updatedSteps = taskSteps.map(step => 
-        step.id === subtaskId 
-          ? { ...step, completed: !step.completed }
-          : step
+      const updatedSteps = taskSteps.map(step =>
+        step.id === subtaskId ? { ...step, completed: !step.completed } : step,
       );
-      
-      // Update in database (using the new method name)
-      await SupabaseTaskService.updateSteps(taskId, updatedSteps);
-      
-      // Refresh tasks to get updated data
-      await refreshTasks();
-      
+
+      // FIXED: Use the updateSteps method from the hook
+      await updateSteps(taskId, updatedSteps);
+
       console.log('✅ Subtask toggled successfully');
     } catch (err) {
       console.error('❌ Failed to toggle subtask:', err);
     }
   };
 
-  const TaskItem: React.FC<{ task: EnhancedTask }> = ({ task }) => {
-    const { reactions } = useReactions(task.reactions);
+  const TaskItem: React.FC<{ task: UnifiedTask }> = ({ task }) => {
+    const { reactions } = useReactions(task.reactions || []);
     const [translateX] = useState(new Animated.Value(0));
     const group = task.groupId ? getGroupById(task.groupId) : null;
-    const groupProgress = task.groupId ? getGroupProgress(task.groupId) : null;
 
     const swipeHandler = createSwipeHandler(task);
 
@@ -815,8 +829,14 @@ const TimelineScreen: React.FC = () => {
       return colors.accentSecondary;
     };
 
+    // FIXED: Get time display using unified fields
+    const getTimeDisplay = () => {
+      const displayTime = task.startTime || task.time || 'TODO';
+      return displayTime;
+    };
+
     return (
-      <Animated.View 
+      <Animated.View
         style={[{ transform: [{ translateX }] }]}
         {...swipeHandler.panHandlers}
       >
@@ -826,10 +846,16 @@ const TimelineScreen: React.FC = () => {
             <View style={styles.taskTimeContainer}>
               {task.isCompleted ? (
                 <Text style={styles.taskStatusDone}>DONE</Text>
-              ) : task.time === 'TODO' ? (
-                <Text style={[styles.taskStatusTodo, { color: getAccentColor() }]}>TODO</Text>
+              ) : getTimeDisplay() === 'TODO' ? (
+                <Text
+                  style={[styles.taskStatusTodo, { color: getAccentColor() }]}
+                >
+                  TODO
+                </Text>
               ) : (
-                <Text style={[styles.taskTime, { color: getAccentColor() }]}>{task.time}</Text>
+                <Text style={[styles.taskTime, { color: getAccentColor() }]}>
+                  {getTimeDisplay()}
+                </Text>
               )}
             </View>
 
@@ -839,27 +865,31 @@ const TimelineScreen: React.FC = () => {
                 {task.emoji && (
                   <Text style={styles.taskEmoji}>{task.emoji}</Text>
                 )}
-                <Text style={[
-                  styles.taskTitle,
-                  task.isCompleted && styles.taskTitleCompleted
-                ]}>
+                <Text
+                  style={[
+                    styles.taskTitle,
+                    task.isCompleted && styles.taskTitleCompleted,
+                  ]}
+                >
                   {task.title}
                 </Text>
 
                 {/* Group Tag */}
                 {group && (
                   <TouchableOpacity style={styles.groupTag}>
-                    <View style={[
-                      styles.groupTagDot, 
-                      { backgroundColor: colors.groupColors[group.color] }
-                    ]} />
+                    <View
+                      style={[
+                        styles.groupTagDot,
+                        { backgroundColor: colors.groupColors[group.color] },
+                      ]}
+                    />
                     <Text style={styles.groupTagText}>{group.shortName}</Text>
                   </TouchableOpacity>
                 )}
-                
+
                 {/* Shared indicator */}
                 {task.isShared && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={handleSharedIconPress}
                     style={styles.sharedIndicator}
                   >
@@ -867,13 +897,16 @@ const TimelineScreen: React.FC = () => {
                   </TouchableOpacity>
                 )}
               </View>
-              
-              {task.subtitle && (
-                <Text style={[
-                  styles.taskSubtitle,
-                  task.isCompleted && styles.taskSubtitleCompleted
-                ]}>
-                  {task.subtitle}
+
+              {/* FIXED: Use unified field with fallback */}
+              {(task.details || task.subtitle) && (
+                <Text
+                  style={[
+                    styles.taskSubtitle,
+                    task.isCompleted && styles.taskSubtitleCompleted,
+                  ]}
+                >
+                  {task.details || task.subtitle}
                 </Text>
               )}
             </View>
@@ -882,9 +915,11 @@ const TimelineScreen: React.FC = () => {
           {/* Reactions */}
           {reactions.length > 0 && (
             <View style={styles.reactionsContainer}>
-              <ReactionDisplay 
-                reactions={reactions} 
-                onReactionPress={(reaction) => console.log('Reaction pressed:', reaction)}
+              <ReactionDisplay
+                reactions={reactions}
+                onReactionPress={reaction =>
+                  console.log('Reaction pressed:', reaction)
+                }
               />
             </View>
           )}
@@ -895,11 +930,15 @@ const TimelineScreen: React.FC = () => {
 
   const DateSection: React.FC<{ dateInfo: any }> = ({ dateInfo }) => {
     const tasks = getTasksForDate(
-      dateInfo.isToday ? 'today' : 
-      dateInfo.day === 'Thursday' ? 'tomorrow' : 
-      dateInfo.day === 'Saturday' ? 'saturday' : 'none', 
+      dateInfo.isToday
+        ? 'today'
+        : dateInfo.day === 'Thursday'
+        ? 'tomorrow'
+        : dateInfo.day === 'Saturday'
+        ? 'saturday'
+        : 'none',
       dateInfo.isToday,
-      dateInfo.fullDate
+      dateInfo.fullDate,
     );
 
     if (tasks.length === 0) return null;
@@ -908,17 +947,21 @@ const TimelineScreen: React.FC = () => {
       <View style={styles.dateSection}>
         {/* Date Header */}
         <View style={styles.dateHeader}>
-          <Text style={[
-            styles.dateNumber,
-            dateInfo.isToday && styles.dateNumberToday
-          ]}>
+          <Text
+            style={[
+              styles.dateNumber,
+              dateInfo.isToday && styles.dateNumberToday,
+            ]}
+          >
             {dateInfo.date}
           </Text>
           <View style={styles.dateInfo}>
-            <Text style={[
-              styles.dateName,
-              dateInfo.isToday && styles.dateNameToday
-            ]}>
+            <Text
+              style={[
+                styles.dateName,
+                dateInfo.isToday && styles.dateNameToday,
+              ]}
+            >
               {dateInfo.day}
             </Text>
             <Text style={styles.dateMonth}>{dateInfo.month}</Text>
@@ -927,7 +970,7 @@ const TimelineScreen: React.FC = () => {
 
         {/* Tasks for this date */}
         <View style={styles.tasksContainer}>
-          {tasks.map((task) => (
+          {tasks.map(task => (
             <TaskItem key={task.id} task={task} />
           ))}
         </View>
@@ -939,19 +982,21 @@ const TimelineScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
-        {(['All', 'Mine', 'Shared'] as const).map((filter) => (
+        {(['All', 'Mine', 'Shared'] as const).map(filter => (
           <TouchableOpacity
             key={filter}
             onPress={() => setSelectedFilter(filter)}
             style={[
               styles.filterTab,
-              selectedFilter === filter && styles.filterTabActive
+              selectedFilter === filter && styles.filterTabActive,
             ]}
           >
-            <Text style={[
-              styles.filterTabText,
-              selectedFilter === filter && styles.filterTabTextActive
-            ]}>
+            <Text
+              style={[
+                styles.filterTabText,
+                selectedFilter === filter && styles.filterTabTextActive,
+              ]}
+            >
               {filter}
             </Text>
           </TouchableOpacity>
@@ -959,8 +1004,8 @@ const TimelineScreen: React.FC = () => {
       </View>
 
       {/* Timeline */}
-      <ScrollView 
-        style={styles.timeline} 
+      <ScrollView
+        style={styles.timeline}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -976,16 +1021,24 @@ const TimelineScreen: React.FC = () => {
             <DateSection key={index} dateInfo={dateInfo} />
           ))}
         </View>
-        
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Task Detail Tray */}
+      {/* FIXED: Task Detail Tray with unified task support */}
       <TaskDetailTray
         visible={taskDetailTrayVisible}
         task={selectedTaskForDetail}
-        group={selectedTaskForDetail?.groupId ? getGroupById(selectedTaskForDetail.groupId) : null}
-        groupProgress={selectedTaskForDetail?.groupId ? getGroupProgress(selectedTaskForDetail.groupId) : undefined}
+        group={
+          selectedTaskForDetail?.groupId
+            ? getGroupById(selectedTaskForDetail.groupId)
+            : null
+        }
+        groupProgress={
+          selectedTaskForDetail?.groupId
+            ? getGroupProgress(selectedTaskForDetail.groupId)
+            : undefined
+        }
         onClose={() => {
           console.log('🚪 TaskDetailTray onClose called');
           setTaskDetailTrayVisible(false);
@@ -1001,9 +1054,14 @@ const TimelineScreen: React.FC = () => {
       <EncouragementModal
         visible={encouragementModalVisible}
         onClose={() => setEncouragementModalVisible(false)}
-        onEncouragementSelect={(emoji) => {
+        onEncouragementSelect={emoji => {
           if (selectedTaskForEncouragement) {
-            console.log('Encouragement sent:', emoji, 'for task:', selectedTaskForEncouragement);
+            console.log(
+              'Encouragement sent:',
+              emoji,
+              'for task:',
+              selectedTaskForEncouragement,
+            );
           }
           setEncouragementModalVisible(false);
         }}
@@ -1183,7 +1241,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: 76,
   },
-  
+
   // Task Detail Tray Styles
   trayOverlay: {
     flex: 1,
@@ -1205,7 +1263,7 @@ const styles = StyleSheet.create({
   },
   trayHandle: {
     width: 40,
-    height: 4,  
+    height: 4,
     backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
@@ -1244,11 +1302,6 @@ const styles = StyleSheet.create({
   taskCategory: {
     fontSize: 14,
     color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  trayTime: {
-    fontSize: 16,
-    color: colors.accentPrimary,
     fontWeight: '500',
   },
   detailSection: {
@@ -1333,20 +1386,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '500',
   },
-  notesSection: {
-    marginBottom: 20,
-  },
-  notesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  notesText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
   bottomActionsContainer: {
     backgroundColor: colors.background,
     paddingTop: 20,
@@ -1429,7 +1468,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontStyle: 'italic',
   },
-  
+
   // Encouragement Modal Styles
   encouragementOverlay: {
     flex: 1,
@@ -1470,7 +1509,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 70,
     borderWidth: 1,
-    borderColor: colors.border, 
+    borderColor: colors.border,
   },
   encouragementEmoji: {
     fontSize: 24,

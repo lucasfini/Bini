@@ -1,3 +1,5 @@
+// For iOS, you need to add this to your ios/Bini/AppDelegate.swift file:
+
 import UIKit
 import React
 
@@ -15,6 +17,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
     bridge = RCTBridge(delegate: self, launchOptions: launchOptions)
     let rootView = RCTRootView(bridge: bridge, moduleName: "Bini", initialProperties: nil)
     
+    // Add this line for react-native-screens
     if #available(iOS 13.0, *) {
       rootView.backgroundColor = UIColor.systemBackground
     } else {

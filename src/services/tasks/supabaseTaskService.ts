@@ -1,5 +1,5 @@
-// src/services/tasks/supabaseTaskService.ts - Fixed date mapping
-import { supabase } from '../../config/supabase';
+// src/services/tasks/unifiedTaskService.ts - Unified task service combining all functionality
+import SupabaseTaskService from './supabaseTaskService';
 
 // Enhanced task interface that matches your CreateTaskScreen
 interface TaskFormData {
@@ -28,7 +28,7 @@ interface SimpleTask {
   isShared: boolean;
   isCompleted: boolean;
   emoji?: string;
-  time?: string; // Keep for backward compatibility
+  time?: string;
   start_time?: string;
   endTime?: string;
   end_time?: string;
@@ -44,7 +44,6 @@ interface SimpleTask {
   steps?: { id: string; title: string; completed: boolean }[];
   assignedTo?: string[];
   reactions?: any[];
-  // Keep old fields for backward compatibility
   subtitle?: string;
   subtasks?: { id: string; title: string; completed: boolean }[];
   recurrence?: {
@@ -54,396 +53,145 @@ interface SimpleTask {
   };
 }
 
-class SupabaseTaskService {
-  // Helper to convert 'today', 'tomorrow', 'saturday' to actual dates
-  private convertWhenToDate(when: string): string {
-    const today = new Date();
-    
-    switch (when) {
-      case 'today':
-        return today.toISOString().split('T')[0];
-      
-      case 'tomorrow': {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        return tomorrow.toISOString().split('T')[0];
-      }
-      
-      case 'saturday': {
-        const saturday = new Date(today);
-        const daysUntilSaturday = (6 - today.getDay()) % 7;
-        saturday.setDate(today.getDate() + daysUntilSaturday);
-        return saturday.toISOString().split('T')[0];
-      }
-      
-      default:
-        // If it's already a date string, return as is
-        return when;
-    }
-  }
-
-  // Helper to convert date back to 'today', 'tomorrow', 'saturday' keys
-  private convertDateToWhen(dateString: string): string {
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    
-    // Get next Saturday
-    const todayDate = new Date();
-    const saturday = new Date(todayDate);
-    const daysUntilSaturday = (6 - todayDate.getDay()) % 7;
-    saturday.setDate(todayDate.getDate() + daysUntilSaturday);
-    const saturdayStr = saturday.toISOString().split('T')[0];
-
-    if (dateString === today) return 'today';
-    if (dateString === tomorrowStr) return 'tomorrow';
-    if (dateString === saturdayStr) return 'saturday';
-    
-    // For any other date, return the date string itself
-    return dateString;
-  }
-
-  // Create a new task from the CreateTaskScreen form
+class UnifiedTaskService {
+  // Create a task from the CreateTaskScreen form data
   async createTaskFromForm(formData: TaskFormData): Promise<SimpleTask> {
-    console.log('🚀 Creating task from form:', formData.title);
-    console.log('📝 Full form data received:', JSON.stringify(formData, null, 2));
+    console.log(
+      '🚀 UnifiedTaskService: Creating task from form:',
+      formData.title,
+    );
+    console.log('📝 Full form data:', JSON.stringify(formData, null, 2));
 
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('Not authenticated');
-    }
-
-    // Calculate end time based on duration
-    const calculateEndTime = (startTime: string, durationMinutes: number) => {
-      const [hours, minutes] = startTime.split(':').map(Number);
-      const startMinutes = hours * 60 + minutes;
-      const endMinutes = startMinutes + durationMinutes;
-      const endHours = Math.floor(endMinutes / 60) % 24;
-      const endMins = endMinutes % 60;
-      return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
-    };
-
-    const endTime = calculateEndTime(formData.when.time, formData.durationMinutes);
-
-    // Start with minimal required fields
-    let taskData: any = {
-      title: formData.title.trim(),
-      date: formData.when.date,
-      is_shared: formData.isShared,
-      is_completed: false,
-      created_by: user.user.id,
-    };
-
-    // Try to add common fields with new schema
     try {
-      taskData.emoji = formData.emoji || '✨';
-      taskData.start_time = formData.when.time;
-      taskData.end_time = endTime;
-      taskData.duration = formData.durationMinutes;
-      taskData.frequency = formData.recurrence.frequency === 'none' ? 'once' : formData.recurrence.frequency;
-      taskData.reoccurrence = formData.recurrence;
-      taskData.alerts = formData.alerts || [];
-      taskData.details = formData.details?.trim() || null;
-      taskData.steps = formData.subtasks || [];
-      taskData.assigned_to = [user.user.id];
-      
-      console.log('📋 Task data prepared for database:', JSON.stringify(taskData, null, 2));
-    } catch (e) {
-      // Continue with basic fields
-      console.log('⚠️ Failed to add extended fields:', e);
+      // Use the existing Supabase task service
+      const newTask = await SupabaseTaskService.createTaskFromForm(formData);
+      console.log(
+        '✅ UnifiedTaskService: Task created successfully:',
+        newTask.id,
+      );
+      return newTask;
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to create task:', error);
+      throw error;
     }
-
-    let { data, error } = await supabase
-      .from('tasks')
-      .insert(taskData)
-      .select()
-      .single();
-
-    // If we get a column error, try with even more basic fields
-    if (error && error.message.includes('column') && error.message.includes('schema cache')) {
-      console.log('⚠️ Some database columns missing, trying with minimal fields...');
-      
-      taskData = {
-        title: formData.title.trim(),
-        date: formData.when.date,
-        is_shared: formData.isShared,
-        is_completed: false,
-        created_by: user.user.id,
-      };
-
-      const result = await supabase
-        .from('tasks')
-        .insert(taskData)
-        .select()
-        .single();
-      
-      data = result.data;
-      error = result.error;
-    }
-
-    if (error) {
-      console.error('❌ Task creation failed:', error);
-      console.error('💾 Failed task data was:', JSON.stringify(taskData, null, 2));
-      
-      // Provide helpful message for database schema issues
-      if (error.message.includes('column') || error.code === '42703') {
-        throw new Error(`Database column doesn't exist. Please run the migration script in database-migration.sql. Error: ${error.message}`);
-      }
-      
-      throw new Error(`Failed to create task: ${error.message} (Code: ${error.code})`);
-    }
-
-    console.log('✅ Task created successfully:', data.id, 'for date:', formData.when.date);
-    return this.mapDatabaseTask(data);
-  }
-
-  // Create a simple task (legacy method)
-  async createTask(task: Omit<SimpleTask, 'id'>): Promise<SimpleTask> {
-    console.log('🚀 Creating simple task:', task.title);
-
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('Not authenticated');
-    }
-
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert({
-        title: task.title,
-        details: task.subtitle,
-        emoji: task.emoji || '✨',
-        start_time: task.time,
-        end_time: task.endTime,
-        date: task.date,
-        is_shared: task.isShared,
-        is_completed: task.isCompleted,
-        frequency: task.frequency || 'once',
-        reoccurrence: task.recurrence || {},
-        alerts: task.alerts || [],
-        steps: task.subtasks || [],
-        created_by: user.user.id,
-        assigned_to: [user.user.id],
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('❌ Task creation failed:', error);
-      throw new Error(`Failed to create task: ${error.message}`);
-    }
-
-    console.log('✅ Task created:', data.id);
-    return this.mapDatabaseTask(data);
   }
 
   // Get tasks for the timeline with proper grouping
   async getTasksForTimeline(): Promise<Record<string, SimpleTask[]>> {
-    console.log('🔍 Fetching tasks for timeline...');
+    console.log('🔍 UnifiedTaskService: Fetching tasks for timeline...');
 
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('Not authenticated');
+    try {
+      const groupedTasks = await SupabaseTaskService.getTasksForTimeline();
+      console.log('✅ UnifiedTaskService: Tasks fetched successfully');
+      console.log('📊 Grouped tasks by keys:', Object.keys(groupedTasks));
+      return groupedTasks;
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to fetch tasks:', error);
+      throw error;
     }
-
-    // Get tasks for the next 7 days
-    const today = new Date();
-    const nextWeek = new Date();
-    nextWeek.setDate(today.getDate() + 7);
-
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .or(`created_by.eq.${user.user.id},assigned_to.cs.{${user.user.id}}`)
-      .gte('date', today.toISOString().split('T')[0])
-      .lte('date', nextWeek.toISOString().split('T')[0])
-      .order('date', { ascending: true });
-
-    if (error) {
-      console.error('❌ Task fetch failed:', error);
-      throw new Error(`Failed to fetch tasks: ${error.message}`);
-    }
-
-    console.log('✅ Fetched', data.length, 'tasks');
-
-    // Group tasks by 'today', 'tomorrow', 'saturday' keys
-    const groupedTasks: Record<string, SimpleTask[]> = {};
-
-    data.forEach(task => {
-      const dateKey = this.convertDateToWhen(task.date);
-      
-      if (!groupedTasks[dateKey]) {
-        groupedTasks[dateKey] = [];
-      }
-
-      groupedTasks[dateKey].push(this.mapDatabaseTask(task));
-    });
-
-    console.log('📊 Grouped tasks by keys:', Object.keys(groupedTasks));
-    return groupedTasks;
   }
 
   // Get tasks for a specific date range
   async getTasks(startDate?: string, endDate?: string): Promise<SimpleTask[]> {
-    console.log('🔍 Fetching tasks...');
+    console.log('🔍 UnifiedTaskService: Fetching tasks...');
 
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) {
-      throw new Error('Not authenticated');
+    try {
+      const tasks = await SupabaseTaskService.getTasks(startDate, endDate);
+      console.log(
+        '✅ UnifiedTaskService: Tasks fetched:',
+        tasks.length,
+        'tasks',
+      );
+      return tasks;
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to fetch tasks:', error);
+      throw error;
     }
-
-    let query = supabase
-      .from('tasks')
-      .select('*')
-      .or(`created_by.eq.${user.user.id},assigned_to.cs.{${user.user.id}}`);
-
-    if (startDate && endDate) {
-      query = query
-        .gte('date', startDate)
-        .lte('date', endDate);
-    }
-
-    const { data, error } = await query.order('date', { ascending: true });
-
-    if (error) {
-      console.error('❌ Task fetch failed:', error);
-      throw new Error(`Failed to fetch tasks: ${error.message}`);
-    }
-
-    console.log('✅ Fetched', data.length, 'tasks');
-    return data.map(this.mapDatabaseTask);
   }
 
   // Update a task
-  async updateTask(taskId: string, updates: Partial<SimpleTask>): Promise<void> {
-    console.log('🔄 Updating task:', taskId);
+  async updateTask(
+    taskId: string,
+    updates: Partial<SimpleTask>,
+  ): Promise<void> {
+    console.log('🔄 UnifiedTaskService: Updating task:', taskId);
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({
-        title: updates.title,
-        details: updates.subtitle,
-        is_completed: updates.isCompleted,
-        start_time: updates.time,
-        end_time: updates.endTime,
-        frequency: updates.frequency,
-        reoccurrence: updates.recurrence,
-        alerts: updates.alerts,
-        steps: updates.subtasks,
-      })
-      .eq('id', taskId);
-
-    if (error) {
-      console.error('❌ Task update failed:', error);
-      throw new Error(`Failed to update task: ${error.message}`);
+    try {
+      await SupabaseTaskService.updateTask(taskId, updates);
+      console.log('✅ UnifiedTaskService: Task updated successfully');
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to update task:', error);
+      throw error;
     }
-
-    console.log('✅ Task updated');
   }
 
   // Toggle task completion
   async toggleTaskCompletion(taskId: string): Promise<boolean> {
-    console.log('✅ Toggling task completion:', taskId);
+    console.log('✅ UnifiedTaskService: Toggling task completion:', taskId);
 
-    // First get the current state
-    const { data: task, error: fetchError } = await supabase
-      .from('tasks')
-      .select('is_completed')
-      .eq('id', taskId)
-      .single();
-
-    if (fetchError) {
-      throw new Error(`Failed to fetch task: ${fetchError.message}`);
+    try {
+      const newCompletionState = await SupabaseTaskService.toggleTaskCompletion(
+        taskId,
+      );
+      console.log(
+        '✅ UnifiedTaskService: Task completion toggled to:',
+        newCompletionState,
+      );
+      return newCompletionState;
+    } catch (error) {
+      console.error(
+        '❌ UnifiedTaskService: Failed to toggle task completion:',
+        error,
+      );
+      throw error;
     }
-
-    const newCompletionState = !task.is_completed;
-
-    // Toggle the completion state
-    const { error } = await supabase
-      .from('tasks')
-      .update({ is_completed: newCompletionState })
-      .eq('id', taskId);
-
-    if (error) {
-      throw new Error(`Failed to toggle task: ${error.message}`);
-    }
-
-    console.log('✅ Task completion toggled to:', newCompletionState);
-    return newCompletionState;
   }
 
   // Update steps for a task
-  async updateSteps(taskId: string, steps: { id: string; title: string; completed: boolean }[]): Promise<void> {
-    console.log('📝 Updating steps for task:', taskId);
+  async updateSteps(
+    taskId: string,
+    steps: { id: string; title: string; completed: boolean }[],
+  ): Promise<void> {
+    console.log('📝 UnifiedTaskService: Updating steps for task:', taskId);
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({ steps })
-      .eq('id', taskId);
-
-    if (error) {
-      console.error('❌ Steps update failed:', error);
-      throw new Error(`Failed to update steps: ${error.message}`);
+    try {
+      await SupabaseTaskService.updateSteps(taskId, steps);
+      console.log('✅ UnifiedTaskService: Steps updated successfully');
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to update steps:', error);
+      throw error;
     }
-
-    console.log('✅ Steps updated');
   }
 
   // Delete a task
   async deleteTask(taskId: string): Promise<void> {
-    console.log('🗑️ Deleting task:', taskId);
+    console.log('🗑️ UnifiedTaskService: Deleting task:', taskId);
 
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', taskId);
-
-    if (error) {
-      console.error('❌ Task deletion failed:', error);
-      throw new Error(`Failed to delete task: ${error.message}`);
+    try {
+      await SupabaseTaskService.deleteTask(taskId);
+      console.log('✅ UnifiedTaskService: Task deleted successfully');
+    } catch (error) {
+      console.error('❌ UnifiedTaskService: Failed to delete task:', error);
+      throw error;
     }
-
-    console.log('✅ Task deleted');
   }
 
-  // Helper to map database task to our interface
-  private mapDatabaseTask(dbTask: any): SimpleTask {
-    console.log('🔄 Mapping database task:', JSON.stringify(dbTask, null, 2));
-    
-    const mappedTask = {
-      id: dbTask.id,
-      title: dbTask.title || 'Untitled Task',
-      subtitle: dbTask.details || undefined,  // Map details to subtitle for backward compatibility
-      emoji: dbTask.emoji || '✨',
-      time: dbTask.start_time || undefined,   // Map start_time to time
-      endTime: dbTask.end_time || undefined,
-      date: dbTask.date,
-      isShared: dbTask.is_shared || false,
-      isCompleted: dbTask.is_completed || false,
-      frequency: dbTask.frequency || 'once',
-      alerts: Array.isArray(dbTask.alerts) ? dbTask.alerts : [],
-      assignedTo: Array.isArray(dbTask.assigned_to) ? dbTask.assigned_to : [],
-      reactions: [],
-      subtasks: Array.isArray(dbTask.steps) ? dbTask.steps : [], // Map steps to subtasks for backward compatibility
-      recurrence: dbTask.reoccurrence && typeof dbTask.reoccurrence === 'object' ? {
-        frequency: dbTask.reoccurrence.frequency || (dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none'),
-        interval: dbTask.reoccurrence.interval || 1,
-        daysOfWeek: dbTask.reoccurrence.daysOfWeek || [],
-      } : {
-        frequency: dbTask.frequency === 'once' ? 'none' : dbTask.frequency || 'none',
-        interval: 1,
-        daysOfWeek: [],
-      },
-      // Add new direct mappings
-      duration: dbTask.duration || undefined,
-      details: dbTask.details || undefined,
-      steps: Array.isArray(dbTask.steps) ? dbTask.steps : [],
-      reoccurrence: dbTask.reoccurrence || undefined, // Add direct reoccurrence mapping
-    };
-    
-    console.log('✅ Mapped task result:', JSON.stringify(mappedTask, null, 2));
-    return mappedTask;
+  // Create a simple task (legacy method)
+  async createTask(task: Omit<SimpleTask, 'id'>): Promise<SimpleTask> {
+    console.log('🚀 UnifiedTaskService: Creating simple task:', task.title);
+
+    try {
+      const newTask = await SupabaseTaskService.createTask(task);
+      console.log('✅ UnifiedTaskService: Simple task created:', newTask.id);
+      return newTask;
+    } catch (error) {
+      console.error(
+        '❌ UnifiedTaskService: Failed to create simple task:',
+        error,
+      );
+      throw error;
+    }
   }
 }
 
-export default new SupabaseTaskService();
+export default new UnifiedTaskService();

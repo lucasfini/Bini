@@ -1,11 +1,11 @@
+// src/navigation/AppNavigator.tsx - FINAL VERSION WITH UNIFIED SERVICE
 import React, { useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { 
-  SafeAreaView, 
-  TouchableOpacity, 
-  StyleSheet, 
-  View, 
+import {
+  SafeAreaView,
+  TouchableOpacity,
+  StyleSheet,
+  View,
   Text,
   Alert,
 } from 'react-native';
@@ -13,11 +13,12 @@ import { Clock, Calendar, Plus, BookOpen, User } from '@tamagui/lucide-icons';
 
 import TimelineScreen from '../screens/timeline/TimelineScreen';
 import CalendarScreen from '../screens/calendar/CalendarScreen';
-import CreateTaskScreen from '../screens/create/CreateTaskScreen'; // Import your CreateTaskScreen
+import CreateTaskScreen from '../screens/create/CreateTaskScreen';
 import KnowledgeScreen from '../screens/knowledge/KnowledgeScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import { TaskFormData } from '../types/tasks';
+import UnifiedTaskService from '../services/tasks/unifiedTaskService';
 
-// Clean minimal color palette
 const colors = {
   background: '#FAFAFA',
   surface: '#FFFFFF',
@@ -31,38 +32,8 @@ const colors = {
   black: '#000000',
 };
 
-// Task form interface (matching your CreateTaskScreen)
-interface TaskFormData {
-  title: string;
-  emoji: string;
-  when: {
-    date: string;
-    time: string;
-  };
-  durationMinutes: number;
-  recurrence: {
-    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
-    interval: number;
-    daysOfWeek?: string[];
-  };
-  alerts: string[];
-  details: string;
-  isShared: boolean;
-  subtasks: { id: string; title: string; completed: boolean }[];
-}
-
-// Simple Settings screen component
-const SettingsScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Settings</Text>
-    <Text style={styles.screenSubtitle}>App Preferences</Text>
-  </View>
-);
-
-// Dummy Create screen (won't be used since we're using the tray)
 const CreateScreen = () => null;
 
-// Timeline wrapper to allow refreshing
 const TimelineWrapper: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
   return <TimelineScreen key={refreshKey} />;
 };
@@ -70,49 +41,47 @@ const TimelineWrapper: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
 const Tab = createBottomTabNavigator();
 
 const AppNavigator: React.FC = () => {
-  // State for the Create Task tray
   const [showCreateTray, setShowCreateTray] = useState(false);
-  
-  // Key to force timeline refresh
   const [timelineKey, setTimelineKey] = useState(0);
 
-  // Handle task creation - Save to database
+  // Handle task creation with unified service
   const handleCreateTask = async (taskData: TaskFormData) => {
-    console.log('🚀 New task created in AppNavigator:', JSON.stringify(taskData, null, 2));
-    
+    console.log(
+      '🚀 Creating task with unified service:',
+      JSON.stringify(taskData, null, 2),
+    );
+
     try {
-      // Import and use the Supabase task service
-      const { default: SupabaseTaskService } = await import('../services/tasks/supabaseTaskService');
-      
-      // Create the task in the database
-      const newTask = await SupabaseTaskService.createTaskFromForm(taskData);
-      
+      // Use the unified task service directly (no dynamic import needed)
+      const newTask = await UnifiedTaskService.createTaskFromForm(taskData);
+
       // Show success message
       const dateObj = new Date(taskData.when.date);
       const dateStr = dateObj.toLocaleDateString();
-      
+
       Alert.alert(
         'Task Created! 🎉',
         `"${taskData.title}" has been added for ${dateStr} at ${taskData.when.time}`,
-        [{ text: 'Great!' }]
+        [{ text: 'Great!' }],
       );
 
-      console.log('✅ Task created successfully:', newTask.id);
-      
+      console.log('✅ Unified task created successfully:', newTask.id);
+      console.log('📊 Created task data:', JSON.stringify(newTask, null, 2));
+
       // Refresh the timeline to show the new task
       setTimelineKey(prev => prev + 1);
-      
     } catch (error) {
-      console.error('Failed to create task:', error);
+      console.error('❌ Failed to create task:', error);
       Alert.alert(
         'Error',
-        'Failed to create task. Please try again.',
-        [{ text: 'OK' }]
+        `Failed to create task: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+        [{ text: 'OK' }],
       );
     }
   };
 
-  // Minimal Custom Tab Bar
   const CustomTabBar = ({ state, descriptors, navigation }: any) => {
     const getIcon = (routeName: string, isFocused: boolean) => {
       const iconColor = isFocused ? colors.accentPrimary : colors.textTertiary;
@@ -143,7 +112,6 @@ const AppNavigator: React.FC = () => {
 
             const onPress = () => {
               if (isCreate) {
-                // Open the create tray instead of navigating
                 setShowCreateTray(true);
                 return;
               }
@@ -172,10 +140,12 @@ const AppNavigator: React.FC = () => {
               >
                 {getIcon(route.name, isFocused)}
                 {!isCreate && (
-                  <Text style={[
-                    styles.tabLabel,
-                    isFocused && styles.tabLabelActive
-                  ]}>
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      isFocused && styles.tabLabelActive,
+                    ]}
+                  >
                     {route.name}
                   </Text>
                 )}
@@ -188,9 +158,9 @@ const AppNavigator: React.FC = () => {
   };
 
   return (
-    <NavigationContainer>
+    <>
       <Tab.Navigator
-        tabBar={(props) => <CustomTabBar {...props} />}
+        tabBar={props => <CustomTabBar {...props} />}
         screenOptions={{ headerShown: false }}
       >
         <Tab.Screen name="Timeline">
@@ -202,34 +172,17 @@ const AppNavigator: React.FC = () => {
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
 
-      {/* Floating Create Task Tray - This overlays everything */}
+      {/* Create Task Tray using unified service */}
       <CreateTaskScreen
         visible={showCreateTray}
         onClose={() => setShowCreateTray(false)}
         onCreateTask={handleCreateTask}
       />
-    </NavigationContainer>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  screenContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    padding: 24,
-  },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  screenSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
   tabBarSafeArea: {
     backgroundColor: colors.surface,
   },

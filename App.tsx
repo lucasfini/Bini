@@ -1,9 +1,10 @@
 // IMPORTANT: This must be the very first import!
 import 'react-native-url-polyfill/auto';
-import 'react-native-gesture-handler';
+import 'react-native-gesture-handler'; // Only import once at the top
 import React, { useEffect } from 'react';
 import { createTamagui, TamaguiProvider } from 'tamagui';
 import { defaultConfig } from '@tamagui/config/v4';
+import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -21,38 +22,50 @@ const AppContent: React.FC = () => {
     const testSupabaseConnection = async () => {
       try {
         console.log('🚀 App started, testing Supabase connection...');
-        
+
         // Import the config module
         const supabaseModule = await import('./src/config/supabase');
         console.log('📦 Supabase module imported successfully');
-        
+
         // Check what we got
         if (supabaseModule.testConnection) {
           console.log('🧪 Found testConnection, running test...');
           await supabaseModule.testConnection();
-        } else if (supabaseModule.default && supabaseModule.default.testConnection) {
-          console.log('🧪 Found testConnection in default export, running test...');
+        } else if (
+          supabaseModule.default &&
+          supabaseModule.default.testConnection
+        ) {
+          console.log(
+            '🧪 Found testConnection in default export, running test...',
+          );
           await supabaseModule.default.testConnection();
         } else {
-          console.log('⚠️ testConnection not found, testing client directly...');
-          
-          const client = supabaseModule.supabase || supabaseModule.default?.supabase;
+          console.log(
+            '⚠️ testConnection not found, testing client directly...',
+          );
+
+          const client =
+            supabaseModule.supabase || supabaseModule.default?.supabase;
           if (client) {
             const { data, error } = await client
               .from('profiles')
               .select('count')
               .limit(1);
-            
+
             console.log('📊 Direct test result:', { data, error });
-            
-            if (error && (error.code === 'PGRST116' || error.code === '42P01')) {
-              console.log('✅ Direct test successful! (Table not found is expected)');
+
+            if (
+              error &&
+              (error.code === 'PGRST116' || error.code === '42P01')
+            ) {
+              console.log(
+                '✅ Direct test successful! (Table not found is expected)',
+              );
             } else if (!error) {
               console.log('✅ Direct test successful with data!');
             }
           }
         }
-        
       } catch (error) {
         console.error('❌ Connection test failed:', error);
       }
@@ -70,11 +83,15 @@ const AppContent: React.FC = () => {
   }
 
   if (user) {
-    // User is authenticated - show main app with navigation
-    return <AppNavigator />;
+    // User is authenticated - show main app with navigation wrapped in NavigationContainer
+    return (
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+    );
   }
 
-  // User is not authenticated - show auth screen
+  // User is not authenticated - show auth screen (no navigation needed)
   return <AuthScreen />;
 };
 
