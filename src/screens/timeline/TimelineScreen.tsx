@@ -13,10 +13,13 @@ import {
   Modal,
   PanResponder,
   Dimensions,
+  TextInput,
+  Alert,
 } from 'react-native';
 import {
   Calendar,
   Users,
+  User,
   Edit3,
   Trash2,
   Copy,
@@ -25,6 +28,10 @@ import {
   Bell,
   RotateCcw,
   Share2,
+  Plus,
+  GripVertical,
+  X,
+  PlusCircle,
 } from '@tamagui/lucide-icons';
 import { typography, spacing, shadows } from '../../styles';
 import {
@@ -33,7 +40,7 @@ import {
 } from '../../components/reactions/ReactionSystem';
 import { UnifiedTask } from '../../types/tasks'; // Use unified task interface
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // Updated minimal color palette for clean timeline design
 const colors = {
@@ -99,6 +106,7 @@ interface TaskDetailTrayProps {
   onDuplicate: (task: UnifiedTask) => void;
   onComplete: (taskId: string) => void;
   onSubtaskToggle: (taskId: string, subtaskId: string) => void;
+  onStepsUpdate: (taskId: string, steps: Array<{id: string; title: string; completed: boolean}>) => void;
   groupProgress?: { completed: number; total: number };
 }
 
@@ -112,9 +120,22 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
   onDuplicate,
   onComplete,
   onSubtaskToggle,
+  onStepsUpdate,
   groupProgress,
 }) => {
   const [slideAnim] = useState(new Animated.Value(0));
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editingStepTitle, setEditingStepTitle] = useState('');
+  const [draggedStepId, setDraggedStepId] = useState<string | null>(null);
+  const [localSteps, setLocalSteps] = useState<Array<{id: string; title: string; completed: boolean}>>([]);
+
+  // Sync local steps with task steps
+  useEffect(() => {
+    if (task) {
+      const taskSteps = task.steps || task.subtasks || [];
+      setLocalSteps([...taskSteps]);
+    }
+  }, [task]);
 
   useEffect(() => {
     console.log('🎭 TaskDetailTray visibility changed:', visible);
@@ -152,6 +173,9 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
         duration: 200,
         useNativeDriver: true,
       }).start();
+      // Reset editing state when closing
+      setEditingStepId(null);
+      setEditingStepTitle('');
     }
   }, [visible, task]);
 
@@ -160,15 +184,90 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
     return null;
   }
 
-  // FIXED: Get task steps using unified fields
+  // FIXED: Get task steps using unified fields (use local state for editing)
   const getTaskSteps = () => {
-    return task.steps || task.subtasks || [];
+    return localSteps;
   };
 
   // FIXED: Check if all subtasks are completed
   const allSubtasksCompleted = () => {
     const steps = getTaskSteps();
     return steps.length === 0 || steps.every(step => step.completed);
+  };
+
+  // Step management functions
+  const handleAddStep = () => {
+    const newStep = {
+      id: Date.now().toString(),
+      title: 'New step',
+      completed: false,
+    };
+    const updatedSteps = [...localSteps, newStep];
+    setLocalSteps(updatedSteps);
+    onStepsUpdate(task!.id, updatedSteps);
+    
+    // Start editing the new step immediately
+    setEditingStepId(newStep.id);
+    setEditingStepTitle(newStep.title);
+  };
+
+  const handleDeleteStep = (stepId: string) => {
+    Alert.alert(
+      'Delete Step',
+      'Are you sure you want to delete this step?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const updatedSteps = localSteps.filter(step => step.id !== stepId);
+            setLocalSteps(updatedSteps);
+            onStepsUpdate(task!.id, updatedSteps);
+          },
+        },
+      ],
+    );
+  };
+
+  const handleStepToggle = (stepId: string) => {
+    const updatedSteps = localSteps.map(step =>
+      step.id === stepId ? { ...step, completed: !step.completed } : step
+    );
+    setLocalSteps(updatedSteps);
+    onSubtaskToggle(task!.id, stepId);
+  };
+
+  const handleStartEditStep = (stepId: string, currentTitle: string) => {
+    setEditingStepId(stepId);
+    setEditingStepTitle(currentTitle);
+  };
+
+  const handleSaveStepEdit = () => {
+    if (editingStepId && editingStepTitle.trim()) {
+      const updatedSteps = localSteps.map(step =>
+        step.id === editingStepId
+          ? { ...step, title: editingStepTitle.trim() }
+          : step
+      );
+      setLocalSteps(updatedSteps);
+      onStepsUpdate(task!.id, updatedSteps);
+    }
+    setEditingStepId(null);
+    setEditingStepTitle('');
+  };
+
+  const handleCancelStepEdit = () => {
+    setEditingStepId(null);
+    setEditingStepTitle('');
+  };
+
+  const handleMoveStep = (fromIndex: number, toIndex: number) => {
+    const updatedSteps = [...localSteps];
+    const [movedStep] = updatedSteps.splice(fromIndex, 1);
+    updatedSteps.splice(toIndex, 0, movedStep);
+    setLocalSteps(updatedSteps);
+    onStepsUpdate(task!.id, updatedSteps);
   };
 
   // FIXED: Format time range display using unified fields
@@ -240,9 +339,35 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
     return alertLabels.join(', ');
   };
 
-  // FIXED: Render steps section using unified fields
+  // Enhanced steps section with full management functionality
   const renderStepsSection = () => {
     const steps = getTaskSteps();
+
+    const createDragHandler = (stepId: string, index: number) => {
+      const panResponder = PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dy) > 10;
+        },
+        onPanResponderGrant: () => {
+          setDraggedStepId(stepId);
+        },
+        onPanResponderMove: (_, gestureState) => {
+          // Visual feedback could be added here
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const moveThreshold = 60;
+          if (Math.abs(gestureState.dy) > moveThreshold) {
+            const direction = gestureState.dy > 0 ? 1 : -1;
+            const newIndex = Math.max(0, Math.min(steps.length - 1, index + direction));
+            if (newIndex !== index) {
+              handleMoveStep(index, newIndex);
+            }
+          }
+          setDraggedStepId(null);
+        },
+      });
+      return panResponder;
+    };
 
     return (
       <View style={styles.detailSection}>
@@ -253,33 +378,109 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
             {steps.length > 0 &&
               `(${steps.filter(s => s.completed).length}/${steps.length})`}
           </Text>
+          <TouchableOpacity
+            style={styles.addStepButtonSmall}
+            onPress={handleAddStep}
+          >
+            <Plus size={14} color={colors.accentSecondary} />
+          </TouchableOpacity>
         </View>
+        
         {steps.length > 0 ? (
           <View style={styles.subtasksList}>
-            {steps.map((step, index) => (
-              <TouchableOpacity
-                key={step.id}
-                style={styles.subtaskItem}
-                onPress={() => onSubtaskToggle(task.id, step.id)}
-              >
+            {steps.map((step, index) => {
+              const isEditing = editingStepId === step.id;
+              const isDragging = draggedStepId === step.id;
+              const dragHandler = createDragHandler(step.id, index);
+              
+              return (
                 <View
+                  key={step.id}
                   style={[
-                    styles.subtaskCheckbox,
-                    step.completed && styles.subtaskCheckboxCompleted,
+                    styles.subtaskItem,
+                    isDragging && styles.subtaskItemDragging,
                   ]}
                 >
-                  {step.completed && <Check size={12} color={colors.white} />}
+                  {/* Drag Handle */}
+                  <View
+                    style={styles.dragHandle}
+                    {...dragHandler.panHandlers}
+                  >
+                    <GripVertical size={16} color={colors.textTertiary} />
+                  </View>
+
+                  {/* Checkbox */}
+                  <TouchableOpacity
+                    onPress={() => handleStepToggle(step.id)}
+                    style={[
+                      styles.subtaskCheckbox,
+                      step.completed && styles.subtaskCheckboxCompleted,
+                    ]}
+                  >
+                    {step.completed && <Check size={12} color={colors.white} />}
+                  </TouchableOpacity>
+
+                  {/* Step Title (Editable) */}
+                  <View style={styles.subtaskTextContainer}>
+                    {isEditing ? (
+                      <View style={styles.editingContainer}>
+                        <TextInput
+                          style={styles.stepEditInput}
+                          value={editingStepTitle}
+                          onChangeText={setEditingStepTitle}
+                          onSubmitEditing={handleSaveStepEdit}
+                          onBlur={handleSaveStepEdit}
+                          autoFocus
+                          multiline
+                          placeholder="Enter step title"
+                        />
+                        <View style={styles.editingActions}>
+                          <TouchableOpacity
+                            onPress={handleSaveStepEdit}
+                            style={styles.editActionButton}
+                          >
+                            <Check size={14} color={colors.accentSuccess} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={handleCancelStepEdit}
+                            style={styles.editActionButton}
+                          >
+                            <X size={14} color={colors.accentWarning} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.subtaskText,
+                          step.completed && styles.subtaskTextCompleted,
+                        ]}
+                      >
+                        {step.title}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Edit/Delete Actions */}
+                  {!isEditing && (
+                    <View style={styles.stepActions}>
+                      <TouchableOpacity
+                        onPress={() => handleStartEditStep(step.id, step.title)}
+                        style={styles.stepActionButton}
+                      >
+                        <Edit3 size={14} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteStep(step.id)}
+                        style={styles.stepActionButton}
+                      >
+                        <Trash2 size={14} color={colors.accentWarning} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-                <Text
-                  style={[
-                    styles.subtaskText,
-                    step.completed && styles.subtaskTextCompleted,
-                  ]}
-                >
-                  {step.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <Text style={styles.detailValue}>No steps added</Text>
@@ -333,6 +534,11 @@ const TaskDetailTray: React.FC<TaskDetailTrayProps> = ({
                 {task.isShared && (
                   <View style={styles.sharedBadge}>
                     <Share2 size={14} color={colors.accentPrimary} />
+                  </View>
+                )}
+                {task.isShared && (
+                  <View style={styles.profileBadge}>
+                    <User size={14} color={colors.accentPrimary} />
                   </View>
                 )}
               </View>
@@ -560,7 +766,8 @@ const generateTimelineDates = () => {
     'December',
   ];
 
-  for (let i = -2; i <= 4; i++) {
+  // Show a wider range: 30 days in the past to 90 days in the future
+  for (let i = -30; i <= 90; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     dates.push({
@@ -570,7 +777,7 @@ const generateTimelineDates = () => {
       fullDate: date,
       month: months[date.getMonth()],
       year: date.getFullYear(),
-      dayKey: date.toISOString().split('T')[0],
+      dayKey: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
     });
   }
   return dates;
@@ -596,7 +803,7 @@ const TimelineScreen: React.FC = () => {
     toggleTaskCompletion,
     refreshTasks,
     deleteTask,
-    updateSteps, // Make sure this is available from the updated hook
+    updateTaskSteps, // Correct name from the hook
   } = useRealTasks();
 
   // Debug log the real tasks
@@ -634,6 +841,19 @@ const TimelineScreen: React.FC = () => {
   const tasks = realTasks; // No conversion needed!
 
   const timelineDates = generateTimelineDates();
+
+  // Check if timeline is empty
+  const isTimelineEmpty = () => {
+    const allTasks = Object.values(realTasks).flat();
+    const filteredTasks = allTasks.filter(task => {
+      return (
+        selectedFilter === 'All' ||
+        (selectedFilter === 'Mine' && !task.isShared) ||
+        (selectedFilter === 'Shared' && task.isShared)
+      );
+    });
+    return filteredTasks.length === 0;
+  };
 
   // Get tasks for a specific date key with filtering
   const getTasksForDate = (
@@ -792,12 +1012,23 @@ const TimelineScreen: React.FC = () => {
         step.id === subtaskId ? { ...step, completed: !step.completed } : step,
       );
 
-      // FIXED: Use the updateSteps method from the hook
-      await updateSteps(taskId, updatedSteps);
+      // FIXED: Use the updateTaskSteps method from the hook
+      await updateTaskSteps(taskId, updatedSteps);
 
       console.log('✅ Subtask toggled successfully');
     } catch (err) {
       console.error('❌ Failed to toggle subtask:', err);
+    }
+  };
+
+  // Handle steps update from TaskDetailTray
+  const handleStepsUpdate = async (taskId: string, steps: Array<{id: string; title: string; completed: boolean}>) => {
+    try {
+      console.log('📝 Updating steps for task:', taskId);
+      await updateTaskSteps(taskId, steps);
+      console.log('✅ Steps updated successfully');
+    } catch (err) {
+      console.error('❌ Failed to update steps:', err);
     }
   };
 
@@ -837,7 +1068,10 @@ const TimelineScreen: React.FC = () => {
 
     return (
       <Animated.View
-        style={[{ transform: [{ translateX }] }]}
+        style={[
+          { transform: [{ translateX }] },
+          task.isCompleted && styles.taskItemCompleted,
+        ]}
         {...swipeHandler.panHandlers}
       >
         <Pressable onPress={handleTaskPress} style={styles.taskItem}>
@@ -863,7 +1097,14 @@ const TimelineScreen: React.FC = () => {
             <View style={styles.taskDetails}>
               <View style={styles.taskTitleRow}>
                 {task.emoji && (
-                  <Text style={styles.taskEmoji}>{task.emoji}</Text>
+                  <Text 
+                    style={[
+                      styles.taskEmoji,
+                      task.isCompleted && { opacity: 0.6 }
+                    ]}
+                  >
+                    {task.emoji}
+                  </Text>
                 )}
                 <Text
                   style={[
@@ -874,8 +1115,8 @@ const TimelineScreen: React.FC = () => {
                   {task.title}
                 </Text>
 
-                {/* Group Tag */}
-                {group && (
+                {/* Group Tag - only show if task is shared */}
+                {group && task.isShared && (
                   <TouchableOpacity style={styles.groupTag}>
                     <View
                       style={[
@@ -925,6 +1166,63 @@ const TimelineScreen: React.FC = () => {
           )}
         </Pressable>
       </Animated.View>
+    );
+  };
+
+  // Empty State Component
+  const EmptyTimelineState: React.FC = () => {
+    const getEmptyStateContent = () => {
+      switch (selectedFilter) {
+        case 'Mine':
+          return {
+            emoji: '📝',
+            title: 'No Personal Tasks Yet',
+            subtitle: 'Your personal task timeline is empty',
+            description: 'Create your first personal task to get started with planning your day!'
+          };
+        case 'Shared':
+          return {
+            emoji: '👥',
+            title: 'No Shared Tasks Yet',
+            subtitle: 'Your shared task timeline is empty',
+            description: 'Create tasks with "Share with partner" enabled to collaborate together!'
+          };
+        default:
+          return {
+            emoji: '🌟',
+            title: 'Your Timeline Awaits',
+            subtitle: 'No tasks scheduled yet',
+            description: 'Create your first task to start organizing your day and achieving your goals!'
+          };
+      }
+    };
+
+    const content = getEmptyStateContent();
+
+    return (
+      <View style={styles.emptyStateContainer}>
+        <View style={styles.emptyStateContent}>
+          <Text style={styles.emptyStateEmoji}>{content.emoji}</Text>
+          <Text style={styles.emptyStateTitle}>{content.title}</Text>
+          <Text style={styles.emptyStateSubtitle}>{content.subtitle}</Text>
+          <Text style={styles.emptyStateDescription}>{content.description}</Text>
+          
+          <View style={styles.emptyStateActions}>
+            <TouchableOpacity style={styles.emptyStateButton}>
+              <PlusCircle size={20} color={colors.white} />
+              <Text style={styles.emptyStateButtonText}>Create Your First Task</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.emptyStateTips}>
+            <Text style={styles.emptyStateTipsTitle}>✨ Pro Tips:</Text>
+            <Text style={styles.emptyStateTip}>• Set specific times for better planning</Text>
+            <Text style={styles.emptyStateTip}>• Add steps to break down complex tasks</Text>
+            <Text style={styles.emptyStateTip}>• Use emojis to make tasks more fun</Text>
+            <Text style={styles.emptyStateTip}>• Share tasks with your partner to collaborate</Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
@@ -1016,11 +1314,15 @@ const TimelineScreen: React.FC = () => {
           />
         }
       >
-        <View style={styles.timelineContent}>
-          {timelineDates.map((dateInfo, index) => (
-            <DateSection key={index} dateInfo={dateInfo} />
-          ))}
-        </View>
+        {isTimelineEmpty() ? (
+          <EmptyTimelineState />
+        ) : (
+          <View style={styles.timelineContent}>
+            {timelineDates.map((dateInfo, index) => (
+              <DateSection key={index} dateInfo={dateInfo} />
+            ))}
+          </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -1048,6 +1350,7 @@ const TimelineScreen: React.FC = () => {
         onDuplicate={handleTaskDuplicate}
         onComplete={handleTaskComplete}
         onSubtaskToggle={handleSubtaskToggle}
+        onStepsUpdate={handleStepsUpdate}
       />
 
       {/* Encouragement Modal */}
@@ -1154,6 +1457,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: 'transparent',
   },
+  taskItemCompleted: {
+    opacity: 0.6,
+  },
   taskContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1200,6 +1506,7 @@ const styles = StyleSheet.create({
   },
   taskTitleCompleted: {
     color: colors.completed,
+    textDecorationLine: 'line-through',
   },
   groupTag: {
     flexDirection: 'row',
@@ -1236,6 +1543,7 @@ const styles = StyleSheet.create({
   },
   taskSubtitleCompleted: {
     color: colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   reactionsContainer: {
     marginTop: 8,
@@ -1299,6 +1607,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  profileBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accentPrimary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
   taskCategory: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -1354,6 +1671,71 @@ const styles = StyleSheet.create({
   subtaskTextCompleted: {
     color: colors.textTertiary,
     textDecorationLine: 'line-through',
+  },
+  subtaskItemDragging: {
+    backgroundColor: colors.border,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  dragHandle: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginRight: 8,
+  },
+  subtaskTextContainer: {
+    flex: 1,
+  },
+  editingContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  stepEditInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textPrimary,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.accentSecondary,
+    minHeight: 36,
+  },
+  editingActions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  editActionButton: {
+    padding: 6,
+    borderRadius: 4,
+    backgroundColor: colors.background,
+  },
+  stepActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 8,
+  },
+  stepActionButton: {
+    padding: 6,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
+  addStepButtonSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.accentSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   groupInfoSection: {
     borderRadius: 12,
@@ -1514,6 +1896,89 @@ const styles = StyleSheet.create({
   encouragementEmoji: {
     fontSize: 24,
     marginBottom: 4,
+  },
+
+  // Empty State Styles
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 60,
+    minHeight: screenHeight * 0.7,
+  },
+  emptyStateContent: {
+    alignItems: 'center',
+    maxWidth: 320,
+  },
+  emptyStateEmoji: {
+    fontSize: 64,
+    marginBottom: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  emptyStateDescription: {
+    fontSize: 15,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  emptyStateActions: {
+    width: '100%',
+    marginBottom: 40,
+  },
+  emptyStateButton: {
+    backgroundColor: colors.accentPrimary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: colors.accentPrimary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  emptyStateTips: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyStateTipsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateTip: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 6,
   },
 });
 

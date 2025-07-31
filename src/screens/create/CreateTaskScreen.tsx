@@ -197,11 +197,10 @@ const CalendarModal: React.FC<{
   selectedDate: string;
   onDateSelect: (date: string) => void;
 }> = ({ visible, onClose, selectedDate, onDateSelect }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  
   if (!visible) return null;
-
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
 
   // Get first day of month and number of days
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
@@ -217,10 +216,11 @@ const CalendarModal: React.FC<{
     calendarDays.push({ day: null, dateString: null });
   }
 
-  // Days of the month
+  // Days of the month - Fix timezone issue by using local date formatting
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(currentYear, currentMonth, day);
-    const dateString = date.toISOString().split('T')[0];
+    // Fix: Use local date formatting instead of toISOString to avoid timezone offset
+    const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     calendarDays.push({ day, dateString });
   }
 
@@ -229,6 +229,25 @@ const CalendarModal: React.FC<{
     year: 'numeric',
   });
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  // Navigation functions
+  const goToPreviousMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+  
+  const goToNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
 
   return (
     <Modal transparent visible={visible} animationType="slide">
@@ -238,7 +257,15 @@ const CalendarModal: React.FC<{
             <TouchableOpacity onPress={onClose}>
               <Text style={styles.calendarCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.calendarTitle}>{monthName}</Text>
+            <View style={styles.monthNavigation}>
+              <TouchableOpacity onPress={goToPreviousMonth} style={styles.monthNavButton}>
+                <Text style={styles.monthNavText}>‹</Text>
+              </TouchableOpacity>
+              <Text style={styles.calendarTitle}>{monthName}</Text>
+              <TouchableOpacity onPress={goToNextMonth} style={styles.monthNavButton}>
+                <Text style={styles.monthNavText}>›</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity onPress={onClose}>
               <Text style={styles.calendarDone}>Done</Text>
             </TouchableOpacity>
@@ -534,7 +561,9 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
   };
 
   const formatDateDisplay = (dateString: string) => {
-    const date = new Date(dateString);
+    // Fix: Parse date components manually to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
@@ -1263,6 +1292,24 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  monthNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  monthNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.gray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthNavText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
   },
   calendarCancel: {
     fontSize: 16,
