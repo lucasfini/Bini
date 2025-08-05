@@ -16,19 +16,19 @@ const colors = {
   background: '#FAFAFA',
   surface: '#FFFFFF',
   border: '#F0F0F0',
-  
+
   // Text colors
   textPrimary: '#333333',
   textSecondary: '#666666',
   textTertiary: '#999999',
   textDisabled: '#CCCCCC',
-  
+
   // Accent colors
-  accentPrimary: '#FF6B9D',    // Pink for shared/today
-  accentSecondary: '#6B73FF',  // Blue for default
-  accentWarning: '#FF6B6B',    // Red for high priority
-  accentSuccess: '#4CAF50',    // Green for completed
-  
+  accentPrimary: '#FF6B9D', // Pink for shared/today
+  accentSecondary: '#6B73FF', // Blue for default
+  accentWarning: '#FF6B6B', // Red for high priority
+  accentSuccess: '#4CAF50', // Green for completed
+
   // Special
   white: '#FFFFFF',
   black: '#000000',
@@ -114,7 +114,7 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
             duration: 1500,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
     } else {
       glowAnim.setValue(0);
@@ -135,17 +135,14 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
     Alert.alert(
       '🎉 Reward Unlocked!',
       `Congratulations! You've earned: ${group.reward}`,
-      [
-        { text: 'Amazing!', onPress: () => onRewardClaim(group) }
-      ]
+      [{ text: 'Amazing!', onPress: () => onRewardClaim(group) }],
     );
   };
 
   return (
-    <View style={[
-      styles.groupCard,
-      isGroupCompleted && styles.groupCardCompleted
-    ]}>
+    <View
+      style={[styles.groupCard, isGroupCompleted && styles.groupCardCompleted]}
+    >
       {/* Group Header */}
       <View style={styles.groupHeader}>
         <View style={styles.groupTitleRow}>
@@ -155,18 +152,20 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
             <Text style={styles.groupDescription}>{group.description}</Text>
           </View>
         </View>
-        
+
         {/* Progress Indicator */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.progressFill,
-                { 
+                {
                   width: progressWidth,
-                  backgroundColor: isGroupCompleted ? '#FFE55C' : colors.accentPrimary,
-                }
-              ]} 
+                  backgroundColor: isGroupCompleted
+                    ? '#FFE55C'
+                    : colors.accentPrimary,
+                },
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
@@ -182,15 +181,15 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
             key={task.id}
             style={[
               styles.groupTaskItem,
-              task.isCompleted && styles.groupTaskItemCompleted
+              task.isCompleted && styles.groupTaskItemCompleted,
             ]}
             onPress={() => onTaskPress(task)}
             onLongPress={() => onTaskToggle(task.id)}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.taskCheckbox,
-                task.isCompleted && styles.taskCheckboxCompleted
+                task.isCompleted && styles.taskCheckboxCompleted,
               ]}
               onPress={() => onTaskToggle(task.id)}
             >
@@ -198,18 +197,21 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
                 <Text style={styles.taskCheckboxText}>✓</Text>
               )}
             </TouchableOpacity>
-            
+
             <Text style={styles.groupTaskEmoji}>{task.emoji}</Text>
             <View style={styles.groupTaskContent}>
-              <Text style={[
-                styles.groupTaskTitle,
-                task.isCompleted && styles.groupTaskTitleCompleted
-              ]}>
+              <Text
+                style={[
+                  styles.groupTaskTitle,
+                  task.isCompleted && styles.groupTaskTitleCompleted,
+                ]}
+              >
                 {task.title}
               </Text>
               {task.time && (
                 <Text style={styles.groupTaskTime}>
-                  {task.time}{task.endTime ? ` - ${task.endTime}` : ''}
+                  {task.time}
+                  {task.endTime ? ` - ${task.endTime}` : ''}
                 </Text>
               )}
             </View>
@@ -218,17 +220,21 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
       </View>
 
       {/* Reward Section */}
-      <View style={[
-        styles.rewardSection,
-        isGroupCompleted && styles.rewardSectionActive
-      ]}>
+      <View
+        style={[
+          styles.rewardSection,
+          isGroupCompleted && styles.rewardSectionActive,
+        ]}
+      >
         <Text style={styles.rewardIcon}>🎁</Text>
         <View style={styles.rewardContent}>
-          <Text style={styles.rewardLabel}>Reward:</Text>
-          <Text style={[
-            styles.rewardText,
-            isGroupCompleted && styles.rewardTextActive
-          ]}>
+          <Text style={styles.rewardLabel}>Reward</Text>
+          <Text
+            style={[
+              styles.rewardText,
+              isGroupCompleted && styles.rewardTextActive,
+            ]}
+          >
             {group.reward}
           </Text>
         </View>
@@ -237,7 +243,7 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
             style={styles.claimButton}
             onPress={handleRewardClaim}
           >
-            <Text style={styles.claimButtonText}>Claim! 🎉</Text>
+            <Text style={styles.claimButtonText}>Claim Reward! 🎉</Text>
           </TouchableOpacity>
         )}
         {group.completedAt && (
@@ -249,11 +255,8 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
 
       {/* Completion Glow Effect */}
       {isGroupCompleted && (
-        <Animated.View 
-          style={[
-            styles.completionGlow,
-            { opacity: glowOpacity }
-          ]} 
+        <Animated.View
+          style={[styles.completionGlow, { opacity: glowOpacity }]}
         />
       )}
     </View>
@@ -263,18 +266,22 @@ const GroupedTaskCard: React.FC<GroupedTaskCardProps> = ({
 const styles = StyleSheet.create({
   groupCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    margin: 16,
-    padding: 20,
-    borderWidth: 2,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginVertical: 12,
+    padding: 24,
+    borderWidth: 1.5,
     borderColor: '#FFD93D',
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
     position: 'relative',
     overflow: 'hidden',
+    alignSelf: 'center',
+    maxWidth: 400,
+    width: '90%',
   },
   groupCardCompleted: {
     borderColor: '#FFE55C',
@@ -292,48 +299,56 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   groupHeader: {
-    marginBottom: 16,
+    marginBottom: 20,
+    alignItems: 'center',
   },
   groupTitleRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 16,
+    justifyContent: 'center',
   },
   groupEmoji: {
-    fontSize: 24,
+    fontSize: 28,
   },
   groupTitleContainer: {
+    alignItems: 'center',
     flex: 1,
   },
   groupTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   groupDescription: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   progressContainer: {
-    gap: 8,
+    gap: 10,
+    alignItems: 'center',
   },
   progressBar: {
-    height: 8,
+    height: 6,
     backgroundColor: colors.border,
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
+    width: '100%',
   },
   progressFill: {
     height: '100%',
     borderRadius: 4,
   },
   progressText: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   groupTasks: {
     gap: 8,
@@ -390,12 +405,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   rewardSection: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     backgroundColor: colors.background,
-    borderRadius: 12,
+    borderRadius: 16,
     gap: 12,
+    marginTop: 4,
   },
   rewardSectionActive: {
     backgroundColor: '#FFE55C20',
@@ -406,47 +422,54 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   rewardContent: {
-    flex: 1,
+    alignItems: 'center',
   },
   rewardLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
   },
   rewardText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.textPrimary,
+    textAlign: 'center',
   },
   rewardTextActive: {
     color: '#FF8C00',
   },
   claimButton: {
     backgroundColor: '#FFE55C',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     shadowColor: '#FFE55C',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowRadius: 6,
+    elevation: 5,
+    marginTop: 8,
   },
   claimButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.black,
+    textAlign: 'center',
   },
   claimedBadge: {
     backgroundColor: colors.accentSuccess,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 8,
   },
   claimedText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.white,
+    textAlign: 'center',
   },
 });
 

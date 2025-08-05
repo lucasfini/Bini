@@ -1,10 +1,11 @@
+// src/screens/create/CreateTaskScreen.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
   TextInput,
+  TouchableOpacity,
+  StyleSheet,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -12,7 +13,8 @@ import {
   ScrollView,
   StatusBar,
   Alert,
-  FlatList,
+  Image,
+  Animated as RNAnimated,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -21,23 +23,31 @@ import Animated, {
   withSpring,
   withTiming,
   runOnJS,
-  interpolate,
-  Extrapolate,
 } from 'react-native-reanimated';
 import {
   PanGestureHandler,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
-import EmojiSelector from 'react-native-emoji-selector';
+
+// Import the new tray components
+import EmojiTray from '../../components/EmojiTray';
+import DateTray from '../../components/DateTray';
+import AlertsTray from '../../components/AlertsTray';
+import TrayManager from '../../components/TrayManager';
+
+// Import the new modern form components
+import GoalDurationSlider from '../../components/GoalDurationSlider';
+import RecurrenceSelector from '../../components/RecurrenceSelector';
+import ModernCheckboxList from '../../components/ModernCheckboxList';
+import AnimatedWhenSelector from '../../components/AnimatedWhenSelector';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Clean light mode colors
+// Clean Family app inspired colors
 const colors = {
   background: '#FAFAFA',
   surface: '#FFFFFF',
   border: '#E8E8E8',
-  underline: '#D0D0D0',
   text: '#2C3E26',
   textSecondary: '#5A6B54',
   textTertiary: '#888888',
@@ -47,35 +57,14 @@ const colors = {
   gray: '#F0F0F0',
   lightGray: '#E0E0E0',
   dragHandle: '#CCCCCC',
-  selectedTime: '#FFFFFF',
-  selectedTimeBorder: '#E0E0E0',
-  checkboxActive: '#4A7C3A',
-  checkboxInactive: '#E8E8E8',
+  selectedBackground: '#E8F5E8',
 };
 
-interface TaskFormData {
-  title: string;
-  emoji: string;
-  when: {
-    date: string;
-    time: string;
-  };
-  durationMinutes: number;
-  recurrence: {
-    frequency: 'none' | 'daily' | 'weekly' | 'monthly';
-    interval: number;
-    daysOfWeek?: string[];
-  };
-  alerts: string[];
-  details: string;
-  isShared: boolean;
-  subtasks: { id: string; title: string; completed: boolean }[];
-}
+import { TaskFormData } from '../../types/tasks';
 
 interface CreateTaskProps {
-  visible: boolean;
-  onClose: () => void;
   onCreateTask: (task: TaskFormData) => void;
+  onBack?: () => void;
 }
 
 // Enhanced Time Selector that shows time range
@@ -84,287 +73,188 @@ const TimeSelector: React.FC<{
   onTimeChange: (time: string) => void;
   durationMinutes: number;
 }> = ({ selectedTime, onTimeChange, durationMinutes }) => {
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  const generateTimeOptions = () => {
-    const times = [];
-    for (let hour = 0; hour <= 23; hour++) {
-      for (let minute = 0; minute < 60; minute += 15) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute
-          .toString()
-          .padStart(2, '0')}`;
-        times.push(timeString);
-      }
-    }
-    return times;
-  };
+  const times = [
+    '06:00',
+    '06:30',
+    '07:00',
+    '07:30',
+    '08:00',
+    '08:30',
+    '09:00',
+    '09:30',
+    '10:00',
+    '10:30',
+    '11:00',
+    '11:30',
+    '12:00',
+    '12:30',
+    '13:00',
+    '13:30',
+    '14:00',
+    '14:30',
+    '15:00',
+    '15:30',
+    '16:00',
+    '16:30',
+    '17:00',
+    '17:30',
+    '18:00',
+    '18:30',
+    '19:00',
+    '19:30',
+    '20:00',
+    '20:30',
+    '21:00',
+    '21:30',
+    '22:00',
+    '22:30',
+    '23:00',
+    '23:30',
+  ];
 
   const calculateEndTime = (startTime: string, duration: number) => {
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const totalMinutes = startHour * 60 + startMinute + duration;
-    const endHour = Math.floor(totalMinutes / 60) % 24;
-    const endMinute = totalMinutes % 60;
-    return `${endHour.toString().padStart(2, '0')}:${endMinute
-      .toString()
-      .padStart(2, '0')}`;
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + duration;
+    const endHours = Math.floor(endMinutes / 60) % 24;
+    const endMins = endMinutes % 60;
+    return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(
+      2,
+      '0',
+    )}`;
   };
-
-  const timeOptions = generateTimeOptions();
-  const selectedIndex = timeOptions.findIndex(time => time === selectedTime);
-  const ITEM_HEIGHT = 50;
-
-  const handleScroll = (event: any) => {
-    const y = event.nativeEvent.contentOffset.y;
-    const index = Math.round(y / ITEM_HEIGHT);
-    const clampedIndex = Math.max(0, Math.min(index, timeOptions.length - 1));
-
-    if (
-      clampedIndex !== selectedIndex &&
-      timeOptions[clampedIndex] !== selectedTime
-    ) {
-      onTimeChange(timeOptions[clampedIndex]);
-    }
-  };
-
-  const scrollToTime = (timeIndex: number) => {
-    if (scrollViewRef.current && timeIndex >= 0) {
-      scrollViewRef.current.scrollTo({
-        y: timeIndex * ITEM_HEIGHT,
-        animated: true,
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (selectedIndex >= 0) {
-      setTimeout(() => {
-        scrollToTime(selectedIndex);
-      }, 200);
-    }
-  }, []);
-
-  const endTime = calculateEndTime(selectedTime, durationMinutes);
 
   return (
-    <View style={styles.timeSelectorContainer}>
-      <View style={styles.timeListContainer}>
-        <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          scrollEventThrottle={16}
-          snapToInterval={ITEM_HEIGHT}
-          decelerationRate="fast"
-          contentContainerStyle={{
-            paddingVertical: ITEM_HEIGHT * 2,
-          }}
-        >
-          {timeOptions.map((time, index) => {
-            const isSelected = time === selectedTime;
-            const timeEndTime = calculateEndTime(time, durationMinutes);
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.timeScrollContainer}
+      style={styles.timeScroll}
+    >
+      {times.map(time => {
+        const isSelected = time === selectedTime;
+        const endTime = calculateEndTime(time, durationMinutes);
 
-            return (
-              <TouchableOpacity
-                key={time}
-                style={[styles.timeItem, isSelected && styles.timeItemSelected]}
-                onPress={() => {
-                  onTimeChange(time);
-                  scrollToTime(index);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.timeText,
-                    isSelected && styles.timeTextSelected,
-                    !isSelected && { opacity: 0.4 },
-                  ]}
-                >
-                  {time} - {timeEndTime}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    </View>
+        return (
+          <TouchableOpacity
+            key={time}
+            style={[styles.timeButton, isSelected && styles.timeButtonSelected]}
+            onPress={() => onTimeChange(time)}
+          >
+            <Text
+              style={[
+                styles.timeButtonText,
+                isSelected && styles.timeButtonTextSelected,
+              ]}
+            >
+              {time}
+            </Text>
+            {isSelected && <Text style={styles.endTimeText}>to {endTime}</Text>}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 };
 
-// Calendar Modal with proper grid layout
-const CalendarModal: React.FC<{
-  visible: boolean;
-  onClose: () => void;
-  selectedDate: string;
-  onDateSelect: (date: string) => void;
-}> = ({ visible, onClose, selectedDate, onDateSelect }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  
-  if (!visible) return null;
+// Modern Partner Share Component with Enhanced Profile Picture
+const PartnerShareCheckbox: React.FC<{
+  checked: boolean;
+  onPress: () => void;
+}> = ({ checked, onPress }) => {
+  const [scaleAnim] = useState(new RNAnimated.Value(1));
 
-  // Get first day of month and number of days
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
-  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
-  const daysInMonth = lastDayOfMonth.getDate();
-  const startingDayOfWeek = firstDayOfMonth.getDay();
+  const handlePress = () => {
+    // Animated bounce/scale effect
+    RNAnimated.sequence([
+      RNAnimated.timing(scaleAnim, {
+        toValue: 0.97,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(scaleAnim, {
+        toValue: 1.02,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-  // Generate calendar grid
-  const calendarDays = [];
-
-  // Empty cells for days before month starts
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    calendarDays.push({ day: null, dateString: null });
-  }
-
-  // Days of the month - Fix timezone issue by using local date formatting
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(currentYear, currentMonth, day);
-    // Fix: Use local date formatting instead of toISOString to avoid timezone offset
-    const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    calendarDays.push({ day, dateString });
-  }
-
-  const monthName = firstDayOfMonth.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  
-  // Navigation functions
-  const goToPreviousMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else {
-      setCurrentMonth(currentMonth - 1);
-    }
-  };
-  
-  const goToNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(currentMonth + 1);
-    }
+    onPress();
   };
 
   return (
-    <Modal transparent visible={visible} animationType="slide">
-      <View style={styles.calendarOverlay}>
-        <View style={styles.calendarContent}>
-          <View style={styles.calendarHeader}>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.calendarCancel}>Cancel</Text>
-            </TouchableOpacity>
-            <View style={styles.monthNavigation}>
-              <TouchableOpacity onPress={goToPreviousMonth} style={styles.monthNavButton}>
-                <Text style={styles.monthNavText}>‹</Text>
-              </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{monthName}</Text>
-              <TouchableOpacity onPress={goToNextMonth} style={styles.monthNavButton}>
-                <Text style={styles.monthNavText}>›</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.calendarDone}>Done</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.calendarGrid}>
-            {/* Week headers */}
-            <View style={styles.weekHeaderRow}>
-              {weekDays.map(day => (
-                <View key={day} style={styles.weekHeaderCell}>
-                  <Text style={styles.weekHeaderText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Calendar days */}
-            <View style={styles.daysGrid}>
-              {calendarDays.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dayCell,
-                    item.dateString === selectedDate && styles.daySelected,
-                    !item.day && styles.dayCellEmpty,
-                  ]}
-                  onPress={() => {
-                    if (item.dateString) {
-                      onDateSelect(item.dateString);
-                      onClose();
-                    }
-                  }}
-                  disabled={!item.day}
-                >
-                  {item.day && (
-                    <Text
-                      style={[
-                        styles.dayText,
-                        item.dateString === selectedDate &&
-                          styles.dayTextSelected,
-                      ]}
-                    >
-                      {item.day}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
-// Emoji Picker using react-native-emoji-selector library
-const EmojiPicker: React.FC<{
-  visible: boolean;
-  onClose: () => void;
-  onEmojiSelected: (emoji: string) => void;
-}> = ({ visible, onClose, onEmojiSelected }) => {
-  if (!visible) return null;
-
-  return (
-    <Modal transparent visible={visible} animationType="slide">
-      <View style={styles.emojiModalOverlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.emojiModalContainer}
-        >
-          <View style={styles.emojiModalContent}>
-            <View style={styles.emojiModalHeader}>
-              <Text style={styles.emojiModalTitle}>Choose Emoji</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Text style={styles.emojiModalClose}>Done</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.emojiSelectorContainer}>
-              <EmojiSelector
-                onEmojiSelected={emoji => {
-                  onEmojiSelected(emoji);
-                  onClose();
+    <RNAnimated.View
+      style={[
+        styles.partnerShareContainer,
+        { transform: [{ scale: scaleAnim }] },
+        checked && styles.partnerShareContainerActive,
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.partnerShareTouchable}
+        onPress={handlePress}
+        activeOpacity={0.9}
+      >
+        <View style={styles.partnerShareContent}>
+          {/* Enhanced Profile Picture with Status Ring */}
+          <View style={styles.profileContainer}>
+            <View style={[
+              styles.profileRing,
+              checked && styles.profileRingActive
+            ]}>
+              <Image
+                source={{
+                  uri: 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=120&h=120&fit=crop&crop=face',
                 }}
-                showTabs={true}
-                showSearchBar={true}
-                showSectionTitles={true}
-                category={undefined}
-                placeholder="Search emoji..."
-                columns={8}
+                style={styles.profileImage}
               />
+              {/* Online status indicator */}
+              <View style={styles.onlineIndicator} />
             </View>
+            
+            {/* Checkmark overlay with modern design */}
+            {checked && (
+              <RNAnimated.View style={styles.checkmarkContainer}>
+                <View style={styles.checkmarkBackground}>
+                  <Text style={styles.checkmarkIcon}>✓</Text>
+                </View>
+              </RNAnimated.View>
+            )}
           </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+
+          {/* Enhanced Text Content */}
+          <View style={styles.partnerText}>
+            <View style={styles.partnerNameRow}>
+              <Text style={styles.partnerName}>Share with Sarah</Text>
+              <View style={styles.partnerBadge}>
+                <Text style={styles.partnerBadgeText}>Partner</Text>
+              </View>
+            </View>
+            <Text style={styles.partnerSubtext}>
+              {checked 
+                ? "✓ Sarah will be notified about this task" 
+                : "Tap to share this task with your partner"
+              }
+            </Text>
+            {checked && (
+              <Text style={styles.partnerActiveText}>
+                Shared tasks appear in both your timelines
+              </Text>
+            )}
+          </View>
+
+        </View>
+      </TouchableOpacity>
+    </RNAnimated.View>
   );
 };
 
-// Custom Checkbox Component
+// Modern Checkbox Component
 const Checkbox: React.FC<{
   checked: boolean;
   onPress: () => void;
@@ -372,16 +262,15 @@ const Checkbox: React.FC<{
 }> = ({ checked, onPress, label }) => (
   <TouchableOpacity style={styles.checkboxContainer} onPress={onPress}>
     <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-      {checked && <Text style={styles.checkboxIcon}>✓</Text>}
+      {checked && <Text style={styles.checkmark}>✓</Text>}
     </View>
     <Text style={styles.checkboxLabel}>{label}</Text>
   </TouchableOpacity>
 );
 
-const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
-  visible,
-  onClose,
+const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   onCreateTask,
+  onBack,
 }) => {
   const [formData, setFormData] = useState<TaskFormData>({
     title: '',
@@ -401,9 +290,13 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
     subtasks: [],
   });
 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
+  // Tray visibility states
+  const [showEmojiTray, setShowEmojiTray] = useState(false);
+  const [showDateTray, setShowDateTray] = useState(false);
+  const [showAlertsTray, setShowAlertsTray] = useState(false);
+
   const [showRecurrenceDetails, setShowRecurrenceDetails] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(false);
   const titleRef = useRef<TextInput>(null);
 
   const alertOptions = [
@@ -414,23 +307,27 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
     { id: '15min', label: '15 minutes before' },
     { id: '30min', label: '30 minutes before' },
     { id: '1hour', label: '1 hour before' },
+    { id: '2hours', label: '2 hours before' },
+    { id: '1day', label: '1 day before' },
   ];
 
   const addSubtask = () => {
+    const newSubtask = {
+      id: Date.now().toString(),
+      title: '',
+      completed: false,
+    };
     setFormData(prev => ({
       ...prev,
-      subtasks: [
-        ...prev.subtasks,
-        { id: Date.now().toString(), title: '', completed: false },
-      ],
+      subtasks: [...prev.subtasks, newSubtask],
     }));
   };
 
-  const updateSubtask = (id: string, newTitle: string) => {
+  const updateSubtask = (id: string, title: string) => {
     setFormData(prev => ({
       ...prev,
       subtasks: prev.subtasks.map(task =>
-        task.id === id ? { ...task, title: newTitle } : task,
+        task.id === id ? { ...task, title } : task,
       ),
     }));
   };
@@ -451,92 +348,34 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
     }));
   };
 
-  // Animation values
-  const translateY = useSharedValue(screenHeight);
-  const opacity = useSharedValue(0);
-
-  const showTray = () => {
-    'worklet';
-    opacity.value = withTiming(1, { duration: 300 });
-    translateY.value = withSpring(0, {
-      damping: 15,
-      stiffness: 100,
-      mass: 1,
-    });
+  const getAlertLabel = (alertId: string) => {
+    const option = alertOptions.find(opt => opt.id === alertId);
+    return option ? option.label : alertId;
   };
-
-  const hideTray = (callback?: () => void) => {
-    'worklet';
-    translateY.value = withTiming(screenHeight, { duration: 300 });
-    opacity.value = withTiming(0, { duration: 250 }, finished => {
-      if (finished && callback) {
-        runOnJS(callback)();
-      }
-    });
-  };
-
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      'worklet';
-    },
-    onActive: event => {
-      'worklet';
-      if (event.translationY > 0) {
-        translateY.value = event.translationY;
-      }
-    },
-    onEnd: event => {
-      'worklet';
-      const shouldDismiss =
-        event.translationY > screenHeight * 0.25 || event.velocityY > 1000;
-
-      if (shouldDismiss) {
-        runOnJS(() => {
-          hideTray(() => onClose());
-        })();
-      } else {
-        translateY.value = withSpring(0);
-      }
-    },
-  });
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  const trayStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
 
   useEffect(() => {
-    if (visible) {
-      setFormData({
-        title: '',
-        emoji: '🍽️',
-        when: {
-          date: new Date().toISOString().split('T')[0],
-          time: '20:30',
-        },
-        durationMinutes: 60,
-        recurrence: {
-          frequency: 'none',
-          interval: 1,
-        },
-        alerts: [],
-        details: '',
-        isShared: false,
-        subtasks: [],
-      });
+    // Initialize form data when component mounts
+    setFormData({
+      title: '',
+      emoji: '🍽️',
+      when: {
+        date: new Date().toISOString().split('T')[0],
+        time: '20:30',
+      },
+      durationMinutes: 60,
+      recurrence: {
+        frequency: 'none',
+        interval: 1,
+      },
+      alerts: [],
+      details: '',
+      isShared: false,
+      subtasks: [],
+    });
 
-      translateY.value = screenHeight;
-      opacity.value = 0;
-
-      setTimeout(() => {
-        showTray();
-        setTimeout(() => titleRef.current?.focus(), 600);
-      }, 50);
-    }
-  }, [visible]);
+    // Focus title input after a short delay
+    setTimeout(() => titleRef.current?.focus(), 300);
+  }, []);
 
   const updateField = <K extends keyof TaskFormData>(
     field: K,
@@ -553,7 +392,7 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
 
     try {
       await onCreateTask(formData);
-      hideTray(() => onClose());
+      onBack?.(); // Navigate back after successful creation
     } catch (error) {
       console.error('Task creation failed:', error);
       Alert.alert('Error', 'Failed to create task. Please try again.');
@@ -561,7 +400,6 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
   };
 
   const formatDateDisplay = (dateString: string) => {
-    // Fix: Parse date components manually to avoid timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
@@ -571,347 +409,344 @@ const RefinedCreateTaskScreen: React.FC<CreateTaskProps> = ({
     });
   };
 
-  if (!visible) return null;
+  // Handle scroll to detect if user is near bottom
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 100; // How close to bottom triggers the state change
+    const isNearEnd =
+      layoutMeasurement.height + contentOffset.y >=
+      contentSize.height - paddingToBottom;
+
+    setIsNearBottom(isNearEnd);
+  };
+
+  // Determine if create button should be solid (all conditions met)
+  const isCreateButtonReady = formData.title.trim().length > 0 && isNearBottom;
 
   return (
-    <GestureHandlerRootView style={StyleSheet.absoluteFillObject}>
-      <Modal
-        transparent
-        visible={visible}
-        animationType="none"
-        statusBarTranslucent
-      >
-        <StatusBar backgroundColor="rgba(0,0,0,0.1)" barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar backgroundColor={colors.background} barStyle="dark-content" />
 
-        <Animated.View style={[styles.backdrop, backdropStyle]}>
+      {/* Header with back button */}
+      <View style={styles.header}>
+        {onBack && (
           <TouchableOpacity
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => hideTray(() => onClose())}
-            activeOpacity={1}
+            style={styles.backButton}
+            onPress={onBack}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={styles.headerTitle}>New Task</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        bounces={true}
+        alwaysBounceVertical={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Emoji & Title */}
+        <View style={styles.emojiTitleSection}>
+          <TouchableOpacity
+            style={styles.emojiButton}
+            onPress={() => setShowEmojiTray(true)}
+          >
+            <Text style={styles.emoji}>{formData.emoji}</Text>
+          </TouchableOpacity>
+          <TextInput
+            ref={titleRef}
+            style={styles.titleInput}
+            value={formData.title}
+            onChangeText={text => updateField('title', text)}
+            placeholder="What needs to be done?"
+            placeholderTextColor={colors.textTertiary}
           />
-        </Animated.View>
+        </View>
 
-        <PanGestureHandler onGestureEvent={gestureHandler}>
-          <Animated.View style={[styles.trayContainer, trayStyle]}>
-            <View style={styles.tray}>
-              <View style={styles.dragHandle} />
+        {/* Partner Share */}
+        <View style={styles.section}>
+          <PartnerShareCheckbox
+            checked={formData.isShared}
+            onPress={() => updateField('isShared', !formData.isShared)}
+          />
+        </View>
 
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>New Task</Text>
-              </View>
+        {/* When? - Animated Selector */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>When?</Text>
+          <AnimatedWhenSelector
+            selectedDate={formData.when.date}
+            selectedTime={formData.when.time}
+            onDateChange={date => updateField('when', { ...formData.when, date })}
+            onTimeChange={time => updateField('when', { ...formData.when, time })}
+            durationMinutes={formData.durationMinutes}
+          />
+        </View>
 
-              <ScrollView
-                style={styles.content}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
-                {/* Emoji & Title */}
-                <View style={styles.emojiTitleSection}>
-                  <TouchableOpacity
-                    style={styles.emojiButton}
-                    onPress={() => setShowEmojiPicker(true)}
-                  >
-                    <Text style={styles.emoji}>{formData.emoji}</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    ref={titleRef}
-                    style={styles.titleInput}
-                    value={formData.title}
-                    onChangeText={text => updateField('title', text)}
-                    placeholder="What needs to be done?"
-                    placeholderTextColor={colors.textTertiary}
-                  />
-                </View>
+        {/* Duration */}
+        <View style={styles.section}>
+          <GoalDurationSlider
+            selectedValue={formData.durationMinutes}
+            onSelect={value => updateField('durationMinutes', value)}
+          />
+        </View>
 
-                {/* Shared Checkbox */}
-                <View style={styles.section}>
-                  <Checkbox
-                    checked={formData.isShared}
-                    onPress={() => updateField('isShared', !formData.isShared)}
-                    label="Share with partner"
-                  />
-                </View>
+        {/* Recurrence */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recurrence</Text>
+          <RecurrenceSelector
+            options={['None', 'Daily', 'Weekly', 'Monthly']}
+            selectedValue={
+              formData.recurrence.frequency.charAt(0).toUpperCase() +
+              formData.recurrence.frequency.slice(1)
+            }
+            onSelect={value => {
+              const frequency = value.toLowerCase() as
+                | 'none'
+                | 'daily'
+                | 'weekly'
+                | 'monthly';
+              updateField('recurrence', {
+                ...formData.recurrence,
+                frequency,
+              });
+              setShowRecurrenceDetails(frequency !== 'none');
+            }}
+          />
 
-                {/* When? */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>When?</Text>
-
-                  <TimeSelector
-                    selectedTime={formData.when.time}
-                    onTimeChange={time =>
-                      updateField('when', { ...formData.when, time })
-                    }
-                    durationMinutes={formData.durationMinutes}
-                  />
-
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowCalendar(true)}
-                  >
-                    <Text style={styles.dateText}>
-                      {formatDateDisplay(formData.when.date)}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Duration */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>How long?</Text>
-                  <View style={styles.durationGrid}>
-                    {[15, 30, 45, 60, 90, 120, 180, 240].map(duration => (
-                      <TouchableOpacity
-                        key={duration}
+          {showRecurrenceDetails &&
+            formData.recurrence.frequency !== 'none' && (
+              <View style={styles.recurrenceDetails}>
+                <Text style={styles.detailLabel}>Every</Text>
+                <View style={styles.intervalRow}>
+                  {[1, 2, 3, 4].map(interval => (
+                    <TouchableOpacity
+                      key={interval}
+                      style={[
+                        styles.intervalButton,
+                        formData.recurrence.interval === interval &&
+                          styles.intervalButtonActive,
+                      ]}
+                      onPress={() =>
+                        updateField('recurrence', {
+                          ...formData.recurrence,
+                          interval,
+                        })
+                      }
+                    >
+                      <Text
                         style={[
-                          styles.durationButton,
-                          formData.durationMinutes === duration &&
-                            styles.durationButtonActive,
+                          styles.intervalButtonText,
+                          formData.recurrence.interval === interval &&
+                            styles.intervalButtonTextActive,
                         ]}
-                        onPress={() => updateField('durationMinutes', duration)}
                       >
-                        <Text
-                          style={[
-                            styles.durationButtonText,
-                            formData.durationMinutes === duration &&
-                              styles.durationButtonTextActive,
-                          ]}
-                        >
-                          {duration < 60 ? `${duration}m` : `${duration / 60}h`}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Recurrence */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Recurrence</Text>
-                  <View style={styles.recurrenceGrid}>
-                    {(['none', 'daily', 'weekly', 'monthly'] as const).map(
-                      freq => (
-                        <TouchableOpacity
-                          key={freq}
-                          style={[
-                            styles.recurrenceButton,
-                            formData.recurrence.frequency === freq &&
-                              styles.recurrenceButtonActive,
-                          ]}
-                          onPress={() => {
-                            updateField('recurrence', {
-                              ...formData.recurrence,
-                              frequency: freq,
-                            });
-                            setShowRecurrenceDetails(freq !== 'none');
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.recurrenceButtonText,
-                              formData.recurrence.frequency === freq &&
-                                styles.recurrenceButtonTextActive,
-                            ]}
-                          >
-                            {freq.charAt(0).toUpperCase() + freq.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      ),
-                    )}
-                  </View>
-
-                  {showRecurrenceDetails &&
-                    formData.recurrence.frequency !== 'none' && (
-                      <View style={styles.recurrenceDetails}>
-                        <Text style={styles.detailLabel}>Every</Text>
-                        <View style={styles.intervalRow}>
-                          {[1, 2, 3, 4].map(interval => (
-                            <TouchableOpacity
-                              key={interval}
-                              style={[
-                                styles.intervalButton,
-                                formData.recurrence.interval === interval &&
-                                  styles.intervalButtonActive,
-                              ]}
-                              onPress={() =>
-                                updateField('recurrence', {
-                                  ...formData.recurrence,
-                                  interval,
-                                })
-                              }
-                            >
-                              <Text
-                                style={[
-                                  styles.intervalButtonText,
-                                  formData.recurrence.interval === interval &&
-                                    styles.intervalButtonTextActive,
-                                ]}
-                              >
-                                {interval}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                          <Text style={styles.intervalLabel}>
-                            {formData.recurrence.frequency === 'daily'
-                              ? 'day(s)'
-                              : formData.recurrence.frequency === 'weekly'
-                              ? 'week(s)'
-                              : formData.recurrence.frequency === 'monthly'
-                              ? 'month(s)'
-                              : ''}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                </View>
-
-                {/* Alerts */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Alerts</Text>
-                  <View style={styles.alertGrid}>
-                    {alertOptions.map(option => (
-                      <Checkbox
-                        key={option.id}
-                        checked={formData.alerts.includes(option.id)}
-                        onPress={() => toggleAlert(option.id)}
-                        label={option.label}
-                      />
-                    ))}
-                  </View>
-                </View>
-
-                {/* Details & Subtasks */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Details & Steps</Text>
-                  <TextInput
-                    style={styles.detailsInput}
-                    value={formData.details}
-                    onChangeText={text => updateField('details', text)}
-                    placeholder="Add notes, links, or additional details..."
-                    placeholderTextColor={colors.textTertiary}
-                    multiline
-                    numberOfLines={3}
-                  />
-
-                  {/* Subtasks */}
-                  {formData.subtasks.length > 0 && (
-                    <View style={styles.subtasksSection}>
-                      <Text style={styles.subtasksTitle}>
-                        Steps to complete:
+                        {interval}
                       </Text>
-                      {formData.subtasks.map((task, index) => (
-                        <View key={task.id} style={styles.subtaskRow}>
-                          <Text style={styles.subtaskNumber}>{index + 1}.</Text>
-                          <TextInput
-                            style={styles.subtaskInput}
-                            placeholder={`Step ${index + 1}`}
-                            value={task.title}
-                            onChangeText={text => updateSubtask(task.id, text)}
-                            placeholderTextColor={colors.textTertiary}
-                          />
-                          <TouchableOpacity
-                            onPress={() => removeSubtask(task.id)}
-                          >
-                            <Text style={styles.removeSubtask}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={styles.intervalLabel}>
+                    {formData.recurrence.frequency === 'daily'
+                      ? 'day(s)'
+                      : formData.recurrence.frequency === 'weekly'
+                      ? 'week(s)'
+                      : formData.recurrence.frequency === 'monthly'
+                      ? 'month(s)'
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
+        </View>
 
+        {/* Alerts */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Alerts</Text>
+          <TouchableOpacity
+            style={styles.alertsButton}
+            onPress={() => setShowAlertsTray(true)}
+          >
+            <Text style={styles.alertsButtonText}>
+              Select alerts +
+            </Text>
+          </TouchableOpacity>
+          
+          {/* Selected Alerts Display */}
+          {formData.alerts.length > 0 && (
+            <View style={styles.selectedAlertsContainer}>
+              {formData.alerts.map((alertId) => (
+                <View key={alertId} style={styles.selectedAlertChip}>
+                  <Text style={styles.selectedAlertText}>
+                    {getAlertLabel(alertId)}
+                  </Text>
                   <TouchableOpacity
-                    style={styles.addSubtaskButton}
-                    onPress={addSubtask}
+                    onPress={() => toggleAlert(alertId)}
+                    hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                   >
-                    <Text style={styles.addSubtaskText}>+ Add step</Text>
+                    <Text style={styles.removeAlertText}>✕</Text>
                   </TouchableOpacity>
                 </View>
-
-                <View style={{ height: 120 }} />
-              </ScrollView>
-
-              {/* Floating Create Button */}
-              <View style={styles.floatingCreateWrapper}>
-                <TouchableOpacity
-                  style={[
-                    styles.floatingCreateButton,
-                    !formData.title.trim() &&
-                      styles.floatingCreateButtonDisabled,
-                  ]}
-                  onPress={handleCreate}
-                  disabled={!formData.title.trim()}
-                >
-                  <Text style={styles.floatingCreateText}>Create Task</Text>
-                </TouchableOpacity>
-              </View>
+              ))}
             </View>
-          </Animated.View>
-        </PanGestureHandler>
+          )}
+        </View>
 
-        {/* Modals */}
-        <EmojiPicker
-          visible={showEmojiPicker}
-          onClose={() => setShowEmojiPicker(false)}
-          onEmojiSelected={emoji => updateField('emoji', emoji)}
+        {/* Details & Subtasks */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Details & Steps</Text>
+          <TextInput
+            style={styles.detailsInput}
+            value={formData.details}
+            onChangeText={text => updateField('details', text)}
+            placeholder="Add notes, links, or additional details..."
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            numberOfLines={3}
+          />
+
+          {/* Subtasks */}
+          {formData.subtasks.length > 0 && (
+            <View style={styles.subtasksSection}>
+              <Text style={styles.subtasksTitle}>Steps to complete:</Text>
+              {formData.subtasks.map((task, index) => (
+                <View key={task.id} style={styles.subtaskRow}>
+                  <Text style={styles.subtaskNumber}>{index + 1}.</Text>
+                  <TextInput
+                    style={styles.subtaskInput}
+                    placeholder={`Step ${index + 1}`}
+                    value={task.title}
+                    onChangeText={text => updateSubtask(task.id, text)}
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                  <TouchableOpacity onPress={() => removeSubtask(task.id)}>
+                    <Text style={styles.removeSubtask}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.addSubtaskButton}
+            onPress={addSubtask}
+          >
+            <Text style={styles.addSubtaskText}>+ Add step</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Extra spacing to ensure create button doesn't cover content */}
+        <View style={{ height: 60 }} />
+      </ScrollView>
+
+      {/* Fixed Create Button */}
+      <View style={styles.createButtonContainer} pointerEvents="box-none">
+        <TouchableOpacity
+          style={[
+            styles.createButton,
+            {
+              opacity: isCreateButtonReady ? 1.0 : 0.6, // Solid when ready, semi-transparent when not
+              backgroundColor: isCreateButtonReady ? colors.primary : '#7BA86F', // Light green when disabled
+            },
+          ]}
+          onPress={handleCreate}
+          disabled={!formData.title.trim()}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[
+              styles.createButtonText,
+              { color: isCreateButtonReady ? colors.white : colors.white },
+            ]}
+          >
+            Create Task
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Tray Manager for coordinating multiple trays */}
+      <TrayManager>
+        {/* Emoji Tray */}
+        <EmojiTray
+          visible={showEmojiTray}
+          onClose={() => setShowEmojiTray(false)}
+          selectedEmoji={formData.emoji}
+          onEmojiSelect={emoji => {
+            updateField('emoji', emoji);
+            setShowEmojiTray(false);
+          }}
         />
 
-        <CalendarModal
-          visible={showCalendar}
-          onClose={() => setShowCalendar(false)}
+        {/* Date Tray */}
+        <DateTray
+          visible={showDateTray}
+          onClose={() => setShowDateTray(false)}
           selectedDate={formData.when.date}
-          onDateSelect={date => updateField('when', { ...formData.when, date })}
+          onDateSelect={date => {
+            updateField('when', { ...formData.when, date });
+            setShowDateTray(false);
+          }}
         />
-      </Modal>
-    </GestureHandlerRootView>
+
+        {/* Alerts Tray */}
+        <AlertsTray
+          visible={showAlertsTray}
+          onClose={() => setShowAlertsTray(false)}
+          selectedAlerts={formData.alerts}
+          onAlertsChange={alerts => {
+            updateField('alerts', alerts);
+          }}
+        />
+      </TrayManager>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  trayContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '85%',
-  },
-  tray: {
+  container: {
     flex: 1,
     backgroundColor: colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.dragHandle,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20, // Account for status bar
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.primary,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
     textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 60, // Same width as back button to center title
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 140, // Enough space for create button (18px padding + 16px border radius + extra margin)
+    minHeight: screenHeight * 1.2, // Ensure content is taller than screen to enable scrolling
   },
 
   // Emoji & Title Section
@@ -920,122 +755,230 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 20,
-    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   emojiButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.surface,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   emoji: {
-    fontSize: 24,
+    fontSize: 32,
   },
   titleInput: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '500',
     color: colors.text,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.underline,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    padding: 0,
   },
 
-  // Sections
+  // Section Styles
   section: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-
-  // Checkbox Component
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: colors.checkboxInactive,
-    backgroundColor: colors.white,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: colors.checkboxActive,
-    borderColor: colors.checkboxActive,
-  },
-  checkboxIcon: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    fontSize: 16,
-    color: colors.text,
-  },
-
-  // Time Selector
-  timeSelectorContainer: {
-    alignItems: 'center',
-  },
-  timeListContainer: {
-    height: 250,
-    width: '100%',
-    position: 'relative',
-  },
-  timeItem: {
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  timeItemSelected: {
-    backgroundColor: colors.selectedTime,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.selectedTimeBorder,
-    marginHorizontal: 20,
-  },
-  timeText: {
-    fontSize: 18,
-    color: colors.text,
-  },
-  timeTextSelected: {
-    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 12,
+  },
+
+  // Modern Partner Share Styles
+  partnerShareContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    marginHorizontal: 4,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  partnerShareContainerActive: {
+    backgroundColor: '#F0F9F0',
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.15,
+  },
+  partnerShareTouchable: {
+    padding: 20,
+  },
+  partnerShareContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  // Enhanced Profile Picture Styles
+  profileContainer: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  profileRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    padding: 3,
+    backgroundColor: colors.border,
+  },
+  profileRingActive: {
+    backgroundColor: colors.primary,
+  },
+  profileImage: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.gray,
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  checkmarkContainer: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    zIndex: 10,
+  },
+  checkmarkBackground: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  checkmarkIcon: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  
+  // Enhanced Text Styles
+  partnerText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  partnerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  partnerName: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+    marginRight: 8,
+  },
+  partnerBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  partnerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.white,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  partnerSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 2,
+  },
+  partnerActiveText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  
+
+  // Time Selector
+  timeScroll: {
+    marginBottom: 12,
+  },
+  timeScrollContainer: {
+    paddingHorizontal: 4,
+  },
+  timeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    minWidth: 80,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  timeButtonSelected: {
+    backgroundColor: colors.primary,
+  },
+  timeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  timeButtonTextSelected: {
+    color: colors.white,
+  },
+  endTimeText: {
+    fontSize: 12,
+    color: colors.white,
+    marginTop: 2,
+    opacity: 0.8,
   },
 
   // Date Button
   dateButton: {
-    alignSelf: 'center',
-    marginTop: 16,
     backgroundColor: colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dateText: {
     fontSize: 16,
-    color: colors.text,
     fontWeight: '500',
-    textAlign: 'center',
+    color: colors.text,
   },
 
   // Duration Grid
@@ -1045,60 +988,69 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   durationButton: {
-    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 8,
+    borderRadius: 16,
     backgroundColor: colors.surface,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   durationButtonActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
+    backgroundColor: colors.primary,
   },
   durationButtonText: {
     fontSize: 14,
-    color: colors.text,
     fontWeight: '500',
+    color: colors.text,
   },
   durationButtonTextActive: {
     color: colors.white,
-    fontWeight: '600',
   },
 
   // Recurrence Grid
   recurrenceGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
+    marginBottom: 8,
   },
   recurrenceButton: {
+    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.surface,
+    alignItems: 'center',
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   recurrenceButtonActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
+    backgroundColor: colors.primary,
   },
   recurrenceButtonText: {
     fontSize: 14,
-    color: colors.text,
     fontWeight: '500',
+    color: colors.text,
   },
   recurrenceButtonTextActive: {
     color: colors.white,
-    fontWeight: '600',
   },
+
+  // Recurrence Details
   recurrenceDetails: {
-    marginTop: 16,
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
   },
   detailLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    fontWeight: '500',
+    color: colors.text,
     marginBottom: 8,
   },
   intervalRow: {
@@ -1107,36 +1059,107 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   intervalButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.gray,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   intervalButtonActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
+    backgroundColor: colors.primary,
   },
   intervalButtonText: {
     fontSize: 14,
-    color: colors.text,
     fontWeight: '500',
+    color: colors.text,
   },
   intervalButtonTextActive: {
     color: colors.white,
-    fontWeight: '600',
   },
   intervalLabel: {
     fontSize: 14,
     color: colors.textSecondary,
   },
 
-  // Alert Grid
-  alertGrid: {
+  // Alerts Button
+  alertsButton: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  alertsButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  
+  // Selected Alerts Display
+  selectedAlertsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    marginTop: 12,
+  },
+  selectedAlertChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.selectedBackground,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  selectedAlertText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.primary,
+    marginRight: 6,
+  },
+  removeAlertText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    opacity: 0.7,
+  },
+
+  // Checkbox Styles
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.lightGray,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkmark: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+    flex: 1,
   },
 
   // Details Input
@@ -1148,8 +1171,8 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: colors.text,
-    minHeight: 80,
     textAlignVertical: 'top',
+    minHeight: 80,
   },
 
   // Subtasks
@@ -1159,43 +1182,39 @@ const styles = StyleSheet.create({
   subtasksTitle: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: colors.text,
     marginBottom: 8,
   },
   subtaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    marginBottom: 8,
   },
   subtaskNumber: {
     fontSize: 14,
+    fontWeight: '500',
     color: colors.textSecondary,
-    marginRight: 8,
-    minWidth: 20,
+    width: 20,
   },
   subtaskInput: {
     flex: 1,
-    fontSize: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 8,
+    fontSize: 14,
     color: colors.text,
+    marginRight: 8,
   },
   removeSubtask: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textTertiary,
     paddingHorizontal: 8,
   },
   addSubtaskButton: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: colors.gray,
+    alignItems: 'center',
+    marginTop: 8,
   },
   addSubtaskText: {
     fontSize: 14,
@@ -1203,171 +1222,46 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  // Floating Create Button
-  floatingCreateWrapper: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    zIndex: 20,
-  },
-  floatingCreateButton: {
-    backgroundColor: colors.primary,
+  // Bottom scroll area
+  bottomScrollArea: {
     paddingVertical: 16,
-    borderRadius: 28,
     alignItems: 'center',
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: colors.selectedBackground,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
   },
-  floatingCreateButtonDisabled: {
-    backgroundColor: colors.textTertiary,
-  },
-  floatingCreateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
-
-  // Emoji Modal
-  emojiModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'flex-end',
-  },
-  emojiModalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  emojiModalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: '75%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-  },
-  emojiModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  emojiModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  emojiModalClose: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  emojiSelectorContainer: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-
-  // Calendar Modal
-  calendarOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'flex-end',
-  },
-  calendarContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  monthNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-  },
-  monthNavButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.gray,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  monthNavText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  calendarCancel: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  calendarTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  calendarDone: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  calendarGrid: {
-    padding: 20,
-  },
-  weekHeaderRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  weekHeaderCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  weekHeaderText: {
+  scrollHintText: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
+    textAlign: 'center',
   },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    width: '14.28%',
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  dayCellEmpty: {
+
+  // Fixed Create Button
+  createButtonContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 120 : 100, // Position above floating navigation
+    left: 20,
+    right: 20,
     backgroundColor: 'transparent',
+    zIndex: 1001, // Higher than navigation (1000) but lower than trays
   },
-  daySelected: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
+  createButton: {
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  dayText: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  dayTextSelected: {
-    color: colors.white,
+  createButtonText: {
+    fontSize: 17,
     fontWeight: '600',
   },
 });
 
-export default RefinedCreateTaskScreen;
+export default CreateTaskScreen;

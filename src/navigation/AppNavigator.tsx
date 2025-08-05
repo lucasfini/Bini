@@ -1,48 +1,24 @@
-// src/navigation/AppNavigator.tsx - FINAL VERSION WITH UNIFIED SERVICE
+// src/navigation/AppNavigator.tsx
 import React, { useState } from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import {
-  SafeAreaView,
-  TouchableOpacity,
-  StyleSheet,
-  View,
-  Text,
-  Alert,
-} from 'react-native';
-import { Clock, Calendar, Plus, BookOpen, User } from '@tamagui/lucide-icons';
+import { View, Alert } from 'react-native';
 
 import TimelineScreen from '../screens/timeline/TimelineScreen';
-import CalendarScreen from '../screens/calendar/CalendarScreen';
+import CalendarScreen from '../screens/calendar/CalendarScreen';  
 import CreateTaskScreen from '../screens/create/CreateTaskScreen';
 import KnowledgeScreen from '../screens/knowledge/KnowledgeScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import FloatingNavigation from '../components/navigation/FloatingNavigation';
 import { TaskFormData } from '../types/tasks';
 import UnifiedTaskService from '../services/tasks/unifiedTaskService';
-
-const colors = {
-  background: '#FAFAFA',
-  surface: '#FFFFFF',
-  border: '#F0F0F0',
-  textPrimary: '#333333',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
-  accentPrimary: '#FF6B9D',
-  accentSecondary: '#6B73FF',
-  white: '#FFFFFF',
-  black: '#000000',
-};
-
-const CreateScreen = () => null;
 
 const TimelineWrapper: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
   return <TimelineScreen key={refreshKey} />;
 };
 
-const Tab = createBottomTabNavigator();
-
 const AppNavigator: React.FC = () => {
-  const [showCreateTray, setShowCreateTray] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
+  const [activeRoute, setActiveRoute] = useState('Timeline');
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
 
   // Handle task creation with unified service
   const handleCreateTask = async (taskData: TaskFormData) => {
@@ -52,7 +28,7 @@ const AppNavigator: React.FC = () => {
     );
 
     try {
-      // Use the unified task service directly (no dynamic import needed)
+      // Use the unified task service directly (no dynamic import needed) 
       const newTask = await UnifiedTaskService.createTaskFromForm(taskData);
 
       // Show success message
@@ -82,156 +58,52 @@ const AppNavigator: React.FC = () => {
     }
   };
 
-  const CustomTabBar = ({ state, descriptors, navigation }: any) => {
-    const getIcon = (routeName: string, isFocused: boolean) => {
-      const iconColor = isFocused ? colors.accentPrimary : colors.textTertiary;
-      const iconSize = 22;
+  // Handle navigation between screens
+  const handleNavigate = (route: string) => {
+    setActiveRoute(route);
+  };
 
-      switch (routeName) {
-        case 'Timeline':
-          return <Clock size={iconSize} color={iconColor} />;
-        case 'Calendar':
-          return <Calendar size={iconSize} color={iconColor} />;
-        case 'Create':
-          return <Plus size={24} color={colors.white} />;
-        case 'Knowledge':
-          return <BookOpen size={iconSize} color={iconColor} />;
-        case 'Profile':
-          return <User size={iconSize} color={iconColor} />;
-        default:
-          return <Clock size={iconSize} color={iconColor} />;
-      }
-    };
+  // Handle create button press (now just navigation)
+  const handleCreatePress = () => {
+    // Navigation is handled by onNavigate in FloatingNavigation
+  };
 
-    return (
-      <SafeAreaView style={styles.tabBarSafeArea}>
-        <View style={styles.tabBar}>
-          {state.routes.map((route: any, index: number) => {
-            const isFocused = state.index === index;
-            const isCreate = route.name === 'Create';
-
-            const onPress = () => {
-              if (isCreate) {
-                setShowCreateTray(true);
-                return;
-              }
-
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            };
-
-            return (
-              <TouchableOpacity
-                key={route.key}
-                onPress={onPress}
-                style={[
-                  styles.tabItem,
-                  isCreate && styles.createTabItem,
-                  isFocused && !isCreate && styles.tabItemActive,
-                ]}
-                activeOpacity={0.7}
-              >
-                {getIcon(route.name, isFocused)}
-                {!isCreate && (
-                  <Text
-                    style={[
-                      styles.tabLabel,
-                      isFocused && styles.tabLabelActive,
-                    ]}
-                  >
-                    {route.name}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </SafeAreaView>
-    );
+  // Render the current active screen
+  const renderActiveScreen = () => {
+    switch (activeRoute) {
+      case 'Timeline':
+        return <TimelineWrapper refreshKey={timelineKey} />;
+      case 'Calendar':
+        return <CalendarScreen />;
+      case 'Create':
+        return (
+          <CreateTaskScreen
+            onCreateTask={handleCreateTask}
+            onBack={() => setActiveRoute('Timeline')} // Navigate back to Timeline when done
+          />
+        );
+      case 'Knowledge':
+        return <KnowledgeScreen />;
+      case 'Profile':
+        return <ProfileScreen />;
+      default:
+        return <TimelineWrapper refreshKey={timelineKey} />;
+    }
   };
 
   return (
     <>
-      <Tab.Navigator
-        tabBar={props => <CustomTabBar {...props} />}
-        screenOptions={{ headerShown: false }}
-      >
-        <Tab.Screen name="Timeline">
-          {() => <TimelineWrapper refreshKey={timelineKey} />}
-        </Tab.Screen>
-        <Tab.Screen name="Calendar" component={CalendarScreen} />
-        <Tab.Screen name="Create" component={CreateScreen} />
-        <Tab.Screen name="Knowledge" component={KnowledgeScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
-      </Tab.Navigator>
+      {/* Main Screen Container */}
+      <View style={{ flex: 1 }}>{renderActiveScreen()}</View>
 
-      {/* Create Task Tray using unified service */}
-      <CreateTaskScreen
-        visible={showCreateTray}
-        onClose={() => setShowCreateTray(false)}
-        onCreateTask={handleCreateTask}
+      {/* Floating Navigation - Always show for regular screens */}
+      <FloatingNavigation
+        activeRoute={activeRoute}
+        onNavigate={handleNavigate}
+        onCreatePress={handleCreatePress}
       />
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  tabBarSafeArea: {
-    backgroundColor: colors.surface,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-    paddingBottom: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    minHeight: 50,
-  },
-  tabItemActive: {
-    backgroundColor: colors.accentPrimary + '08',
-  },
-  createTabItem: {
-    backgroundColor: colors.accentPrimary,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginHorizontal: 16,
-    shadowColor: colors.accentPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textTertiary,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  tabLabelActive: {
-    color: colors.accentPrimary,
-    fontWeight: '600',
-  },
-});
 
 export default AppNavigator;

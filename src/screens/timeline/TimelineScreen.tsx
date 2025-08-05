@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRealTasks } from '../../hooks/useRealTasks';
+import TaskDetailsTray from '../../components/TaskDetailsTray';
 import {
   View,
   Text,
@@ -1327,30 +1328,18 @@ const TimelineScreen: React.FC = () => {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* FIXED: Task Detail Tray with unified task support */}
-      <TaskDetailTray
+      {/* Enhanced Task Details Tray */}
+      <TaskDetailsTray
         visible={taskDetailTrayVisible}
         task={selectedTaskForDetail}
-        group={
-          selectedTaskForDetail?.groupId
-            ? getGroupById(selectedTaskForDetail.groupId)
-            : null
-        }
-        groupProgress={
-          selectedTaskForDetail?.groupId
-            ? getGroupProgress(selectedTaskForDetail.groupId)
-            : undefined
-        }
         onClose={() => {
-          console.log('🚪 TaskDetailTray onClose called');
+          console.log('🚪 TaskDetailsTray onClose called');
           setTaskDetailTrayVisible(false);
         }}
         onEdit={handleTaskEdit}
-        onDelete={handleTaskDelete}
+        onDelete={(task) => handleTaskDelete(task.id)}
         onDuplicate={handleTaskDuplicate}
-        onComplete={handleTaskComplete}
-        onSubtaskToggle={handleSubtaskToggle}
-        onStepsUpdate={handleStepsUpdate}
+        onComplete={(task) => handleTaskComplete(task.id)}
       />
 
       {/* Encouragement Modal */}
