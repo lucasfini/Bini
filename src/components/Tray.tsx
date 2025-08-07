@@ -17,6 +17,8 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { ChevronLeft } from '@tamagui/lucide-icons';
+import { colors } from '../styles';
+import { useTheme } from '../context/ThemeContext';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -33,7 +35,6 @@ interface TrayProps {
   title: string;
   children: React.ReactNode;
   height?: 'short' | 'medium' | 'tall';
-  isDarkMode?: boolean;
   leftButton?: TrayButton;
   rightButton?: TrayButton;
 }
@@ -45,29 +46,20 @@ const Tray: React.FC<TrayProps> = ({
   title,
   children,
   height = 'medium',
-  isDarkMode = false,
   leftButton,
   rightButton,
 }) => {
-  const theme = {
-    background: isDarkMode ? '#1F2937' : '#FFFFFF',
-    text: isDarkMode ? '#F9FAFB' : '#111827',
-    textSecondary: isDarkMode ? '#D1D5DB' : '#6B7280',
-    border: isDarkMode ? '#374151' : '#E5E7EB',
-    buttonPrimary: '#4A7C3A',
-    buttonSecondary: isDarkMode ? '#4B5563' : '#F3F4F6',
-    dragHandle: isDarkMode ? '#4B5563' : '#D1D5DB',
-  };
+  const { theme } = useTheme();
 
   // Animation values
   const translateY = useSharedValue(screenHeight);
   const opacity = useSharedValue(0);
 
-  // Height configurations
+  // Height configurations - updated to match ModernDateTimePicker heights
   const heightConfig = {
-    short: '50%',
-    medium: '70%', 
-    tall: '85%',
+    short: screenHeight * 0.5,  // 50% for compact trays
+    medium: screenHeight * 0.6, // 60% for medium trays  
+    tall: screenHeight * 0.65,  // 65% for large trays
   };
 
   const showTray = () => {
@@ -140,67 +132,18 @@ const Tray: React.FC<TrayProps> = ({
           trayStyle
         ]}
       >
-        <View style={[styles.tray, { backgroundColor: theme.background }]}>
-          {/* Drag Handle */}
-          <View style={[styles.dragHandle, { backgroundColor: theme.dragHandle }]} />
-
+        <View style={[styles.tray, { backgroundColor: colors.surface }]}>
           {/* Header */}
-          <View style={styles.header}>
-            {/* Left Button or Back Button */}
-            <View style={styles.headerLeft}>
-              {onBack ? (
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={onBack}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <ChevronLeft size={24} color={theme.text} />
-                </TouchableOpacity>
-              ) : leftButton ? (
-                <TouchableOpacity
-                  style={[
-                    styles.headerButton,
-                    { backgroundColor: theme.buttonSecondary }
-                  ]}
-                  onPress={leftButton.onPress}
-                >
-                  <Text style={[styles.headerButtonText, { color: theme.text }]}>
-                    {leftButton.text}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.headerButtonPlaceholder} />
-              )}
-            </View>
-
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             {/* Title */}
-            <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
               {title}
             </Text>
-
-            {/* Right Button */}
-            <View style={styles.headerRight}>
-              {rightButton ? (
-                <TouchableOpacity
-                  style={[
-                    styles.headerButton,
-                    rightButton.style === 'primary' && { backgroundColor: theme.buttonPrimary }
-                  ]}
-                  onPress={rightButton.onPress}
-                >
-                  <Text 
-                    style={[
-                      styles.headerButtonText,
-                      { color: rightButton.style === 'primary' ? '#FFFFFF' : theme.text }
-                    ]}
-                  >
-                    {rightButton.text}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.headerButtonPlaceholder} />
-              )}
-            </View>
+            
+            {/* Close Button */}
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Content */}
@@ -216,73 +159,46 @@ const Tray: React.FC<TrayProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   trayContainer: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 40,
+    left: '5%',
+    right: '5%',
+    width: '90%',
+    alignSelf: 'center',
   },
   tray: {
     flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  headerLeft: {
-    width: 80,
-    alignItems: 'flex-start',
-  },
-  headerRight: {
-    width: 80,
-    alignItems: 'flex-end',
   },
   headerTitle: {
-    flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    textAlign: 'center',
   },
-  backButton: {
+  closeButton: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
   },
-  headerButton: {
-    paddingHorizontal: 12, 
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-  },
-  headerButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  headerButtonPlaceholder: {
-    width: 60,
+  closeButtonText: {
+    fontSize: 20,
+    fontWeight: '400',
   },
   content: {
     flex: 1,

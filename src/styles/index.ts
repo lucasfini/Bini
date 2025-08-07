@@ -160,24 +160,80 @@ export const layout = {
   isLargeDevice: width >= 414,
 } as const;
 
-// Theme configuration for accent colors
+// Complete Theme Definitions based on startup animation colors
 export const themes = {
   pink: {
-    primary: '#FF6B9D',
-    secondary: '#6B73FF',
+    // Primary colors from animation
+    primary: '#FF9FB2',          // Light pink from animation
+    primaryDark: '#FF6B9D',      // Darker pink variant
+    primaryLight: '#FFB8C5',     // Lighter pink variant
+    
+    // Secondary colors from animation  
+    secondary: '#9BC4E2',        // Light blue from animation
+    secondaryDark: '#6B73FF',    // Darker blue variant
+    secondaryLight: '#B8D4F0',   // Lighter blue variant
+    
+    // Background hierarchy
+    background: '#FEFBFC',       // Very light pink tint
+    surface: '#FFFFFF',
+    surfaceSecondary: '#FFF8FA', // Subtle pink tint
+    
+    // Accent colors
+    accent: '#FF9FB2',
+    accentSecondary: '#9BC4E2',
+    
+    // Text colors
+    textPrimary: '#2D1B20',      // Dark with pink undertone
+    textSecondary: '#5D4A4F',    // Medium with pink undertone
+    textTertiary: '#8A7479',     // Light with pink undertone
+    
+    // Borders and dividers
+    border: '#F5E6EA',           // Light pink border
+    borderLight: '#FAF0F3',      // Very light pink border
+    
+    // Status colors with pink theme
+    success: '#4CAF50',
+    warning: '#FF8A65',
+    error: '#FF6B6B',
+    info: '#9BC4E2',
   },
+  
   blue: {
-    primary: '#6B73FF',
-    secondary: '#FF6B9D',
-  },
-  green: {
-    primary: '#4CAF50',
-    secondary: '#FF6B9D',
-  },
-  red: {
-    primary: '#FF6B6B',
-    secondary: '#6B73FF',
+    // Primary colors from animation (flipped)
+    primary: '#9BC4E2',          // Light blue from animation  
+    primaryDark: '#6B73FF',      // Darker blue variant
+    primaryLight: '#B8D4F0',     // Lighter blue variant
+    
+    // Secondary colors from animation
+    secondary: '#FF9FB2',        // Light pink from animation
+    secondaryDark: '#FF6B9D',    // Darker pink variant
+    secondaryLight: '#FFB8C5',   // Lighter pink variant
+    
+    // Background hierarchy
+    background: '#FBFCFE',       // Very light blue tint
+    surface: '#FFFFFF',
+    surfaceSecondary: '#F8FAFF', // Subtle blue tint
+    
+    // Accent colors  
+    accent: '#9BC4E2',
+    accentSecondary: '#FF9FB2',
+    
+    // Text colors
+    textPrimary: '#1B2025',      // Dark with blue undertone
+    textSecondary: '#4A4F5D',    // Medium with blue undertone
+    textTertiary: '#74798A',     // Light with blue undertone
+    
+    // Borders and dividers
+    border: '#E6EAEF',           // Light blue border
+    borderLight: '#F0F3FA',      // Very light blue border
+    
+    // Status colors with blue theme
+    success: '#4CAF50',
+    warning: '#FF8A65', 
+    error: '#FF6B6B',
+    info: '#9BC4E2',
   },
 } as const;
 
 export type ThemeKey = keyof typeof themes;
+export type Theme = typeof themes.pink;

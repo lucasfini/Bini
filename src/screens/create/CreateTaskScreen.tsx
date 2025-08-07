@@ -40,25 +40,11 @@ import GoalDurationSlider from '../../components/GoalDurationSlider';
 import RecurrenceSelector from '../../components/RecurrenceSelector';
 import ModernCheckboxList from '../../components/ModernCheckboxList';
 import AnimatedWhenSelector from '../../components/AnimatedWhenSelector';
+import ModernDateTimePicker from '../../components/ModernDateTimePicker';
+import { useTheme } from '../../context/ThemeContext';
+import { colors } from '../../styles';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-// Clean Family app inspired colors
-const colors = {
-  background: '#FAFAFA',
-  surface: '#FFFFFF',
-  border: '#E8E8E8',
-  text: '#2C3E26',
-  textSecondary: '#5A6B54',
-  textTertiary: '#888888',
-  primary: '#4A7C3A',
-  secondary: '#D4AF37',
-  white: '#FFFFFF',
-  gray: '#F0F0F0',
-  lightGray: '#E0E0E0',
-  dragHandle: '#CCCCCC',
-  selectedBackground: '#E8F5E8',
-};
 
 import { TaskFormData } from '../../types/tasks';
 
@@ -203,10 +189,9 @@ const PartnerShareCheckbox: React.FC<{
         <View style={styles.partnerShareContent}>
           {/* Enhanced Profile Picture with Status Ring */}
           <View style={styles.profileContainer}>
-            <View style={[
-              styles.profileRing,
-              checked && styles.profileRingActive
-            ]}>
+            <View
+              style={[styles.profileRing, checked && styles.profileRingActive]}
+            >
               <Image
                 source={{
                   uri: 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=120&h=120&fit=crop&crop=face',
@@ -216,7 +201,7 @@ const PartnerShareCheckbox: React.FC<{
               {/* Online status indicator */}
               <View style={styles.onlineIndicator} />
             </View>
-            
+
             {/* Checkmark overlay with modern design */}
             {checked && (
               <RNAnimated.View style={styles.checkmarkContainer}>
@@ -236,10 +221,9 @@ const PartnerShareCheckbox: React.FC<{
               </View>
             </View>
             <Text style={styles.partnerSubtext}>
-              {checked 
-                ? "✓ Sarah will be notified about this task" 
-                : "Tap to share this task with your partner"
-              }
+              {checked
+                ? '✓ Sarah will be notified about this task'
+                : 'Tap to share this task with your partner'}
             </Text>
             {checked && (
               <Text style={styles.partnerActiveText}>
@@ -247,7 +231,6 @@ const PartnerShareCheckbox: React.FC<{
               </Text>
             )}
           </View>
-
         </View>
       </TouchableOpacity>
     </RNAnimated.View>
@@ -272,6 +255,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   onCreateTask,
   onBack,
 }) => {
+  const { theme } = useTheme();
   const [formData, setFormData] = useState<TaskFormData>({
     title: '',
     emoji: '🍽️',
@@ -294,6 +278,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   const [showEmojiTray, setShowEmojiTray] = useState(false);
   const [showDateTray, setShowDateTray] = useState(false);
   const [showAlertsTray, setShowAlertsTray] = useState(false);
+  const [showModernDateTime, setShowModernDateTime] = useState(false);
 
   const [showRecurrenceDetails, setShowRecurrenceDetails] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(false);
@@ -478,16 +463,60 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           />
         </View>
 
-        {/* When? - Animated Selector */}
+        {/* When? - Modern Date/Time Picker */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>When?</Text>
-          <AnimatedWhenSelector
-            selectedDate={formData.when.date}
-            selectedTime={formData.when.time}
-            onDateChange={date => updateField('when', { ...formData.when, date })}
-            onTimeChange={time => updateField('when', { ...formData.when, time })}
-            durationMinutes={formData.durationMinutes}
-          />
+          {/* Debug info */}
+          {console.log('Form data when:', formData.when)}
+          <TouchableOpacity
+            style={styles.modernDateTimeButton}
+            onPress={() => setShowModernDateTime(true)}
+          >
+            <View style={styles.dateTimeDisplay}>
+              <View style={styles.dateSection}>
+                <Text style={styles.dateLabel}>Date</Text>
+                <Text style={styles.dateValue}>
+                  {(() => {
+                    try {
+                      const date = new Date(formData.when.date);
+                      if (isNaN(date.getTime())) {
+                        return 'Select Date';
+                      }
+                      return date.toLocaleDateString('en-US', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        year: 'numeric',
+                      });
+                    } catch (error) {
+                      return 'Select Date';
+                    }
+                  })()}
+                </Text>
+              </View>
+              <View style={styles.timeSection}>
+                <Text style={styles.timeLabel}>Time</Text>
+                <Text style={styles.timeValue}>
+                  {(() => {
+                    try {
+                      if (!formData.when.time) {
+                        return 'Select Time';
+                      }
+                      const [hours, minutes] = formData.when.time.split(':');
+                      const date = new Date();
+                      date.setHours(parseInt(hours), parseInt(minutes));
+                      return date.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      });
+                    } catch (error) {
+                      return 'Select Time';
+                    }
+                  })()}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Duration */}
@@ -573,15 +602,13 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             style={styles.alertsButton}
             onPress={() => setShowAlertsTray(true)}
           >
-            <Text style={styles.alertsButtonText}>
-              Select alerts +
-            </Text>
+            <Text style={styles.alertsButtonText}>Select alerts +</Text>
           </TouchableOpacity>
-          
+
           {/* Selected Alerts Display */}
           {formData.alerts.length > 0 && (
             <View style={styles.selectedAlertsContainer}>
-              {formData.alerts.map((alertId) => (
+              {formData.alerts.map(alertId => (
                 <View key={alertId} style={styles.selectedAlertChip}>
                   <Text style={styles.selectedAlertText}>
                     {getAlertLabel(alertId)}
@@ -702,6 +729,16 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             updateField('alerts', alerts);
           }}
         />
+
+        {/* Modern Date/Time Picker */}
+        <ModernDateTimePicker
+          visible={showModernDateTime}
+          onClose={() => setShowModernDateTime(false)}
+          selectedDate={formData.when.date}
+          selectedTime={formData.when.time}
+          onDateChange={date => updateField('when', { ...formData.when, date })}
+          onTimeChange={time => updateField('when', { ...formData.when, time })}
+        />
       </TrayManager>
     </View>
   );
@@ -761,7 +798,7 @@ const styles = StyleSheet.create({
   emojiButton: {
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: 10,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -823,7 +860,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  
+
   // Enhanced Profile Picture Styles
   profileContainer: {
     position: 'relative',
@@ -880,7 +917,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  
+
   // Enhanced Text Styles
   partnerText: {
     flex: 1,
@@ -922,7 +959,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 4,
   },
-  
 
   // Time Selector
   timeScroll: {
@@ -979,6 +1015,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
+    
   },
 
   // Duration Grid
@@ -1099,7 +1136,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
-  
+
   // Selected Alerts Display
   selectedAlertsContainer: {
     flexDirection: 'row',
@@ -1261,6 +1298,65 @@ const styles = StyleSheet.create({
   createButtonText: {
     fontSize: 17,
     fontWeight: '600',
+  },
+
+  // Modern Date/Time Button Styles
+  modernDateTimeButton: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateTimeDisplay: {
+    flexDirection: 'row',
+    flex: 1,
+    gap: 24,
+  },
+  dateSection: {
+    flex: 1,
+  },
+  timeSection: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  timeLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  dateValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  timeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  editIndicator: {
+    fontSize: 16,
+    opacity: 0.6,
+    color: colors.textSecondary,
   },
 });
 

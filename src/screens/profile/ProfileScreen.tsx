@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { colors, typography, spacing, shadows } from '../../styles';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../config/supabase';
 
 interface UserStats {
@@ -45,11 +46,12 @@ interface PartnerInfo {
 
 const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
+  const { currentTheme, setTheme, theme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cheerNotifications, setCheerNotifications] = useState(true);
   const [partnerUpdates, setPartnerUpdates] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -237,8 +239,8 @@ const ProfileScreen: React.FC = () => {
         <Switch
           value={value}
           onValueChange={onToggle}
-          trackColor={{ false: colors.border, true: colors.accentPrimary + '40' }}
-          thumbColor={value ? colors.accentPrimary : colors.textSecondary}
+          trackColor={{ false: colors.border, true: theme.primary + '40' }}
+          thumbColor={value ? theme.primary : colors.textSecondary}
         />
       ) : showArrow ? (
         <Text style={styles.settingArrow}>→</Text>
@@ -302,16 +304,9 @@ const ProfileScreen: React.FC = () => {
             {/* Appearance Section */}
             <Text style={styles.settingsSectionTitle}>Appearance</Text>
             <SettingRow
-              title="Dark Mode"
-              description="Switch to dark theme"
-              value={darkMode}
-              onToggle={setDarkMode}
-              emoji="🌙"
-            />
-            <SettingRow
               title="Theme Color"
-              description="Customize your accent color"
-              onPress={() => Alert.alert('Theme Colors', 'Color picker coming soon!')}
+              description={`Current theme: ${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}`}
+              onPress={() => setShowThemeSelector(true)}
               emoji="🎨"
               showArrow
             />
@@ -350,6 +345,79 @@ const ProfileScreen: React.FC = () => {
     </Modal>
   );
 
+  const ThemeSelectorModal = () => (
+    <Modal visible={showThemeSelector} transparent animationType="slide">
+      <View style={styles.settingsOverlay}>
+        <View style={styles.themeModal}>
+          <View style={styles.settingsHeader}>
+            <Text style={styles.settingsTitle}>Choose Theme</Text>
+            <TouchableOpacity onPress={() => setShowThemeSelector(false)}>
+              <Text style={styles.settingsClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.themeContent}>
+            <Text style={styles.themeDescription}>
+              Choose your favorite theme color inspired by the beautiful animation colors
+            </Text>
+            
+            {/* Pink Theme */}
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                currentTheme === 'pink' && { ...styles.themeOptionSelected, borderColor: theme.primary }
+              ]}
+              onPress={() => {
+                setTheme('pink');
+                setShowThemeSelector(false);
+              }}
+            >
+              <View style={styles.themeOptionContent}>
+                <View style={styles.themePreview}>
+                  <View style={[styles.themeColorPrimary, { backgroundColor: '#FF9FB2' }]} />
+                  <View style={[styles.themeColorSecondary, { backgroundColor: '#9BC4E2' }]} />
+                </View>
+                <View style={styles.themeInfo}>
+                  <Text style={styles.themeTitle}>Pink Theme</Text>
+                  <Text style={styles.themeSubtitle}>Warm and energetic</Text>
+                </View>
+              </View>
+              {currentTheme === 'pink' && (
+                <Text style={[styles.selectedIndicator, { color: theme.primary }]}>✓</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Blue Theme */}
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                currentTheme === 'blue' && { ...styles.themeOptionSelected, borderColor: theme.primary }
+              ]}
+              onPress={() => {
+                setTheme('blue');
+                setShowThemeSelector(false);
+              }}
+            >
+              <View style={styles.themeOptionContent}>
+                <View style={styles.themePreview}>
+                  <View style={[styles.themeColorPrimary, { backgroundColor: '#9BC4E2' }]} />
+                  <View style={[styles.themeColorSecondary, { backgroundColor: '#FF9FB2' }]} />
+                </View>
+                <View style={styles.themeInfo}>
+                  <Text style={styles.themeTitle}>Blue Theme</Text>
+                  <Text style={styles.themeSubtitle}>Calm and focused</Text>
+                </View>
+              </View>
+              {currentTheme === 'blue' && (
+                <Text style={[styles.selectedIndicator, { color: theme.primary }]}>✓</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -371,11 +439,11 @@ const ProfileScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.profileInfo}>
-          <View style={styles.profileAvatar}>
+          <View style={[styles.profileAvatar, { backgroundColor: theme.primary }]}>
             <Text style={styles.profileAvatarText}>
               {user.name.charAt(0).toUpperCase()}
             </Text>
@@ -432,13 +500,13 @@ const ProfileScreen: React.FC = () => {
               title="Tasks Completed" 
               value={userStats.tasksCompleted} 
               emoji="✅" 
-              color={colors.accentPrimary}
+              color={theme.primary}
             />
             <StatCard 
               title="Shared Goals" 
               value={userStats.sharedGoals} 
               emoji="🤝" 
-              color={colors.accentSecondary}
+              color={theme.secondary}
             />
             <StatCard 
               title="Current Streak" 
@@ -483,7 +551,7 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.inviteDescription}>
                 Share your partner code: {profileData?.partner_code || '...'}
               </Text>
-              <TouchableOpacity style={styles.inviteButton} onPress={handleInvitePartner}>
+              <TouchableOpacity style={[styles.inviteButton, { backgroundColor: theme.primary }]} onPress={handleInvitePartner}>
                 <Text style={styles.inviteButtonText}>Share Partner Code</Text>
               </TouchableOpacity>
             </View>
@@ -535,6 +603,7 @@ const ProfileScreen: React.FC = () => {
       </ScrollView>
 
       <SettingsModal />
+      <ThemeSelectorModal />
     </SafeAreaView>
   );
 };
@@ -930,6 +999,76 @@ const styles = StyleSheet.create({
   settingArrow: {
     fontSize: 16,
     color: colors.textTertiary,
+  },
+
+  // Theme Selector Modal Styles
+  themeModal: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+  },
+  themeContent: {
+    padding: 24,
+  },
+  themeDescription: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  themeOption: {
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  themeOptionSelected: {
+    borderColor: colors.accentPrimary,
+    backgroundColor: colors.surface,
+  },
+  themeOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themePreview: {
+    flexDirection: 'row',
+    marginRight: 16,
+  },
+  themeColorPrimary: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    ...shadows.sm,
+  },
+  themeColorSecondary: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignSelf: 'center',
+    ...shadows.sm,
+  },
+  themeInfo: {
+    flex: 1,
+  },
+  themeTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  themeSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  selectedIndicator: {
+    fontSize: 20,
+    color: colors.accentPrimary,
+    fontWeight: '700',
   },
 });
 

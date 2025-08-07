@@ -69,14 +69,6 @@ const AlertsTray: React.FC<AlertsTrayProps> = ({
     }
   };
 
-  const handleDone = () => {
-    onClose();
-  };
-
-  const handleCancel = () => {
-    onClose();
-  };
-
   const renderAlertOption = (option: AlertOption) => {
     const isSelected = selectedAlerts.includes(option.id);
 
@@ -149,22 +141,8 @@ const AlertsTray: React.FC<AlertsTrayProps> = ({
     <Tray
       visible={visible}
       onClose={onClose}
-      onBack={onBack}
       title="Select Alerts"
       height="short"
-      isDarkMode={isDarkMode}
-      leftButton={
-        !onBack
-          ? {
-              text: 'Cancel',
-              onPress: handleCancel,
-            }
-          : undefined
-      }
-      rightButton={{
-        text: 'Done',
-        onPress: handleDone,
-      }}
     >
       <ScrollView
         style={styles.container}

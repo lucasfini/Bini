@@ -10,6 +10,8 @@ import AuthScreen from './src/screens/auth/AuthScreen';
 import AppNavigator from './src/navigation/AppNavigator';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing } from './src/styles';
+import { ThemeProvider } from './src/context/ThemeContext';
+import AppLoader from './src/components/AppLoader';
 
 const config = createTamagui(defaultConfig);
 
@@ -98,9 +100,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <TamaguiProvider config={config}>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
     </TamaguiProvider>
   );
 };

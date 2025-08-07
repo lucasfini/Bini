@@ -1,389 +1,179 @@
 // src/components/EmojiTray.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
-  TextInput,
+  Text,
+  TouchableOpacity,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Text,
+  ScrollView,
+  Animated,
+  Platform,
 } from 'react-native';
-import { Search } from '@tamagui/lucide-icons';
 import Tray from './Tray';
+import { colors } from '../styles';
+import { useTheme } from '../context/ThemeContext';
 
 interface EmojiTrayProps {
   visible: boolean;
   onClose: () => void;
-  onBack?: () => void;
   selectedEmoji: string;
   onEmojiSelect: (emoji: string) => void;
-  isDarkMode?: boolean;
 }
 
-// Comprehensive emoji dataset organized by categories
-const EMOJI_DATA = {
-  'Smileys & People': [
-    '😀',
-    '😃',
-    '😄',
-    '😁',
-    '😆',
-    '😅',
-    '🤣',
-    '😂',
-    '🙂',
-    '🙃',
-    '😉',
-    '😊',
-    '😇',
-    '🥰',
-    '😍',
-    '🤩',
-    '😘',
-    '😗',
-    '☺️',
-    '😚',
-    '😙',
-    '😋',
-    '😛',
-    '😜',
-    '🤪',
-    '😝',
-    '🤑',
-    '🤗',
-    '🤭',
-    '🤫',
-    '🤔',
-    '🤐',
-    '🤨',
-    '😐',
-    '😑',
-    '😶',
-    '😏',
-    '😒',
-    '🙄',
-    '😬',
-    '🤥',
-    '😔',
-    '😪',
-    '🤤',
-    '😴',
-    '😷',
-    '🤒',
-    '🤕',
-    '🤢',
-    '🤮',
-  ],
-  'Animals & Nature': [
-    '🐶',
-    '🐱',
-    '🐭',
-    '🐹',
-    '🐰',
-    '🦊',
-    '🐻',
-    '🐼',
-    '🐨',
-    '🐯',
-    '🦁',
-    '🐮',
-    '🐷',
-    '🐽',
-    '🐸',
-    '🐵',
-    '🙈',
-    '🙉',
-    '🙊',
-    '🐒',
-    '🐔',
-    '🐧',
-    '🐦',
-    '🐤',
-    '🐣',
-    '🐥',
-    '🦆',
-    '🦅',
-    '🦉',
-    '🦇',
-    '🐺',
-    '🐗',
-    '🐴',
-    '🦄',
-    '🐝',
-    '🐛',
-    '🦋',
-    '🐌',
-    '🐞',
-    '🐜',
-    '🦟',
-    '🦗',
-    '🕷️',
-    '🕸️',
-    '🦂',
-    '🐢',
-    '🐍',
-    '🦎',
-    '🦖',
-    '🦕',
-  ],
-  'Food & Drink': [
-    '🍎',
-    '🍐',
-    '🍊',
-    '🍋',
-    '🍌',
-    '🍉',
-    '🍇',
-    '🍓',
-    '🍈',
-    '🍒',
-    '🍑',
-    '🥭',
-    '🍍',
-    '🥥',
-    '🥝',
-    '🍅',
-    '🍆',
-    '🥑',
-    '🥦',
-    '🥬',
-    '🥒',
-    '🌶️',
-    '🌽',
-    '🥕',
-    '🥔',
-    '🍠',
-    '🥐',
-    '🍞',
-    '🥖',
-    '🥨',
-    '🧀',
-    '🥚',
-    '🍳',
-    '🥞',
-    '🥓',
-    '🥩',
-    '🍗',
-    '🍖',
-    '🌭',
-    '🍔',
-    '🍟',
-    '🍕',
-    '🥪',
-    '🥙',
-    '🌮',
-    '🌯',
-    '🥗',
-    '🥘',
-    '🍝',
-    '🍜',
-  ],
-  Activities: [
-    '⚽',
-    '🏀',
-    '🏈',
-    '⚾',
-    '🥎',
-    '🎾',
-    '🏐',
-    '🏉',
-    '🥏',
-    '🎱',
-    '🪀',
-    '🏓',
-    '🏸',
-    '🏒',
-    '🏑',
-    '🥍',
-    '🏏',
-    '⛳',
-    '🪁',
-    '🏹',
-    '🎣',
-    '🤿',
-    '🥊',
-    '🥋',
-    '🎽',
-    '🛹',
-    '🛷',
-    '⛸️',
-    '🥌',
-    '🎿',
-    '⛷️',
-    '🏂',
-    '🪂',
-    '🏋️',
-    '🤼',
-    '🤸',
-    '⛹️',
-    '🤺',
-    '🤾',
-    '🏌️',
-    '🏇',
-    '🧘',
-    '🏄',
-    '🏊',
-    '🤽',
-    '🚣',
-    '🧗',
-    '🚵',
-    '🚴',
-    '🏆',
-  ],
-  Objects: [
-    '⌚',
-    '📱',
-    '📲',
-    '💻',
-    '⌨️',
-    '🖥️',
-    '🖨️',
-    '🖱️',
-    '🖲️',
-    '🕹️',
-    '🗜️',
-    '💽',
-    '💾',
-    '💿',
-    '📀',
-    '📼',
-    '📷',
-    '📸',
-    '📹',
-    '🎥',
-    '📽️',
-    '🎞️',
-    '📞',
-    '☎️',
-    '📟',
-    '📠',
-    '📺',
-    '📻',
-    '🎙️',
-    '🎚️',
-    '🎛️',
-    '⏰',
-    '🕰️',
-    '⌛',
-    '⏳',
-    '📡',
-    '🔋',
-    '🔌',
-    '💡',
-    '🔦',
-    '🕯️',
-    '🪔',
-    '🧯',
-    '🛢️',
-    '💸',
-    '💵',
-    '💴',
-    '💶',
-    '💷',
-    '💰',
-  ],
-  Symbols: [
-    '❤️',
-    '🧡',
-    '💛',
-    '💚',
-    '💙',
-    '💜',
-    '🖤',
-    '🤍',
-    '🤎',
-    '💔',
-    '❣️',
-    '💕',
-    '💞',
-    '💓',
-    '💗',
-    '💖',
-    '💘',
-    '💝',
-    '💟',
-    '☮️',
-    '✝️',
-    '☪️',
-    '🕉️',
-    '☸️',
-    '✡️',
-    '🔯',
-    '🕎',
-    '☯️',
-    '☦️',
-    '🛐',
-    '⛎',
-    '♈',
-    '♉',
-    '♊',
-    '♋',
-    '♌',
-    '♍',
-    '♎',
-    '♏',
-    '♐',
-    '♑',
-    '♒',
-    '♓',
-    '🆔',
-    '⚛️',
-    '🉑',
-    '☢️',
-    '☣️',
-    '📴',
-    '📳',
-  ],
-};
+// Emoji categories with proper names and icons
+const EMOJI_CATEGORIES = [
+  {
+    id: 'recent',
+    name: 'Recent',
+    icon: '🕒',
+    emojis: [], // Will be populated with recently used emojis
+  },
+  {
+    id: 'smileys',
+    name: 'SMILEYS & PEOPLE',
+    icon: '😀',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️', '😚',
+      '😙', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫',
+      '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬',
+      '🤥', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮',
+      '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓',
+      '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺',
+      '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
+      '😞', '😓', '😩', '😫', '😤', '😡', '😠', '🤬', '😈', '👿',
+      '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖',
+      '🎭', '💋', '💌', '💘', '💝', '💖', '💗', '💓', '💞', '💕',
+      '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👩', '🧓',
+      '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇',
+      '🤦', '🤷', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲',
+      '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹',
+      '🧙', '🧚', '🧛', '🧜', '🧝', '🧞', '🧟', '💆', '💇', '🚶',
+      '🏃', '💃', '🕺', '🕴️', '👯', '🧖', '🧗', '🤺', '🏇', '⛷️',
+      '🏂', '🏌️', '🏄', '🚣', '🏊', '⛹️', '🏋️', '🚴', '🚵', '🤸',
+      '🤼', '🤽', '🤾', '🤹', '🧘', '🛀', '🛌', '👭', '👫', '👬',
+    ],
+  },
+  {
+    id: 'animals',
+    name: 'ANIMALS & NATURE',
+    icon: '🐾',
+    emojis: [
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯',
+      '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒',
+      '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇',
+      '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜',
+      '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕',
+      '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳',
+      '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛',
+      '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖',
+      '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈',
+      '🐓', '🦃', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨',
+      '🦡', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔', '🐾', '🐉', '🐲',
+      '🌵', '🎄', '🌲', '🌳', '🌴', '🌱', '🌿', '☘️', '🍀', '🎍',
+      '🎋', '🍃', '🍂', '🍁', '🍄', '🐚', '🌾', '💐', '🌷', '🌹',
+      '🥀', '🌺', '🌸', '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚',
+      '🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔', '🌙', '⭐',
+      '🌟', '💫', '⚡', '☄️', '💥', '🔥', '🌪️', '🌈', '☀️', '🌤️',
+      '⛅', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️',
+      '💨', '💧', '💦', '☔', '☂️', '🌊', '🌫️',
+    ],
+  },
+  {
+    id: 'food',
+    name: 'FOOD & DRINK',
+    icon: '🍎',
+    emojis: [
+      '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒',
+      '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬',
+      '🥒', '🌶️', '🌽', '🥕', '🧄', '🧅', '🥔', '🍠', '🥐', '🍞',
+      '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩',
+      '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🥪', '🥙', '🧆',
+      '🌮', '🌯', '🥗', '🥘', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣',
+      '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮',
+      '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮',
+      '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛',
+      '🍼', '☕', '🍵', '🧃', '🥤', '🍶', '🍺', '🍻', '🥂', '🍷',
+      '🥃', '🍸', '🍹', '🧉', '🍾', '🧊', '🥄', '🍴', '🍽️',
+    ],
+  },
+  {
+    id: 'activities',
+    name: 'SPORTS & ACTIVITIES',
+    icon: '⚽',
+    emojis: [
+      '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱',
+      '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '⛳', '🏹', '🎣', '🤿',
+      '🥊', '🥋', '🎽', '🛹', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂',
+      '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏄',
+      '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉',
+      '🎪', '🎨', '🎬', '🎤', '🎧', '🎼', '🎵', '🎶', '🎹', '🥁',
+      '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♠️', '♥️', '♦️', '♣️',
+      '♟️', '🃏', '🀄', '🎴', '🎭', '🖼️', '🎨', '🧵', '🪡', '🧶',
+      '🪢', '🎯', '🎳', '🎮', '🕹️', '🎰', '🧩', '🧸', '🪅', '🪆',
+    ],
+  },
+  {
+    id: 'objects',
+    name: 'OBJECTS',
+    icon: '💡',
+    emojis: [
+      '⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️',
+      '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️',
+      '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '⏰',
+      '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '💰',
+      '💸', '💵', '💴', '💶', '💷', '🪙', '💳', '💎', '⚖️', '🔧',
+    ],
+  },
+  {
+    id: 'symbols',
+    name: 'SYMBOLS',
+    icon: '♪',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+      '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
+      '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐',
+      '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑',
+      '♒', '♓', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '♪', '%',
+    ],
+  },
+  {
+    id: 'flags',
+    name: 'FLAGS',
+    icon: '🏁',
+    emojis: [
+      '🏁', '🚩', '🎌', '🏴', '🏳️', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️', '🇺🇸', '🇬🇧',
+      '🇨🇦', '🇫🇷', '🇩🇪', '🇮🇹', '🇪🇸', '🇯🇵', '🇰🇷', '🇨🇳', '🇮🇳', '🇧🇷',
+      '🇷🇺', '🇦🇺', '🇲🇽', '🇳🇱', '🇸🇪', '🇳🇴', '🇩🇰', '🇫🇮', '🇨🇭', '🇦🇹',
+      '🇧🇪', '🇵🇹', '🇬🇷', '🇹🇷', '🇮🇱', '🇪🇬', '🇸🇦', '🇦🇪', '🇮🇷', '🇮🇶',
+      '🇿🇦', '🇳🇬', '🇰🇪', '🇲🇦', '🇱🇾', '🇪🇹', '🇬🇭', '🇨🇮', '🇨🇲', '🇸🇳',
+    ],
+  },
+];
 
 const EmojiTray: React.FC<EmojiTrayProps> = ({
   visible,
   onClose,
-  onBack,
   selectedEmoji,
   onEmojiSelect,
-  isDarkMode = false,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Smileys & People');
+  const { theme } = useTheme();
+  const [activeCategory, setActiveCategory] = useState('smileys');
+  const flatListRef = useRef<FlatList>(null);
 
-  const theme = {
-    background: isDarkMode ? '#1F2937' : '#FFFFFF',
-    text: isDarkMode ? '#F9FAFB' : '#111827',
-    textSecondary: isDarkMode ? '#D1D5DB' : '#6B7280',
-    border: isDarkMode ? '#374151' : '#E5E7EB',
-    searchBackground: isDarkMode ? '#374151' : '#F3F4F6',
-    categoryActive: '#4A7C3A',
-    categoryInactive: isDarkMode ? '#4B5563' : '#E5E7EB',
-  };
-
-  const categories = Object.keys(EMOJI_DATA);
-
-  // Filter emojis based on search query
-  const getFilteredEmojis = () => {
-    if (searchQuery.trim() === '') {
-      return EMOJI_DATA[selectedCategory as keyof typeof EMOJI_DATA] || [];
-    }
-
-    // Search across all categories
-    const allEmojis = Object.values(EMOJI_DATA).flat();
-    return allEmojis.filter(
-      emoji =>
-        // This is a simple filter - in production you might want emoji names/keywords
-        emoji.includes(searchQuery) ||
-        (searchQuery.toLowerCase().includes('smile') &&
-          emoji.match(/😀|😃|😄|😁|😊/)),
-    );
-  };
-
-  const filteredEmojis = getFilteredEmojis();
+  const currentCategory = EMOJI_CATEGORIES.find(cat => cat.id === activeCategory);
+  const currentEmojis = currentCategory?.emojis || [];
 
   const handleEmojiPress = (emoji: string) => {
     onEmojiSelect(emoji);
+    onClose(); // Close tray after selection
   };
 
-  const handleDone = () => {
-    onClose();
+  const handleCategoryPress = (categoryId: string) => {
+    setActiveCategory(categoryId);
+    // Scroll to top when category changes
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
 
   const renderEmoji = ({ item }: { item: string }) => {
@@ -391,7 +181,10 @@ const EmojiTray: React.FC<EmojiTrayProps> = ({
 
     return (
       <TouchableOpacity
-        style={[styles.emojiButton, isSelected && styles.emojiButtonSelected]}
+        style={[
+          styles.emojiButton,
+          isSelected && { backgroundColor: theme.primary + '20' }
+        ]}
         onPress={() => handleEmojiPress(item)}
         activeOpacity={0.7}
       >
@@ -400,33 +193,24 @@ const EmojiTray: React.FC<EmojiTrayProps> = ({
     );
   };
 
-  const renderCategory = (category: string) => {
-    const isActive = category === selectedCategory;
-
+  const renderCategoryIcon = (category: any, index: number) => {
+    const isActive = category.id === activeCategory;
+    
     return (
       <TouchableOpacity
-        key={category}
+        key={category.id}
         style={[
-          styles.categoryButton,
-          {
-            backgroundColor: isActive
-              ? theme.categoryActive
-              : theme.categoryInactive,
-          },
+          styles.categoryIcon,
+          isActive && { backgroundColor: theme.primary + '15' }
         ]}
-        onPress={() => setSelectedCategory(category)}
+        onPress={() => handleCategoryPress(category.id)}
         activeOpacity={0.7}
       >
-        <Text
-          style={[
-            styles.categoryText,
-            {
-              color: isActive ? '#FFFFFF' : theme.textSecondary,
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {category.split(' ')[0]} {/* Show first word only for space */}
+        <Text style={[
+          styles.categoryIconText,
+          { color: isActive ? theme.primary : colors.textSecondary }
+        ]}>
+          {category.icon}
         </Text>
       </TouchableOpacity>
     );
@@ -436,66 +220,44 @@ const EmojiTray: React.FC<EmojiTrayProps> = ({
     <Tray
       visible={visible}
       onClose={onClose}
-      onBack={onBack}
-      title="Choose Emoji"
+      title={currentCategory?.name || 'EMOJIS'}
       height="tall"
-      isDarkMode={isDarkMode}
-      leftButton={
-        !onBack
-          ? {
-              text: 'Cancel',
-              onPress: onClose,
-            }
-          : undefined
-      }
-      rightButton={{
-        text: 'Done',
-        onPress: handleDone,
-      }}
     >
       <View style={styles.container}>
-        {/* Search Bar */}
-        <View
-          style={[
-            styles.searchContainer,
-            { backgroundColor: theme.searchBackground },
-          ]}
-        >
-          <Search size={18} color={theme.textSecondary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search emojis..."
-            placeholderTextColor={theme.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
+        {/* Emoji Grid with Scroll Indicator */}
+        <View style={styles.emojiSection}>
+          <FlatList
+            ref={flatListRef}
+            data={currentEmojis}
+            numColumns={8}
+            keyExtractor={(item, index) => `${item}-${index}`}
+            renderItem={renderEmoji}
+            contentContainerStyle={styles.emojiGrid}
+            showsVerticalScrollIndicator={true}
+            style={styles.emojiList}
+            indicatorStyle="default"
           />
         </View>
 
-        {/* Category Tabs */}
-        {searchQuery.trim() === '' && (
-          <View style={styles.categoriesContainer}>
-            <FlatList
-              data={categories}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={item => item}
-              renderItem={({ item }) => renderCategory(item)}
-              contentContainerStyle={styles.categoriesList}
-            />
-          </View>
-        )}
-
-        {/* Emoji Grid */}
-        <FlatList
-          data={filteredEmojis}
-          numColumns={8}
-          keyExtractor={(item, index) => `${item}-${index}`}
-          renderItem={renderEmoji}
-          contentContainerStyle={styles.emojiGrid}
-          showsVerticalScrollIndicator={false}
-          style={styles.emojiList}
-        />
+        {/* Bottom Navigation */}
+        <View style={[styles.bottomNav, { borderTopColor: colors.border }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.navIcons}
+          >
+            {EMOJI_CATEGORIES.map((category, index) => 
+              renderCategoryIcon(category, index)
+            )}
+            
+            {/* More arrow */}
+            <TouchableOpacity style={styles.categoryIcon}>
+              <Text style={[styles.categoryIconText, { color: colors.textSecondary }]}>
+                »
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </View>
     </Tray>
   );
@@ -504,40 +266,12 @@ const EmojiTray: React.FC<EmojiTrayProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
+    
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  searchInput: {
+  emojiSection: {
     flex: 1,
-    fontSize: 16,
-    marginLeft: 8,
-    paddingVertical: 4,
-  },
-  categoriesContainer: {
-    marginBottom: 16,
-  },
-  categoriesList: {
-    paddingHorizontal: 4,
-  },
-  categoryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginHorizontal: 4,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '500',
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   emojiList: {
     flex: 1,
@@ -550,15 +284,56 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    margin: 2,
     borderRadius: 8,
-    backgroundColor: 'transparent',
-  },
-  emojiButtonSelected: {
-    backgroundColor: '#E8F5E8',
+    marginHorizontal: 0.5,
+    marginVertical: 2,
+    maxWidth: '12.5%', // 8 columns
   },
   emojiText: {
-    fontSize: 24,
+    fontSize: Platform.select({
+      ios: 24,
+      android: 22, // Android emojis tend to be slightly larger
+    }),
+    fontFamily: Platform.select({
+      ios: 'System', // Use system font on iOS for native emojis
+      android: 'normal', // Default Android font for native emojis
+    }),
+    includeFontPadding: false, // Android only - removes extra padding
+    textAlignVertical: 'center', // Android only - centers emojis better
+  },
+  bottomNav: {
+    borderTopWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  navIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+  },
+  categoryIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    marginHorizontal: 4,
+  },
+  categoryIconText: {
+    fontSize: Platform.select({
+      ios: 18,
+      android: 16,
+    }),
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'normal',
+    }),
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });
 
