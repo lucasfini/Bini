@@ -1,11 +1,9 @@
-// src/components/ModernCheckboxList.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated as RNAnimated,
 } from 'react-native';
 import { Check } from '@tamagui/lucide-icons';
 
@@ -20,7 +18,7 @@ interface ModernCheckboxListProps {
   checkedValues: string[];
   onToggle: (id: string) => void;
   isDarkMode?: boolean;
-  style?: 'square' | 'circle';
+  style?: 'square' | 'rounded';
 }
 
 const ModernCheckboxList: React.FC<ModernCheckboxListProps> = ({
@@ -28,143 +26,111 @@ const ModernCheckboxList: React.FC<ModernCheckboxListProps> = ({
   checkedValues,
   onToggle,
   isDarkMode = false,
-  style = 'square',
+  style = 'rounded',
 }) => {
-  const [scaleAnims] = useState(
-    options.reduce((acc, option) => {
-      acc[option.id] = new RNAnimated.Value(1);
-      return acc;
-    }, {} as Record<string, RNAnimated.Value>)
-  );
-
   const theme = {
     background: isDarkMode ? '#1F2937' : '#FFFFFF',
-    itemBackground: isDarkMode ? '#374151' : '#F9FAFB',
     text: isDarkMode ? '#F9FAFB' : '#111827',
     textSecondary: isDarkMode ? '#D1D5DB' : '#6B7280',
-    border: isDarkMode ? '#4B5563' : '#E5E7EB',
-    checkboxBackground: '#4A7C3A',
-    checkboxBorder: isDarkMode ? '#6B7280' : '#D1D5DB',
-    selectedBackground: isDarkMode ? 'rgba(74, 124, 58, 0.2)' : '#E8F5E8',
+    border: isDarkMode ? '#374151' : '#E5E7EB',
+    itemBackground: isDarkMode ? '#374151' : '#F9FAFB',
+    selectedBackground: isDarkMode ? '#065F46' : '#E8F5E8',
+    checkboxActive: '#EC4899',
+    checkboxInactive: isDarkMode ? '#4B5563' : '#E5E7EB',
   };
 
-  const handlePress = (option: CheckboxOption) => {
-    // Animate checkbox
-    const anim = scaleAnims[option.id];
-    RNAnimated.sequence([
-      RNAnimated.timing(anim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      RNAnimated.timing(anim, {
-        toValue: 1.1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      RNAnimated.timing(anim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  const borderRadius = style === 'square' ? 6 : 12;
+  const checkboxRadius = style === 'square' ? 4 : 6;
 
-    onToggle(option.id);
-  };
+  const renderOption = (option: CheckboxOption) => {
+    const isSelected = checkedValues.includes(option.id);
 
-  const renderCheckbox = (isChecked: boolean, optionId: string) => {
-    const checkboxStyle = style === 'circle' ? styles.checkboxCircle : styles.checkboxSquare;
-    
     return (
-      <RNAnimated.View
+      <TouchableOpacity
+        key={option.id}
         style={[
-          checkboxStyle,
+          styles.item,
           {
-            backgroundColor: isChecked ? theme.checkboxBackground : 'transparent',
-            borderColor: isChecked ? theme.checkboxBackground : theme.checkboxBorder,
-            transform: [{ scale: scaleAnims[optionId] }],
+            backgroundColor: theme.itemBackground,
+            borderColor: theme.border,
+            borderRadius,
+          },
+          isSelected && {
+            backgroundColor: theme.selectedBackground,
+            borderColor: theme.checkboxActive,
           },
         ]}
+        onPress={() => onToggle(option.id)}
+        activeOpacity={0.7}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: isSelected }}
+        accessibilityLabel={option.label}
       >
-        {isChecked && (
-          <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-        )}
-      </RNAnimated.View>
+        <View style={styles.content}>
+          <View style={styles.textContainer}>
+            <Text
+              style={[
+                styles.label,
+                { color: theme.text },
+                isSelected && styles.labelSelected,
+              ]}
+            >
+              {option.label}
+            </Text>
+            {option.description && (
+              <Text
+                style={[
+                  styles.description,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {option.description}
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={[
+              styles.checkbox,
+              {
+                backgroundColor: isSelected
+                  ? theme.checkboxActive
+                  : 'transparent',
+                borderColor: isSelected
+                  ? theme.checkboxActive
+                  : theme.checkboxInactive,
+                borderRadius: checkboxRadius,
+              },
+            ]}
+          >
+            {isSelected && (
+              <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      {options.map((option, index) => {
-        const isChecked = checkedValues.includes(option.id);
-        const isLast = index === options.length - 1;
-        
-        return (
-          <TouchableOpacity
-            key={option.id}
-            style={[
-              styles.item,
-              {
-                backgroundColor: isChecked ? theme.selectedBackground : theme.itemBackground,
-                borderBottomColor: theme.border,
-                borderBottomWidth: isLast ? 0 : 1,
-              },
-            ]}
-            onPress={() => handlePress(option)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.itemContent}>
-              <View style={styles.textContainer}>
-                <Text
-                  style={[
-                    styles.label,
-                    {
-                      color: theme.text,
-                      fontWeight: isChecked ? '600' : '500',
-                    },
-                  ]}
-                >
-                  {option.label}
-                </Text>
-                {option.description && (
-                  <Text
-                    style={[
-                      styles.description,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    {option.description}
-                  </Text>
-                )}
-              </View>
-              
-              {renderCheckbox(isChecked, option.id)}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+      {options.map(renderOption)}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    gap: 12,
   },
   item: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  itemContent: {
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: 16,
   },
   textContainer: {
     flex: 1,
@@ -172,24 +138,19 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
+    fontWeight: '500',
     marginBottom: 2,
   },
+  labelSelected: {
+    fontWeight: '600',
+  },
   description: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
   },
-  checkboxSquare: {
+  checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

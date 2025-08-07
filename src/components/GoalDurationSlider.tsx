@@ -1,14 +1,23 @@
 // src/components/GoalDurationSlider.tsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Dimensions,
   TouchableOpacity,
-  Animated,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedGestureHandler,
+  runOnJS,
+  interpolate,
+  Extrapolate,
+} from 'react-native-reanimated';
+import {
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler';
 import { colors } from '../styles';
 import { useTheme } from '../context/ThemeContext';
 import CustomDurationTray from './CustomDurationTray';
@@ -30,16 +39,9 @@ const GoalDurationSlider: React.FC<GoalDurationSliderProps> = ({
   onSelect,
 }) => {
   const { theme } = useTheme();
-  const [currentSliderValue, setCurrentSliderValue] = useState(selectedValue);
   const [showCustomTray, setShowCustomTray] = useState(false);
 
-  // Animation references
-  const labelAnimations = useRef<{ [key: number]: Animated.Value }>({}).current;
-  const tickFlashAnimations = useRef<{ [key: number]: Animated.Value }>(
-    {},
-  ).current;
-
-  // Duration options for slider marks - evenly spaced labels
+  // Duration options for slider marks
   const durationOptions: DurationOption[] = [
     { value: 15, label: '15m' },
     { value: 30, label: '30m' },
@@ -52,141 +54,141 @@ const GoalDurationSlider: React.FC<GoalDurationSliderProps> = ({
   const minValue = 15;
   const maxValue = 120;
   const step = 15;
+  
+  // Container dimensions
+  const containerWidth = screenWidth - 50; // Total container width
+  const thumbWidth = 48; // Thumb width in pixels
+  const trackWidth = containerWidth - thumbWidth; // Available track width for movement
+  
+  // Animated values
+  const translateX = useSharedValue(
+    ((selectedValue - minValue) / (maxValue - minValue)) * trackWidth
+  );
 
-  // Initialize animations immediately
-  durationOptions.forEach(option => {
-    if (!labelAnimations[option.value]) {
-      labelAnimations[option.value] = new Animated.Value(1);
-    }
-    if (!tickFlashAnimations[option.value]) {
-      tickFlashAnimations[option.value] = new Animated.Value(0);
-    }
+  // Update translateX when selectedValue changes externally
+  React.useEffect(() => {
+    translateX.value = ((selectedValue - minValue) / (maxValue - minValue)) * trackWidth;
+  }, [selectedValue, trackWidth, minValue, maxValue]);
+
+  // Update selected value from translateX
+  const updateValue = (x: number) => {
+    const clampedX = Math.max(0, Math.min(trackWidth, x));
+    const percentage = clampedX / trackWidth;
+    const rawValue = minValue + percentage * (maxValue - minValue);
+    const steppedValue = Math.round(rawValue / step) * step;
+    const finalValue = Math.max(minValue, Math.min(maxValue, steppedValue));
+    onSelect(finalValue);
+  };
+
+  // Pan gesture handler
+  const gestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
+    onStart: (_, context) => {
+      context.startX = translateX.value;
+    },
+    onActive: (event, context) => {
+      const newX = context.startX + event.translationX;
+      translateX.value = Math.max(0, Math.min(trackWidth, newX));
+      runOnJS(updateValue)(translateX.value);
+    },
   });
 
-  const handleSliderChange = (value: number) => {
-    const roundedValue = Math.round(value);
-    setCurrentSliderValue(roundedValue);
+  // Animated styles for thumb
+  const thumbStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
 
-    // Animate labels based on selection and proximity
-    durationOptions.forEach(option => {
-      const distance = Math.abs(option.value - roundedValue);
-      const isSelected = option.value === selectedValue;
-      const scale = (distance < 10 ? 1.2 : 1) * (isSelected ? 1.3 : 1);
+  // Animated styles for progress track
+  const progressStyle = useAnimatedStyle(() => {
+    return {
+      width: translateX.value + (thumbWidth / 2), // Extend to thumb center
+    };
+  });
 
-      Animated.spring(labelAnimations[option.value], {
-        toValue: scale,
-        useNativeDriver: true,
-        tension: 150,
-        friction: 8,
-      }).start();
-    });
-  };
-
-  const handleSliderComplete = (value: number) => {
-    const roundedValue = Math.round(value);
-    onSelect(roundedValue);
-
-    // Flash the tick mark if it matches a preset
-    const matchingOption = durationOptions.find(
-      opt => opt.value === roundedValue,
-    );
-    if (matchingOption) {
-      Animated.sequence([
-        Animated.timing(tickFlashAnimations[matchingOption.value], {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(tickFlashAnimations[matchingOption.value], {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  };
-
-  const getSelectedLabel = () => {
-    if (selectedValue < 60) {
-      return `${selectedValue}m`;
-    } else {
-      const hours = Math.floor(selectedValue / 60);
-      const minutes = selectedValue % 60;
-      if (minutes === 0) {
-        return `${hours}h`;
-      } else {
-        return `${hours}h ${minutes}m`;
-      }
-    }
+  // Get current label for thumb
+  const getCurrentLabel = () => {
+    const option = durationOptions.find(opt => opt.value === selectedValue);
+    return option ? option.label : `${selectedValue}m`;
   };
 
   return (
-    <View style={styles.container}>
+    <View className="py-2.5 px-2.5">
       {/* Header with Title and Extra */}
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+      <View className="flex-row justify-between items-center mb-8">
+        <Text className="text-base font-semibold" style={{ color: theme.textPrimary }}>
           Time spent?
         </Text>
         <TouchableOpacity onPress={() => setShowCustomTray(true)}>
-          <Text style={[styles.extraText, { color: colors.textSecondary }]}>
+          <Text className="text-base font-normal" style={{ color: theme.primary }}>
             extra..
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Slider Container */}
-      <View style={styles.sliderContainer}>
-        {/* Rounded Rectangle Track Container */}
-        <View
-          style={[styles.trackContainer, { backgroundColor: colors.border }]}
-        >
-          <Slider
-            style={styles.slider}
-            minimumValue={minValue}
-            maximumValue={maxValue}
-            step={step}
-            value={Math.min(Math.max(currentSliderValue, minValue), maxValue)}
-            onValueChange={handleSliderChange}
-            onSlidingComplete={handleSliderComplete}
-            minimumTrackTintColor={theme.primary}
-            maximumTrackTintColor="transparent"
-            thumbStyle={[styles.thumbStyle, { backgroundColor: theme.primary }]}
-            trackStyle={styles.trackStyle}
+      {/* Custom Slider Container */}
+      <View className="w-full mb-5" style={{ width: containerWidth }}>
+        {/* Slider Track Background */}
+        <View className="w-full h-10 rounded-[20px] relative" style={{ backgroundColor: colors.border }}>
+          
+          {/* Pink progress track - animated */}
+          <Animated.View 
+            className="absolute left-0 top-0 h-10 bg-pink-500 rounded-[20px]"
+            style={[progressStyle, { zIndex: 1 }]}
           />
-        </View>
+          
+          {/* Time Labels Inside Track */}
+          <View className="absolute inset-0 flex-row items-center justify-between px-3" style={{ zIndex: 2 }}>
+            {durationOptions.map((option) => {
+              // Position labels evenly across the track
+              const labelPosition = ((option.value - minValue) / (maxValue - minValue)) * 100;
+              const isSelected = option.value === selectedValue;
+              
+              // Check if thumb is covering this label
+              const thumbCenter = ((selectedValue - minValue) / (maxValue - minValue)) * 100;
+              const coverageThreshold = 8; // Percentage threshold for coverage
+              const isCovered = Math.abs(thumbCenter - labelPosition) < coverageThreshold;
 
-        {/* Time Labels Inside Track */}
-        <View style={styles.labelsContainer}>
-          {durationOptions.map((option, index) => {
-            // Space labels evenly across the slider regardless of their actual values
-            const evenPosition = index / (durationOptions.length - 1);
-            const isSelected = option.value === selectedValue;
-
-            return (
-              <View
-                key={option.value}
-                style={[
-                  styles.tickContainer,
-                  { left: `${evenPosition * 100}%` },
-                ]}
-              >
-                {/* Time Label Inside Track */}
-                <Text
-                  style={[
-                    styles.sliderLabel,
-                    {
-                      color: isSelected ? colors.white : colors.textSecondary,
-                      fontWeight: isSelected ? '700' : '500',
-                      fontSize: 13,
-                    },
-                  ]}
+              return (
+                <View
+                  key={option.value}
+                  className="absolute items-center justify-center"
+                  style={{ 
+                    left: `${labelPosition}%`,
+                    transform: [{ translateX: -12 }] // Center the 24px wide label
+                  }}
                 >
-                  {option.label}
-                </Text>
-              </View>
-            );
-          })}
+                  <Text
+                    className="text-[12px] text-center font-medium"
+                    style={{
+                      color: (isCovered && isSelected) ? colors.white : colors.textSecondary,
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
 
+          {/* Custom Draggable Thumb */}
+          <PanGestureHandler onGestureEvent={gestureHandler}>
+            <Animated.View 
+              className="absolute top-0 bg-pink-500 rounded-[20px] justify-center items-center shadow-lg"
+              style={[
+                thumbStyle,
+                { 
+                  width: thumbWidth, 
+                  height: 40,
+                  zIndex: 10 
+                }
+              ]}
+            >
+              <Text className="text-white text-[13px] font-bold">
+                {getCurrentLabel()}
+              </Text>
+            </Animated.View>
+          </PanGestureHandler>
         </View>
       </View>
 
@@ -195,96 +197,11 @@ const GoalDurationSlider: React.FC<GoalDurationSliderProps> = ({
         visible={showCustomTray}
         onClose={() => setShowCustomTray(false)}
         selectedDuration={selectedValue}
-        onDurationChange={minutes => {
-          onSelect(minutes);
-          setCurrentSliderValue(
-            Math.min(Math.max(minutes, minValue), maxValue),
-          );
-        }}
+        onDurationChange={onSelect}
       />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  extraText: {
-    fontSize: 16,
-    fontWeight: '400',
-    textDecorationLine: 'underline',
-  },
-  sliderContainer: {
-    width: '100%',
-    maxWidth: screenWidth - 50,
-    marginBottom: 3,
-    position: 'relative',
-  },
-  trackContainer: {
-    width: '100%',
-    height: 40,
-    borderRadius: 10,
-    marginBottom: 2,
-    justifyContent: 'center',
-  },
-  slider: {
-    width: '100%',
-    height: 2,
-  },
-  // Large pill-shaped thumb
-  thumbStyle: {
-    width: 1,
-    height: 0,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  trackStyle: {
-    height: 32,
-    borderRadius: 16,
-  },
-  labelsContainer: {
-    position: 'absolute',
-    top: 12,
-    left: 0,
-    right: 0,
-    height: 20,
-    width: '100%',
-  },
-  tickContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -20,
-    width: 40,
-    height: 20,
-    zIndex: 1,
-  },
-  tickMark: {
-    width: 2,
-    height: 10,
-    borderRadius: 1,
-    marginBottom: 4,
-  },
-  sliderLabel: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-});
 
 export default GoalDurationSlider;

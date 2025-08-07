@@ -36,10 +36,8 @@ import AlertsTray from '../../components/AlertsTray';
 import TrayManager from '../../components/TrayManager';
 
 // Import the new modern form components
-import GoalDurationSlider from '../../components/GoalDurationSlider';
+import ModernTimeSpentSlider from '../../components/ModernTimeSpentSlider';
 import RecurrenceSelector from '../../components/RecurrenceSelector';
-import ModernCheckboxList from '../../components/ModernCheckboxList';
-import AnimatedWhenSelector from '../../components/AnimatedWhenSelector';
 import ModernDateTimePicker from '../../components/ModernDateTimePicker';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../styles';
@@ -409,7 +407,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   const isCreateButtonReady = formData.title.trim().length > 0 && isNearBottom;
 
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
       <StatusBar backgroundColor={colors.background} barStyle="dark-content" />
 
       {/* Header with back button */}
@@ -521,9 +519,9 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
 
         {/* Duration */}
         <View style={styles.section}>
-          <GoalDurationSlider
-            selectedValue={formData.durationMinutes}
-            onSelect={value => updateField('durationMinutes', value)}
+          <ModernTimeSpentSlider
+            initialValue={formData.durationMinutes}
+            onValueChange={value => updateField('durationMinutes', value)}
           />
         </View>
 
@@ -740,7 +738,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           onTimeChange={time => updateField('when', { ...formData.when, time })}
         />
       </TrayManager>
-    </View>
+    </GestureHandlerRootView>
   );
 };
 

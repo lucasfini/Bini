@@ -907,7 +907,7 @@ PODS:
   - React-Mapbuffer (0.74.7):
     - glog
     - React-debug
-  - react-native-safe-area-context (5.5.2):
+  - react-native-safe-area-context (5.4.0):
     - React-Core
   - react-native-slider (4.5.7):
     - DoubleConversion
@@ -1430,7 +1430,7 @@ SPEC CHECKSUMS:
   React-jsitracing: a884f4eb46ba8c373d909f9a712824af65ff41b8
   React-logger: 58cd5ca2c3ab03a06b33e6d46a210d2b17ca116d
   React-Mapbuffer: f245095650540b8ddd09ac907a79605f68b1f4d4
-  react-native-safe-area-context: 0f7bf11598f9a61b7ceac8dc3f59ef98697e99e1
+  react-native-safe-area-context: 9d72abf6d8473da73033b597090a80b709c0b2f1
   react-native-slider: ef3da51d021999dc76a1efefae60176ac4910c36
   React-nativeconfig: 3b359be06d9ee8d64c1eacbca4f1040f331573fd
   React-NativeModulesApple: c6259e85e61f211854e632ed3eb21f25e15651f4

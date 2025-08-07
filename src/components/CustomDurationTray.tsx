@@ -1,12 +1,21 @@
 // src/components/CustomDurationTray.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Dimensions,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedScrollHandler,
+  interpolate,
+  Extrapolate,
+  runOnJS,
+} from 'react-native-reanimated';
 import Tray from './Tray';
 import { colors } from '../styles';
 import { useTheme } from '../context/ThemeContext';
@@ -47,62 +56,175 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
     }
   };
 
+  const SphericalPicker = ({ 
+    data, 
+    selectedValue, 
+    onValueChange, 
+    unit 
+  }: {
+    data: number[],
+    selectedValue: number,
+    onValueChange: (value: number) => void,
+    unit: string
+  }) => {
+    const scrollY = useSharedValue(0);
+    const scrollRef = useRef<any>(null);
+    const itemHeight = 40;
+    const wheelHeight = 200;
+    const visibleItems = 5;
+    
+    // Get initial index
+    const selectedIndex = data.indexOf(selectedValue);
+    const initialScrollY = selectedIndex * itemHeight;
+    
+    React.useEffect(() => {
+      scrollY.value = initialScrollY;
+      scrollRef.current?.scrollTo({ y: initialScrollY, animated: false });
+    }, []);
+
+    const scrollHandler = useAnimatedScrollHandler({
+      onScroll: (event) => {
+        scrollY.value = event.contentOffset.y;
+      },
+      onMomentumEnd: (event) => {
+        const index = Math.round(event.contentOffset.y / itemHeight);
+        const clampedIndex = Math.max(0, Math.min(data.length - 1, index));
+        runOnJS(onValueChange)(data[clampedIndex]);
+      },
+    });
+
+    const renderItem = (value: number, index: number) => {
+      const animatedStyle = useAnimatedStyle(() => {
+        const centerY = wheelHeight / 2;
+        const itemCenterY = (index * itemHeight) + (itemHeight / 2);
+        const scrollOffset = scrollY.value + centerY;
+        const distanceFromCenter = itemCenterY - scrollOffset;
+        
+        // Create cylindrical effect
+        const maxDistance = itemHeight * 2.5;
+        const normalizedDistance = Math.abs(distanceFromCenter) / maxDistance;
+        
+        const rotateX = interpolate(
+          distanceFromCenter,
+          [-maxDistance, 0, maxDistance],
+          [45, 0, -45],
+          Extrapolate.CLAMP
+        );
+
+        const opacity = interpolate(
+          normalizedDistance,
+          [0, 0.5, 1],
+          [1, 0.8, 0.3],
+          Extrapolate.CLAMP
+        );
+
+        const scale = interpolate(
+          normalizedDistance,
+          [0, 0.5, 1],
+          [1, 0.95, 0.8],
+          Extrapolate.CLAMP
+        );
+
+        const translateY = interpolate(
+          distanceFromCenter,
+          [-maxDistance, 0, maxDistance],
+          [10, 0, -10],
+          Extrapolate.CLAMP
+        );
+
+        return {
+          transform: [
+            { perspective: 1000 },
+            { rotateX: `${rotateX}deg` },
+            { scale },
+            { translateY },
+          ],
+          opacity,
+        };
+      });
+
+      // Check if this item is in the center
+      const isCenterItem = useAnimatedStyle(() => {
+        const centerY = wheelHeight / 2;
+        const itemCenterY = (index * itemHeight) + (itemHeight / 2);
+        const scrollOffset = scrollY.value + centerY;
+        const distanceFromCenter = Math.abs(itemCenterY - scrollOffset);
+        const isCenter = distanceFromCenter < itemHeight / 2;
+        
+        return {
+          // This will be used to determine text styling
+        };
+      });
+      
+      return (
+        <Animated.View key={value} style={[styles.pickerItem, animatedStyle]}>
+          <Animated.View style={isCenterItem}>
+            <Text style={[
+              styles.pickerItemText,
+              { color: theme.textPrimary }
+            ]}>
+              {value}
+            </Text>
+            {/* Show unit only for center item - we'll handle this differently */}
+          </Animated.View>
+        </Animated.View>
+      );
+    };
+
+    // Find center item for unit display
+    const centerItemStyle = useAnimatedStyle(() => {
+      const centerIndex = Math.round(scrollY.value / itemHeight);
+      const centerValue = data[centerIndex] || 0;
+      return {};
+    });
+
+    return (
+      <View style={styles.pickerSection}>
+        <View style={styles.pickerWheel}>
+          {/* Center selection indicator */}
+          <View style={styles.centerIndicator} />
+          
+          {/* Unit label overlay for center item */}
+          <Animated.View style={[styles.centerUnitLabel, centerItemStyle]}>
+            <Text style={styles.unitText}>{unit}</Text>
+          </Animated.View>
+          
+          <Animated.ScrollView
+            ref={scrollRef}
+            showsVerticalScrollIndicator={false}
+            snapToInterval={itemHeight}
+            decelerationRate="fast"
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            contentContainerStyle={{
+              paddingVertical: wheelHeight / 2, // Center the first and last items
+            }}
+          >
+            {data.map((value, index) => renderItem(value, index))}
+          </Animated.ScrollView>
+        </View>
+      </View>
+    );
+  };
+
   const renderTimePicker = () => {
+    const hoursData = Array.from({ length: 24 }, (_, i) => i);
+    const minutesData = Array.from({ length: 60 }, (_, i) => i);
+
     return (
       <View style={styles.pickerContainer}>
-        {/* Hours Picker */}
-        <View style={styles.pickerSection}>
-          <Text style={[styles.pickerLabel, { color: theme.textPrimary }]}>Hours</Text>
-          <View style={[styles.pickerWheel, { backgroundColor: colors.background }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {Array.from({ length: 24 }, (_, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[
-                    styles.pickerItem,
-                    hours === i && { backgroundColor: theme.primary }
-                  ]}
-                  onPress={() => setHours(i)}
-                >
-                  <Text style={[
-                    styles.pickerItemText,
-                    { color: hours === i ? colors.white : theme.textPrimary },
-                    hours === i && { fontWeight: '600' }
-                  ]}>
-                    {i}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-
-        {/* Minutes Picker */}
-        <View style={styles.pickerSection}>
-          <Text style={[styles.pickerLabel, { color: theme.textPrimary }]}>Minutes</Text>
-          <View style={[styles.pickerWheel, { backgroundColor: colors.background }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {Array.from({ length: 60 }, (_, i) => i * 5).map((minute) => (
-                <TouchableOpacity
-                  key={minute}
-                  style={[
-                    styles.pickerItem,
-                    minutes === minute && { backgroundColor: theme.primary }
-                  ]}
-                  onPress={() => setMinutes(minute)}
-                >
-                  <Text style={[
-                    styles.pickerItemText,
-                    { color: minutes === minute ? colors.white : theme.textPrimary },
-                    minutes === minute && { fontWeight: '600' }
-                  ]}>
-                    {minute}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
+        <SphericalPicker
+          data={hoursData}
+          selectedValue={hours}
+          onValueChange={setHours}
+          unit="hours"
+        />
+        <SphericalPicker
+          data={minutesData}
+          selectedValue={minutes}
+          onValueChange={setMinutes}
+          unit="minutes"
+        />
       </View>
     );
   };
@@ -111,20 +233,10 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
     <Tray
       visible={visible}
       onClose={handleClose}
-      title="Custom Duration"
+      title="Set custom time"
       height="short"
     >
       <View style={styles.container}>
-        {/* Current Duration Display */}
-        <View style={[styles.currentDuration, { backgroundColor: colors.background }]}>
-          <Text style={[styles.currentDurationLabel, { color: theme.textSecondary }]}>
-            Selected Duration
-          </Text>
-          <Text style={[styles.currentDurationValue, { color: theme.textPrimary }]}>
-            {formatDuration()}
-          </Text>
-        </View>
-
         {/* Quick Presets */}
         <View style={styles.presetsSection}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Quick Select</Text>
@@ -164,7 +276,6 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
 
         {/* Custom Time Picker */}
         <View style={styles.customSection}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Or Set Custom Time</Text>
           {renderTimePicker()}
         </View>
       </View>
@@ -176,25 +287,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  currentDuration: {
-    marginTop: 12,
-    marginBottom: 16,
-    marginHorizontal: 20,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  currentDurationLabel: {
-    fontSize: 13,
-    marginBottom: 3,
-  },
-  currentDurationValue: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
   presetsSection: {
     marginBottom: 16,
     paddingHorizontal: 20,
+    marginTop: 12,
   },
   sectionTitle: {
     fontSize: 15,
@@ -223,35 +319,54 @@ const styles = StyleSheet.create({
   },
   pickerContainer: {
     flexDirection: 'row',
-    gap: 15,
+    gap: 20,
     flex: 1,
-    maxHeight: 120,
+    height: 200,
+    alignItems: 'center',
   },
   pickerSection: {
     flex: 1,
-  },
-  pickerLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 6,
-    textAlign: 'center',
+    height: 200,
   },
   pickerWheel: {
-    height: 100,
-    borderRadius: 8,
+    flex: 1,
+    position: 'relative',
     overflow: 'hidden',
   },
+  centerIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    height: 40,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.2)',
+    zIndex: 1,
+    marginTop: -20,
+  },
+  centerUnitLabel: {
+    position: 'absolute',
+    top: '50%',
+    right: 20,
+    marginTop: -10,
+    zIndex: 2,
+  },
+  unitText: {
+    fontSize: 14,
+    color: '#EC4899',
+    fontWeight: '600',
+  },
   pickerItem: {
-    paddingVertical: 8,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 4,
-    marginVertical: 1,
-    borderRadius: 6,
+    paddingHorizontal: 10,
   },
   pickerItemText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
