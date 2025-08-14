@@ -268,12 +268,13 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
         })}
       </View>
 
-      {/* Custom Duration Tray */}
+      {/* Custom Duration Tray with Circular Time Picker */}
       <CustomDurationTray
         visible={showCustomTray}
         onClose={() => setShowCustomTray(false)}
         selectedDuration={initialValue}
         onDurationChange={(value) => onValueChange?.(value)}
+        useCircularPicker={true}
       />
     </View>
   );

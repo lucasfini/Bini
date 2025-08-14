@@ -19,6 +19,7 @@ import Animated, {
 import Tray from './Tray';
 import { colors } from '../styles';
 import { useTheme } from '../context/ThemeContext';
+import CircularTimePicker from './CircularTimePicker';
 
 interface CustomDurationTrayProps {
   visible: boolean;
@@ -26,6 +27,7 @@ interface CustomDurationTrayProps {
   onBack?: () => void;
   selectedDuration: number; // in minutes
   onDurationChange: (duration: number) => void;
+  useCircularPicker?: boolean; // New prop to enable circular picker
 }
 
 const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
@@ -34,14 +36,17 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
   onBack,
   selectedDuration,
   onDurationChange,
+  useCircularPicker = false,
 }) => {
   const { theme } = useTheme();
   const [hours, setHours] = useState(Math.floor(selectedDuration / 60));
   const [minutes, setMinutes] = useState(selectedDuration % 60);
 
+  const [circularPickerValue, setCircularPickerValue] = useState(selectedDuration);
+
   const handleClose = () => {
     // Apply changes when closing
-    const totalMinutes = hours * 60 + minutes;
+    const totalMinutes = useCircularPicker ? circularPickerValue : hours * 60 + minutes;
     onDurationChange(totalMinutes);
     onClose();
   };
@@ -254,18 +259,22 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
                 style={[
                   styles.presetButton,
                   { backgroundColor: colors.background },
-                  (hours * 60 + minutes) === preset.value && { 
+                  (useCircularPicker ? circularPickerValue : (hours * 60 + minutes)) === preset.value && { 
                     backgroundColor: theme.primary 
                   }
                 ]}
                 onPress={() => {
-                  setHours(Math.floor(preset.value / 60));
-                  setMinutes(preset.value % 60);
+                  if (useCircularPicker) {
+                    setCircularPickerValue(preset.value);
+                  } else {
+                    setHours(Math.floor(preset.value / 60));
+                    setMinutes(preset.value % 60);
+                  }
                 }}
               >
                 <Text style={[
                   styles.presetButtonText,
-                  { color: (hours * 60 + minutes) === preset.value ? colors.white : theme.textPrimary }
+                  { color: (useCircularPicker ? circularPickerValue : (hours * 60 + minutes)) === preset.value ? colors.white : theme.textPrimary }
                 ]}>
                   {preset.label}
                 </Text>
@@ -276,7 +285,14 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
 
         {/* Custom Time Picker */}
         <View style={styles.customSection}>
-          {renderTimePicker()}
+          {useCircularPicker ? (
+            <CircularTimePicker
+              initialMinutes={circularPickerValue}
+              onTimeChange={(minutes) => setCircularPickerValue(minutes)}
+            />
+          ) : (
+            renderTimePicker()
+          )}
         </View>
       </View>
     </Tray>
