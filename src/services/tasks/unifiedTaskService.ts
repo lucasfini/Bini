@@ -138,6 +138,20 @@ class UnifiedTaskService {
 
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
+    
+    // DEBUG: Test database connection
+    console.log('🔍 Testing database connection...');
+    const { data: testData, error: testError } = await supabase
+      .from('tasks')
+      .select('count')
+      .limit(1);
+    
+    if (testError) {
+      console.error('❌ Database connection test failed:', testError);
+      throw new Error(`Database connection failed: ${testError.message}`);
+    } else {
+      console.log('✅ Database connection successful');
+    }
 
     const unifiedTask = this.formToUnified(formData, user.user.id);
 
@@ -155,7 +169,7 @@ class UnifiedTaskService {
       details: unifiedTask.details,
       steps: JSON.stringify(unifiedTask.steps || []), // Store as JSON string
       reoccurrence: JSON.stringify(
-        unifiedTask.recurrence || { frequency: 'none', interval: 1 },
+        unifiedTask.recurrence || { frequency: 'none', interval: 1, daysOfWeek: [] },
       ),
       alerts: JSON.stringify(unifiedTask.alerts || []), // Store as JSON string
       assigned_to: JSON.stringify(unifiedTask.assignedTo || []), // Store as JSON string
@@ -173,10 +187,26 @@ class UnifiedTaskService {
 
     if (error) {
       console.error('❌ Task creation failed:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       throw new Error(`Failed to create task: ${error.message}`);
     }
 
     console.log('✅ Task created successfully:', data.id);
+    console.log('📊 Created task data from DB:', JSON.stringify(data, null, 2));
+    
+    // VERIFY: Check if we can immediately find this task
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', data.id)
+      .single();
+    
+    if (verifyError) {
+      console.error('❌ Could not verify task creation:', verifyError);
+    } else {
+      console.log('✅ Task verification successful:', verifyData.id);
+    }
+
     return this.dbToUnified(data);
   }
 
@@ -203,11 +233,23 @@ class UnifiedTaskService {
     console.log('👤 User ID:', user.user.id);
 
     try {
-      // FIXED QUERY: Since assigned_to is stored as a JSON string, we need to use string operations
+      // DEBUG: Let's first see if any tasks exist at all
+      console.log('🔍 Checking for any tasks in database...');
+      const { data: allTasks, error: allError } = await supabase
+        .from('tasks')
+        .select('*')
+        .limit(10);
+      
+      console.log('📊 Total tasks in database:', allTasks?.length || 0);
+      if (allTasks && allTasks.length > 0) {
+        console.log('📋 Sample task:', JSON.stringify(allTasks[0], null, 2));
+      }
+
+      // SIMPLIFIED QUERY: First just get tasks created by this user
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
-        .or(`created_by.eq.${user.user.id},assigned_to.cs.["${user.user.id}"]`) // Use JSONB contains for array field
+        .eq('created_by', user.user.id)
         .gte('date', today.toISOString().split('T')[0])
         .lte('date', nextWeek.toISOString().split('T')[0])
         .order('date', { ascending: true });

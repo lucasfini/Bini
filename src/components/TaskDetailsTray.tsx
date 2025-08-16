@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  StatusBar,
   Dimensions,
 } from 'react-native';
 import Animated, {
@@ -31,7 +30,7 @@ import {
 } from '@tamagui/lucide-icons';
 import { UnifiedTask } from '../types/tasks';
 
-const { height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface TaskDetailsTrayProps {
   visible: boolean;
@@ -43,17 +42,10 @@ interface TaskDetailsTrayProps {
   onComplete?: (task: UnifiedTask) => void;
 }
 
-// Precise color palette as specified
+// Using consistent colors matching CreateTaskScreen
 const colors = {
-  background: '#F7F7F7',
-  handle: '#E0E0E0',
-  labelText: '#666',
-  valueText: '#000',
-  buttonBackground: '#E0E0E0',
-  deleteButton: '#FF6347',
-  completeButton: '#4CAF50',
   white: '#FFFFFF',
-  icon: '#666',
+  icon: '#666666',
 };
 
 const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
@@ -126,346 +118,377 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
   const completedSteps = task.steps?.filter(step => step.completed).length || 0;
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      statusBarTranslucent
-    >
-      <StatusBar backgroundColor="rgba(0,0,0,0.3)" barStyle="light-content" />
-
-      {/* Backdrop */}
-      <View style={styles.backdrop}>
+    <Modal transparent visible={visible} animationType="none">
+      <View style={styles.overlay}>
         <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
+          style={styles.backdrop}
           onPress={onClose}
           activeOpacity={1}
         />
-      </View>
 
-      {/* Tray */}
-      <Animated.View style={[styles.trayContainer, trayStyle]}>
-        <View style={styles.tray}>
-          {/* Drag Handle */}
-          <View style={styles.dragHandle} />
+        <Animated.View style={[styles.container, trayStyle]}>
+          <View style={styles.containerInner}>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.titleSection}>
-              <Text style={styles.avatarEmoji}>{task.emoji || '📝'}</Text>
-              <View style={styles.titleInfo}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Task Details</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Task Title Section */}
+              <View style={styles.section}>
+                <View style={styles.taskTitleRow}>
+                  <Text style={styles.taskEmoji}>{task.emoji || '📝'}</Text>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                </View>
                 <Text style={styles.taskCategory}>
                   {task.category || 'Personal Task'}
                 </Text>
               </View>
-            </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={24} color={colors.icon} />
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Time Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Time</Text>
-              <Text style={styles.sectionValue}>
-                {formatTime(task.startTime || task.time)}
-                {task.endTime && ` - ${formatTime(task.endTime)}`}
-              </Text>
-            </View>
-
-            {/* Details Section */}
-            {task.details && (
+              {/* Time Section */}
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Details</Text>
-                <Text style={styles.sectionValue}>{task.details}</Text>
+                <Text style={styles.sectionLabel}>Time</Text>
+                <Text style={styles.sectionValue}>
+                  {formatTime(task.startTime || task.time)}
+                  {task.endTime && ` - ${formatTime(task.endTime)}`}
+                </Text>
               </View>
-            )}
 
-            {/* Steps Section */}
-            <View style={styles.section}>
-              <View style={styles.stepsHeader}>
-                <Text style={styles.sectionLabel}>Steps</Text>
-                <TouchableOpacity style={styles.addButton}>
-                  <Plus size={16} color={colors.icon} />
+              {/* Details Section */}
+              {task.details && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Details</Text>
+                  <Text style={styles.sectionValue}>{task.details}</Text>
+                </View>
+              )}
+
+              {/* Steps Section */}
+              <View style={styles.section}>
+                <View style={styles.stepsHeader}>
+                  <Text style={styles.sectionLabel}>Steps</Text>
+                  <TouchableOpacity style={styles.addButton}>
+                    <Plus size={16} color={colors.icon} />
+                  </TouchableOpacity>
+                </View>
+                {stepsCount > 0 ? (
+                  <>
+                    <Text style={styles.sectionValue}>
+                      {completedSteps} of {stepsCount} completed
+                    </Text>
+                    <View style={styles.stepsList}>
+                      {task.steps?.map((step, index) => (
+                        <View key={step.id} style={styles.stepItem}>
+                          <View
+                            style={[
+                              styles.stepCheckbox,
+                              step.completed && styles.stepCheckboxCompleted,
+                            ]}
+                          >
+                            {step.completed && (
+                              <Check size={12} color={colors.white} />
+                            )}
+                          </View>
+                          <Text
+                            style={[
+                              styles.stepText,
+                              step.completed && styles.stepTextCompleted,
+                            ]}
+                          >
+                            {step.title}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.sectionValue}>No steps added</Text>
+                )}
+              </View>
+
+              {/* Recurrence Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Recurrence</Text>
+                <Text style={styles.sectionValue}>
+                  {formatRecurrence(task.recurrence)}
+                </Text>
+              </View>
+
+              {/* Alerts Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Alerts</Text>
+                <Text style={styles.sectionValue}>
+                  {formatAlerts(task.alerts)}
+                </Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => onEdit?.(task)}
+                >
+                  <Edit3 size={16} color={colors.icon} />
+                  <Text style={styles.actionButtonText}>Edit</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => onDuplicate?.(task)}
+                >
+                  <Copy size={16} color={colors.icon} />
+                  <Text style={styles.actionButtonText}>Duplicate</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => onDelete?.(task)}
+                >
+                  <Trash2 size={16} color={colors.white} />
+                  <Text
+                    style={[styles.actionButtonText, styles.deleteButtonText]}
+                  >
+                    Delete
+                  </Text>
                 </TouchableOpacity>
               </View>
-              {stepsCount > 0 ? (
-                <>
-                  <Text style={styles.sectionValue}>
-                    {completedSteps} of {stepsCount} completed
-                  </Text>
-                  <View style={styles.stepsList}>
-                    {task.steps?.map((step, index) => (
-                      <View key={step.id} style={styles.stepItem}>
-                        <View
-                          style={[
-                            styles.stepCheckbox,
-                            step.completed && styles.stepCheckboxCompleted,
-                          ]}
-                        >
-                          {step.completed && (
-                            <Check size={12} color={colors.white} />
-                          )}
-                        </View>
-                        <Text
-                          style={[
-                            styles.stepText,
-                            step.completed && styles.stepTextCompleted,
-                          ]}
-                        >
-                          {step.title}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <Text style={styles.sectionValue}>No steps added</Text>
-              )}
-            </View>
 
-            {/* Recurrence Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Recurrence</Text>
-              <Text style={styles.sectionValue}>
-                {formatRecurrence(task.recurrence)}
-              </Text>
-            </View>
-
-            {/* Alerts Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Alerts</Text>
-              <Text style={styles.sectionValue}>
-                {formatAlerts(task.alerts)}
-              </Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => onEdit?.(task)}
-              >
-                <Edit3 size={16} color={colors.icon} />
-                <Text style={styles.actionButtonText}>Edit</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => onDuplicate?.(task)}
-              >
-                <Copy size={16} color={colors.icon} />
-                <Text style={styles.actionButtonText}>Duplicate</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, styles.deleteButton]}
-                onPress={() => onDelete?.(task)}
-              >
-                <Trash2 size={16} color={colors.white} />
-                <Text
-                  style={[styles.actionButtonText, styles.deleteButtonText]}
+              {/* Complete Task Button */}
+              {!task.isCompleted && (
+                <TouchableOpacity
+                  style={styles.completeButton}
+                  onPress={() => onComplete?.(task)}
                 >
-                  Delete
-                </Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={styles.completeButtonText}>Complete Task</Text>
+                </TouchableOpacity>
+              )}
 
-            {/* Complete Task Button */}
-            {!task.isCompleted && (
-              <TouchableOpacity
-                style={styles.completeButton}
-                onPress={() => onComplete?.(task)}
-              >
-                <Text style={styles.completeButtonText}>Complete Task</Text>
-              </TouchableOpacity>
-            )}
-
-            {task.isCompleted && (
-              <View style={styles.completedIndicator}>
-                <Text style={styles.completedText}>Task Completed</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </Animated.View>
+              {task.isCompleted && (
+                <View style={styles.completedIndicator}>
+                  <Text style={styles.completedText}>Task Completed</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </Animated.View>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
-  trayContainer: {
+  backdrop: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: '85%',
+    bottom: 0,
   },
-  tray: {
+  container: {
+    width: screenWidth * 0.9,
+    height: screenHeight * 0.8,
+  },
+  containerInner: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     flex: 1,
-    backgroundColor: colors.background, // #F7F7F7
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-  },
-  dragHandle: {
-    backgroundColor: colors.handle, // #E0E0E0
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    alignSelf: 'center',
-    marginBottom: 15,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  titleSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatarEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  titleInfo: {
-    flex: 1,
-  },
-  taskTitle: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.valueText, // #000
-  },
-  taskCategory: {
-    fontSize: 14,
-    color: colors.labelText, // #666
-    marginTop: 2,
+    color: '#000000',
   },
   closeButton: {
-    padding: 8,
+    fontSize: 20,
+    fontWeight: '400',
+    color: '#666666',
+    width: 32,
+    height: 32,
+    textAlign: 'center',
+    lineHeight: 32,
   },
   content: {
     flex: 1,
   },
   section: {
-    flexDirection: 'column',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  taskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  taskEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  taskTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000000',
+    flex: 1,
+  },
+  taskCategory: {
+    fontSize: 14,
+    color: '#666666',
+    fontWeight: '500',
   },
   sectionLabel: {
-    fontWeight: 'bold',
-    color: colors.labelText, // #666
-    marginBottom: 5,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666666',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
   sectionValue: {
     fontSize: 16,
-    color: colors.valueText, // #000
+    color: '#000000',
+    fontWeight: '500',
+    lineHeight: 22,
   },
   stepsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 5,
+    marginBottom: 12,
   },
   addButton: {
-    padding: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepsList: {
-    marginTop: 10,
+    gap: 8,
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   stepCheckbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
+    width: 20,
+    height: 20,
+    borderRadius: 4,
     borderWidth: 1,
-    borderColor: colors.labelText,
+    borderColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
   },
   stepCheckboxCompleted: {
-    backgroundColor: colors.completeButton,
-    borderColor: colors.completeButton,
+    backgroundColor: '#EC4899',
+    borderColor: '#EC4899',
   },
   stepText: {
-    fontSize: 16,
-    color: colors.valueText,
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '500',
     flex: 1,
   },
   stepTextCompleted: {
     textDecorationLine: 'line-through',
-    color: colors.labelText,
+    color: '#666666',
+    opacity: 0.7,
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   actionButton: {
     flex: 1,
-    marginHorizontal: 5,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.buttonBackground, // #E0E0E0
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   actionButtonText: {
-    color: colors.valueText, // #000
+    color: '#000000',
     fontSize: 14,
     fontWeight: '500',
   },
   deleteButton: {
-    backgroundColor: colors.deleteButton, // #FF6347
+    backgroundColor: '#FF6B6B',
+    borderColor: '#FF6B6B',
   },
   deleteButtonText: {
-    color: colors.white, // #FFFFFF
+    color: '#FFFFFF',
   },
   completeButton: {
-    backgroundColor: colors.completeButton, // #4CAF50
-    borderRadius: 10,
-    padding: 15,
-    marginTop: 20,
+    backgroundColor: '#EC4899',
+    borderColor: '#EC4899',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   completeButtonText: {
-    color: colors.white, // #FFFFFF
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#FFFFFF',
+    fontWeight: '600',
     fontSize: 16,
   },
   completedIndicator: {
-    backgroundColor: colors.buttonBackground,
-    borderRadius: 10,
-    padding: 15,
-    marginTop: 20,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   completedText: {
-    color: colors.completeButton,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#4CAF50',
+    fontWeight: '600',
     fontSize: 16,
   },
 });

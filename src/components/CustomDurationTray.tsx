@@ -44,6 +44,13 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
 
   const [circularPickerValue, setCircularPickerValue] = useState(selectedDuration);
 
+  // Sync internal state when selectedDuration prop changes
+  React.useEffect(() => {
+    setHours(Math.floor(selectedDuration / 60));
+    setMinutes(selectedDuration % 60);
+    setCircularPickerValue(selectedDuration);
+  }, [selectedDuration]);
+
   const handleClose = () => {
     // Apply changes when closing
     const totalMinutes = useCircularPicker ? circularPickerValue : hours * 60 + minutes;
@@ -266,6 +273,7 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
                 onPress={() => {
                   if (useCircularPicker) {
                     setCircularPickerValue(preset.value);
+                    onDurationChange(preset.value); // Real-time sync
                   } else {
                     setHours(Math.floor(preset.value / 60));
                     setMinutes(preset.value % 60);
@@ -288,7 +296,10 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
           {useCircularPicker ? (
             <CircularTimePicker
               initialMinutes={circularPickerValue}
-              onTimeChange={(minutes) => setCircularPickerValue(minutes)}
+              onTimeChange={(minutes) => {
+                setCircularPickerValue(minutes);
+                onDurationChange(minutes); // Real-time sync
+              }}
             />
           ) : (
             renderTimePicker()

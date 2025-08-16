@@ -15,7 +15,7 @@ import Animated, {
   Extrapolate,
   useDerivedValue,
 } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -31,32 +31,50 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
   size = 220, // Smaller to fit in tray
 }) => {
   const maxMinutes = 12 * 60; // 12 hours in minutes
+  const minMinutes = 1; // Minimum 1 minute
   const center = size / 2;
   const radius = (size - 60) / 2;
   const activeStrokeWidth = 12; // Thicker for pink arc
   const inactiveStrokeWidth = 6; // Thinner for gray track
 
-  // Convert minutes to angle for semi-circular arc (left to right)
+  // Convert minutes to angle for 280-degree arc starting at 220°
   const minutesToAngle = (minutes: number): number => {
     'worklet';
-    // Semi-circular: 0 minutes = 180° (left), 12 hours = 0° (right)
-    // Arc goes from left (180°) to right (0°) = 180° total
-    const progress = minutes / maxMinutes; // 0 to 1
-    return 180 - (progress * 180); // 180° to 0°
+    // 280-degree arc: 1 minute = 220°, max minutes = 500° (140° wrapped)
+    // Leaves 80° gap from 140° to 220°
+    const clampedMinutes = Math.max(minMinutes, Math.min(maxMinutes, minutes));
+    const progress = (clampedMinutes - minMinutes) / (maxMinutes - minMinutes); // 0 to 1
+    const angle = 220 + (progress * 280); // 220° to 500°
+    return angle > 360 ? angle - 360 : angle; // Wrap around for angles > 360°
   };
 
-  // Convert angle to minutes for semi-circular arc
+  // Convert angle to minutes for 280-degree arc starting at 220°
   const angleToMinutes = (angle: number): number => {
     'worklet';
-    // Clamp angle to semi-circle range: 0° to 180°
-    const clampedAngle = Math.max(0, Math.min(180, angle));
-    // Right (0°) = max time (12h), Left (180°) = min time (0h)
-    // So: angle 0° = progress 1.0, angle 180° = progress 0.0
-    const progress = 1 - (clampedAngle / 180); // Flipped the calculation
-    return Math.round(progress * maxMinutes);
+    // Handle the arc that goes from 220° to 140° (wrapping around)
+    // Valid range: 220° to 360°, then 0° to 140°
+    let adjustedAngle = angle;
+    
+    if (angle >= 220) {
+      // First part: 220° to 360°
+      adjustedAngle = angle;
+    } else if (angle <= 140) {
+      // Second part: 0° to 140° (add 360° to put in continuous range)
+      adjustedAngle = angle + 360;
+    } else {
+      // In the gap (141° to 219°), snap to nearest valid angle
+      const distToStart = Math.abs(angle - 220);
+      const distToEnd = Math.abs(angle - 140);
+      adjustedAngle = distToStart <= distToEnd ? 220 : 140 + 360;
+    }
+    
+    // Calculate progress from 220° to 500° (140° + 360°)
+    const progress = (adjustedAngle - 220) / 280;
+    const minutes = Math.round(minMinutes + (progress * (maxMinutes - minMinutes)));
+    return Math.max(minMinutes, Math.min(maxMinutes, minutes));
   };
 
-  // Calculate angle from touch position for left-to-right semi-circle OVER THE TOP
+  // Calculate angle from touch position for 280-degree circle starting at 220°
   const positionToAngle = (x: number, y: number): number => {
     'worklet';
     const deltaX = x - center;
@@ -68,12 +86,14 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
       angle += 360;
     }
     
-    // Map touches to the upper semicircle (where the pink arc is)
-    // Upper semicircle: 180° (left) to 0° (right) going over the top
-    if (angle > 180) {
-      // Bottom half - map to upper semicircle
-      // 181°-359° maps to 179°-1° (flip to upper semicircle)
-      angle = 360 - angle;
+    // Handle the gap (141° to 219°)
+    // If touch is in the gap area, snap to nearest valid angle
+    if (angle > 140 && angle < 220) {
+      // Determine which side of the gap is closer
+      const distToStart = Math.abs(angle - 220);
+      const distToEnd = Math.abs(angle - 140);
+      
+      angle = distToStart <= distToEnd ? 220 : 140;
     }
     
     return angle;
@@ -89,13 +109,18 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
 
   // Shared values - respect initialMinutes prop
   const currentMinutes = useSharedValue(initialMinutes);
-  const currentSeconds = useSharedValue(0); // Add seconds
-  
 
   // State for display time (since we can't use worklet values directly in Text)
-  const [displayTime, setDisplayTime] = useState(formatTime(initialMinutes));
-  const [displaySeconds, setDisplaySeconds] = useState('00');
-  const [currentProgress, setCurrentProgress] = useState(initialMinutes / maxMinutes);
+  const [displayTime, setDisplayTime] = useState(formatTime(Math.max(minMinutes, initialMinutes)));
+  const [currentProgress, setCurrentProgress] = useState((Math.max(minMinutes, initialMinutes) - minMinutes) / (maxMinutes - minMinutes));
+
+  // Sync with external changes to initialMinutes
+  useEffect(() => {
+    const clampedMinutes = Math.max(minMinutes, initialMinutes);
+    currentMinutes.value = clampedMinutes;
+    setDisplayTime(formatTime(clampedMinutes));
+    setCurrentProgress((clampedMinutes - minMinutes) / (maxMinutes - minMinutes));
+  }, [initialMinutes]);
 
 
   // PanResponder for handling touch events on the entire circle
@@ -115,12 +140,12 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
       console.log('Calculated angle:', angle);
       
       const convertedMinutes = angleToMinutes(angle);
-      const newMinutes = Math.max(0, Math.min(convertedMinutes, maxMinutes));
+      const newMinutes = Math.max(minMinutes, Math.min(convertedMinutes, maxMinutes));
       console.log('New minutes:', newMinutes);
       
       currentMinutes.value = newMinutes;
       setDisplayTime(formatTime(newMinutes));
-      setCurrentProgress(newMinutes / maxMinutes);
+      setCurrentProgress((newMinutes - minMinutes) / (maxMinutes - minMinutes));
       onTimeChange?.(newMinutes);
     },
     
@@ -128,11 +153,11 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
       const { locationX, locationY } = event.nativeEvent;
       const angle = positionToAngle(locationX, locationY);
       const convertedMinutes = angleToMinutes(angle);
-      const newMinutes = Math.max(0, Math.min(convertedMinutes, maxMinutes));
+      const newMinutes = Math.max(minMinutes, Math.min(convertedMinutes, maxMinutes));
       
       currentMinutes.value = newMinutes;
       setDisplayTime(formatTime(newMinutes));
-      setCurrentProgress(newMinutes / maxMinutes);
+      setCurrentProgress((newMinutes - minMinutes) / (maxMinutes - minMinutes));
       onTimeChange?.(newMinutes);
     },
     
@@ -145,16 +170,16 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
 
   // Calculate progress for active arc
   const progress = useDerivedValue(() => {
-    return currentMinutes.value / maxMinutes;
+    return (currentMinutes.value - minMinutes) / (maxMinutes - minMinutes);
   });
 
 
-  // Create animated style for semi-circular arc
-  const semiArcStyle = useAnimatedStyle(() => {
-    const progressValue = currentMinutes.value / maxMinutes;
+  // Create animated style for 280-degree arc
+  const arcStyle = useAnimatedStyle(() => {
+    const progressValue = (currentMinutes.value - minMinutes) / (maxMinutes - minMinutes);
     
-    // For semi-circular arc, we'll use strokeDasharray to show progress
-    const circumference = Math.PI * radius; // Half circle circumference
+    // For 280-degree arc, calculate circumference and dash offset
+    const circumference = (280 / 360) * 2 * Math.PI * radius; // 280° arc circumference
     const strokeDashoffset = circumference * (1 - progressValue);
     
     return {
@@ -175,32 +200,42 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
       >
         {/* SVG for precise arc rendering */}
         <Svg width={size} height={size} style={styles.svg}>
-          {/* Inactive track - thin gray semi-circle from left to right */}
+          {/* Inactive track - 280-degree arc starting at 220° */}
           <Path
-            d={`M ${center - radius} ${center}
-                A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+            d={`M ${center + radius * Math.cos((220 * Math.PI) / 180)} ${center + radius * Math.sin((220 * Math.PI) / 180)}
+                A ${radius} ${radius} 0 1 1 ${center + radius * Math.cos((140 * Math.PI) / 180)} ${center + radius * Math.sin((140 * Math.PI) / 180)}`}
             stroke="#F2F2F7"
             strokeWidth={inactiveStrokeWidth}
             fill="none"
             strokeLinecap="round"
           />
           
-          {/* Active arc - thick pink semi-circular from left to right */}
+          {/* Active arc - thick pink 280-degree arc starting at 220° */}
           {currentProgress > 0 && (
             <Path
-              d={`M ${center - radius} ${center}
-                  A ${radius} ${radius} 0 0 1 ${center + radius} ${center}`}
+              d={`M ${center + radius * Math.cos((220 * Math.PI) / 180)} ${center + radius * Math.sin((220 * Math.PI) / 180)}
+                  A ${radius} ${radius} 0 1 1 ${center + radius * Math.cos((140 * Math.PI) / 180)} ${center + radius * Math.sin((140 * Math.PI) / 180)}`}
               stroke="#EC4899"
               strokeWidth={activeStrokeWidth}
               fill="none"
               strokeLinecap="round"
-              strokeDasharray={`${Math.PI * radius}`}
-              strokeDashoffset={Math.PI * radius * (1 - currentProgress)}
+              strokeDasharray={`${(280 / 360) * 2 * Math.PI * radius}`}
+              strokeDashoffset={(280 / 360) * 2 * Math.PI * radius * (1 - currentProgress)}
             />
           )}
+          
+          {/* Start indicator - circle at 220° */}
+          <Circle
+            cx={center + radius * Math.cos((220 * Math.PI) / 180)}
+            cy={center + radius * Math.sin((220 * Math.PI) / 180)}
+            r={10}
+            fill="#EC4899"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+          />
         </Svg>
 
-        {/* Center Display with HH:MM and SS */}
+        {/* Center Display with HH:MM */}
         <View style={[styles.centerDisplay, { 
           width: radius * 1.4, 
           height: radius * 1.4,
@@ -208,9 +243,6 @@ const CircularTimePicker: React.FC<CircularTimePickerProps> = ({
         }]}>
           <Text style={styles.timeText}>
             {displayTime}
-          </Text>
-          <Text style={styles.secondsText}>
-            {displaySeconds}
           </Text>
         </View>
       </View>

@@ -241,7 +241,7 @@ const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
     const newDate = new Date(viewDate);
     newDate.setFullYear(year);
     setViewDate(newDate);
-    setCurrentView('month');
+    setCurrentView('calendar');
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -386,26 +386,98 @@ const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
                 <>
                   {/* Date Section */}
                   <View style={styles.section}>
-                    {/* Calendar Header */}
+                    {/* Calendar Header with Time */}
                     <View style={styles.calendarHeader}>
-                      <TouchableOpacity onPress={() => navigateMonth('prev')}>
-                        <Text style={styles.navButton}>‹</Text>
-                      </TouchableOpacity>
+                      {/* Top Row - Month/Year and Navigation */}
+                      <View style={styles.headerTopRow}>
+                        <View style={styles.monthYearContainer}>
+                          <TouchableOpacity
+                            onPress={() => setCurrentView('month')}
+                          >
+                            <Text style={styles.monthYear}>
+                              {monthNames[viewDate.getMonth()]}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setCurrentView('year')}
+                          >
+                            <Text style={styles.yearButton}>
+                              {viewDate.getFullYear()}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
 
-                      <View style={styles.monthYearContainer}>
+                        <View style={styles.navigationButtons}>
+                          <TouchableOpacity onPress={() => navigateMonth('prev')}>
+                            <Text style={styles.navButton}>‹</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => navigateMonth('next')}>
+                            <Text style={styles.navButton}>›</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      
+                      {/* Bottom Row - Time Selection */}
+                      <View style={styles.timeRowInHeader}>
+                        <Text style={styles.timeRowTitle}>Time</Text>
+
                         <TouchableOpacity
-                          onPress={() => setCurrentView('month')}
+                          style={styles.timeDisplayCompact}
+                          onPress={() => setShowTimePicker(true)}
                         >
-                          <Text style={styles.monthYear}>
-                            {monthNames[viewDate.getMonth()]}{' '}
-                            {viewDate.getFullYear()}
+                          <Text style={styles.timeDisplayTextCompact}>
+                            {formatDisplayTime(selectedTime)}
                           </Text>
                         </TouchableOpacity>
-                      </View>
 
-                      <TouchableOpacity onPress={() => navigateMonth('next')}>
-                        <Text style={styles.navButton}>›</Text>
-                      </TouchableOpacity>
+                        <View style={styles.ampmTabs}>
+                          <TouchableOpacity
+                            style={[
+                              styles.ampmTab,
+                              getAMPM(selectedTime) === 'AM' &&
+                                styles.ampmTabActive,
+                            ]}
+                            onPress={() => {
+                              if (getAMPM(selectedTime) !== 'AM') {
+                                handleAMPMToggle();
+                              }
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.ampmTabText,
+                                getAMPM(selectedTime) === 'AM' &&
+                                  styles.ampmTabTextActive,
+                              ]}
+                            >
+                              AM
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.ampmTab,
+                              getAMPM(selectedTime) === 'PM' &&
+                                styles.ampmTabActive,
+                            ]}
+                            onPress={() => {
+                              if (getAMPM(selectedTime) !== 'PM') {
+                                handleAMPMToggle();
+                              }
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.ampmTabText,
+                                getAMPM(selectedTime) === 'PM' &&
+                                  styles.ampmTabTextActive,
+                              ]}
+                            >
+                              PM
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     </View>
 
                     {/* Calendar Views */}
@@ -524,70 +596,6 @@ const ModernDateTimePicker: React.FC<ModernDateTimePickerProps> = ({
                       </ScrollView>
                     )}
                   </View>
-
-                  {/* Time Section */}
-                  <View style={[styles.section, { paddingBottom: 0 }]}>
-                    <View style={styles.timeRow}>
-                      <Text style={styles.timeRowTitle}>Time</Text>
-
-                      <TouchableOpacity
-                        style={styles.timeDisplayCompact}
-                        onPress={() => setShowTimePicker(true)}
-                      >
-                        <Text style={styles.timeDisplayTextCompact}>
-                          {formatDisplayTime(selectedTime)}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <View style={styles.ampmTabs}>
-                        <TouchableOpacity
-                          style={[
-                            styles.ampmTab,
-                            getAMPM(selectedTime) === 'AM' &&
-                              styles.ampmTabActive,
-                          ]}
-                          onPress={() => {
-                            if (getAMPM(selectedTime) !== 'AM') {
-                              handleAMPMToggle();
-                            }
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.ampmTabText,
-                              getAMPM(selectedTime) === 'AM' &&
-                                styles.ampmTabTextActive,
-                            ]}
-                          >
-                            AM
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.ampmTab,
-                            getAMPM(selectedTime) === 'PM' &&
-                              styles.ampmTabActive,
-                          ]}
-                          onPress={() => {
-                            if (getAMPM(selectedTime) !== 'PM') {
-                              handleAMPMToggle();
-                            }
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.ampmTabText,
-                              getAMPM(selectedTime) === 'PM' &&
-                                styles.ampmTabTextActive,
-                            ]}
-                          >
-                            PM
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
                 </>
               ) : (
                 /* Time Picker Content */
@@ -692,46 +700,85 @@ const styles = StyleSheet.create({
 
   // Calendar Styles
   calendarHeader: {
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  navButton: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    marginBottom: 12,
   },
   monthYearContainer: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
   monthYear: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.textPrimary,
   },
+  yearButton: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  navButton: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    minWidth: 32,
+    textAlign: 'center',
+  },
+  
+  // Time Row in Header
+  timeRowInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  },
   calendar: {
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     padding: 16,
     minHeight: 300,
   },
   weekHeader: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   weekHeaderDay: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   weekHeaderText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.primary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   calendarGrid: {
     flexDirection: 'row',
@@ -740,19 +787,22 @@ const styles = StyleSheet.create({
   },
   calendarDay: {
     width: '14.28%',
-    height: 40,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-    marginBottom: 4,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   calendarDayToday: {
-    backgroundColor: colors.textSecondary + '20',
-    borderWidth: 1,
-    borderColor: colors.textSecondary,
+    backgroundColor: 'rgba(236, 72, 153, 0.05)',
+    borderColor: 'rgba(236, 72, 153, 0.2)',
   },
   calendarDaySelected: {
-    backgroundColor: '#FFB8C5', // Light pink for selected days
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+    borderColor: colors.primary,
   },
   calendarDayInactive: {
     opacity: 0.3,
@@ -763,12 +813,12 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   calendarDayTextToday: {
-    color: colors.textSecondary,
+    color: colors.primary,
     fontWeight: '600',
   },
   calendarDayTextSelected: {
-    color: colors.textPrimary,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
   },
   calendarDayTextInactive: {
     color: colors.textTertiary,
@@ -779,17 +829,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    padding: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   monthItem: {
     width: '28%',
     paddingVertical: 16,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   monthItemSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+    borderColor: colors.primary,
   },
   monthText: {
     fontSize: 14,
@@ -797,23 +855,32 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   monthTextSelected: {
-    color: colors.white,
+    color: colors.primary,
+    fontWeight: '700',
   },
 
   // Year List Styles
   yearList: {
     maxHeight: 200,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    padding: 16,
   },
   yearItem: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    marginBottom: 4,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    marginBottom: 8,
     alignItems: 'center',
   },
   yearItemSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+    borderColor: colors.primary,
   },
   yearText: {
     fontSize: 16,
@@ -821,8 +888,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   yearTextSelected: {
-    color: colors.white,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
   },
 
   // New Time Interface Styles - Compact Row Layout
@@ -830,6 +897,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   timeRowTitle: {
     fontSize: 16,
@@ -838,12 +911,12 @@ const styles = StyleSheet.create({
     // No marginBottom - keeps it perfectly aligned in the row
   },
   timeDisplayCompact: {
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -855,13 +928,13 @@ const styles = StyleSheet.create({
   },
   ampmTabs: {
     flexDirection: 'row',
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     padding: 2,
     width: 80,
-    height: 44, // Match time display height (10px padding * 2 + text height)
+    height: 40,
   },
   ampmTab: {
     paddingVertical: 8,

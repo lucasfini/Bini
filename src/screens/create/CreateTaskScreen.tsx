@@ -33,6 +33,7 @@ import {
 import EmojiTray from '../../components/EmojiTray';
 import DateTray from '../../components/DateTray';
 import AlertsTray from '../../components/AlertsTray';
+import CustomDurationTray from '../../components/CustomDurationTray';
 import TrayManager from '../../components/TrayManager';
 
 // Import the new modern form components
@@ -276,6 +277,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   const [showEmojiTray, setShowEmojiTray] = useState(false);
   const [showDateTray, setShowDateTray] = useState(false);
   const [showAlertsTray, setShowAlertsTray] = useState(false);
+  const [showCustomDurationTray, setShowCustomDurationTray] = useState(false);
   const [showModernDateTime, setShowModernDateTime] = useState(false);
 
   const [showRecurrenceDetails, setShowRecurrenceDetails] = useState(false);
@@ -455,45 +457,119 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
 
         {/* Partner Share */}
         <View style={styles.section}>
-          <PartnerShareCheckbox
-            checked={formData.isShared}
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>SHARE WITH PARTNER</Text>
+            <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+          </View>
+          
+          <TouchableOpacity
+            style={[
+              styles.partnerShareModernContainer,
+              formData.isShared && styles.partnerShareModernContainerActive
+            ]}
             onPress={() => updateField('isShared', !formData.isShared)}
-          />
+            activeOpacity={0.8}
+          >
+            <View style={styles.partnerShareContent}>
+              {/* Profile Picture */}
+              <View style={styles.profileContainer}>
+                <View style={[styles.profileRing, formData.isShared && styles.profileRingActive]}>
+                  <Image
+                    source={{
+                      uri: 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=120&h=120&fit=crop&crop=face',
+                    }}
+                    style={styles.profileImage}
+                  />
+                  <View style={styles.onlineIndicator} />
+                </View>
+              </View>
+              
+              {/* Text Content */}
+              <View style={styles.partnerTextContent}>
+                <View style={styles.partnerNameRow}>
+                  <Text style={styles.partnerName}>Sarah</Text>
+                  <View style={styles.partnerBadge}>
+                    <Text style={styles.partnerBadgeText}>Partner</Text>
+                  </View>
+                </View>
+                <Text style={styles.partnerSubtext}>
+                  {formData.isShared
+                    ? 'Will be notified about this task'
+                    : 'Tap to share this task with your partner'}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* When? - Modern Date/Time Picker */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>When?</Text>
-          {/* Debug info */}
-          {console.log('Form data when:', formData.when)}
+        {/* Combined Scheduling Section */}
+        <View style={styles.combinedSection}>
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>SCHEDULED FOR</Text>
+            <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+          </View>
+          
           <TouchableOpacity
-            style={styles.modernDateTimeButton}
+            style={styles.modernWhenContainer}
             onPress={() => setShowModernDateTime(true)}
+            activeOpacity={0.8}
           >
-            <View style={styles.dateTimeDisplay}>
-              <View style={styles.dateSection}>
-                <Text style={styles.dateLabel}>Date</Text>
-                <Text style={styles.dateValue}>
+            {/* Main Content */}
+            <View style={styles.whenContent}>
+              {/* Date Section */}
+              <View style={styles.dateBlock}>
+                <Text style={styles.dayText}>
                   {(() => {
                     try {
                       const date = new Date(formData.when.date);
                       if (isNaN(date.getTime())) {
-                        return 'Select Date';
+                        return 'Select';
                       }
                       return date.toLocaleDateString('en-US', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        year: 'numeric',
-                      });
+                        weekday: 'short',
+                      }).toUpperCase();
                     } catch (error) {
-                      return 'Select Date';
+                      return 'SELECT';
+                    }
+                  })()}
+                </Text>
+                <Text style={styles.dateNumber}>
+                  {(() => {
+                    try {
+                      const date = new Date(formData.when.date);
+                      if (isNaN(date.getTime())) {
+                        return '--';
+                      }
+                      return date.getDate().toString().padStart(2, '0');
+                    } catch (error) {
+                      return '--';
+                    }
+                  })()}
+                </Text>
+                <Text style={styles.monthText}>
+                  {(() => {
+                    try {
+                      const date = new Date(formData.when.date);
+                      if (isNaN(date.getTime())) {
+                        return 'Month';
+                      }
+                      return date.toLocaleDateString('en-US', {
+                        month: 'short',
+                      }).toUpperCase();
+                    } catch (error) {
+                      return 'MONTH';
                     }
                   })()}
                 </Text>
               </View>
-              <View style={styles.timeSection}>
-                <Text style={styles.timeLabel}>Time</Text>
-                <Text style={styles.timeValue}>
+
+              {/* Divider */}
+              <View style={styles.verticalDivider} />
+
+              {/* Time Section */}
+              <View style={styles.timeBlock}>
+                <Text style={styles.timeLabel}>AT</Text>
+                <Text style={styles.timeDisplay}>
                   {(() => {
                     try {
                       if (!formData.when.time) {
@@ -512,95 +588,305 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
                     }
                   })()}
                 </Text>
+                <Text style={styles.timeSubtext}>Start time</Text>
               </View>
             </View>
           </TouchableOpacity>
-        </View>
 
-        {/* Duration */}
-        <View style={styles.section}>
+          {/* TIME SPENT Section - No border divider */}
+          <View style={styles.timeSpentSubsection}>
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>TIME SPENT</Text>
+            <View style={styles.titleRowActions}>
+              <TouchableOpacity 
+                onPress={() => setShowCustomDurationTray(true)}
+                style={styles.customButton}
+              >
+                <Text style={[styles.customButtonText, { color: colors.primary }]}>
+                  Custom
+                </Text>
+              </TouchableOpacity>
+              <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+            </View>
+          </View>
+          
+          {/* Duration Display - close to title */}
+          <View style={styles.durationDisplayContainer}>
+            <Text style={styles.durationDisplayText}>
+              {(() => {
+                const startTime = formData.when.time;
+                const duration = formData.durationMinutes;
+                
+                if (!startTime) return `${duration >= 60 ? Math.floor(duration / 60) + 'h ' : ''}${duration % 60 > 0 ? (duration % 60) + 'm' : ''}`;
+                
+                try {
+                  const [hours, minutes] = startTime.split(':').map(Number);
+                  const startMinutes = hours * 60 + minutes;
+                  const endMinutes = startMinutes + duration;
+                  const endHours = Math.floor(endMinutes / 60) % 24;
+                  const endMins = endMinutes % 60;
+                  const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+                  
+                  const formatTime12Hour = (timeStr: string): string => {
+                    const [h, m] = timeStr.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(h, m);
+                    return date.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    });
+                  };
+                  
+                  return `${formatTime12Hour(startTime)} - ${formatTime12Hour(endTime)}`;
+                } catch {
+                  return `${duration >= 60 ? Math.floor(duration / 60) + 'h ' : ''}${duration % 60 > 0 ? (duration % 60) + 'm' : ''}`;
+                }
+              })()}
+            </Text>
+          </View>
+          
           <ModernTimeSpentSlider
             initialValue={formData.durationMinutes}
+            showHeader={false}
             onValueChange={value => updateField('durationMinutes', value)}
+            startTime={formData.when.time}
           />
+          </View>
         </View>
 
         {/* Recurrence */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recurrence</Text>
-          <RecurrenceSelector
-            options={['None', 'Daily', 'Weekly', 'Monthly']}
-            selectedValue={
-              formData.recurrence.frequency.charAt(0).toUpperCase() +
-              formData.recurrence.frequency.slice(1)
-            }
-            onSelect={value => {
-              const frequency = value.toLowerCase() as
-                | 'none'
-                | 'daily'
-                | 'weekly'
-                | 'monthly';
-              updateField('recurrence', {
-                ...formData.recurrence,
-                frequency,
-              });
-              setShowRecurrenceDetails(frequency !== 'none');
-            }}
-          />
-
-          {showRecurrenceDetails &&
-            formData.recurrence.frequency !== 'none' && (
-              <View style={styles.recurrenceDetails}>
-                <Text style={styles.detailLabel}>Every</Text>
-                <View style={styles.intervalRow}>
-                  {[1, 2, 3, 4].map(interval => (
-                    <TouchableOpacity
-                      key={interval}
-                      style={[
-                        styles.intervalButton,
-                        formData.recurrence.interval === interval &&
-                          styles.intervalButtonActive,
-                      ]}
-                      onPress={() =>
-                        updateField('recurrence', {
-                          ...formData.recurrence,
-                          interval,
-                        })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.intervalButtonText,
-                          formData.recurrence.interval === interval &&
-                            styles.intervalButtonTextActive,
-                        ]}
-                      >
-                        {interval}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  <Text style={styles.intervalLabel}>
-                    {formData.recurrence.frequency === 'daily'
-                      ? 'day(s)'
-                      : formData.recurrence.frequency === 'weekly'
-                      ? 'week(s)'
-                      : formData.recurrence.frequency === 'monthly'
-                      ? 'month(s)'
-                      : ''}
-                  </Text>
-                </View>
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>REPEAT</Text>
+            <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+          </View>
+          
+          <TouchableOpacity
+            style={styles.recurrenceModernContainer}
+            onPress={() => setShowRecurrenceDetails(!showRecurrenceDetails)}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              styles.recurrenceContent,
+              formData.recurrence.frequency !== 'none' && styles.recurrenceContentActive
+            ]}>
+              <View style={styles.recurrenceTextContent}>
+                <Text style={styles.recurrenceMainText}>
+                  {formData.recurrence.frequency === 'none' 
+                    ? 'Once' 
+                    : formData.recurrence.frequency.charAt(0).toUpperCase() + formData.recurrence.frequency.slice(1)
+                  }
+                </Text>
+                <Text style={styles.recurrenceSubtext}>
+                  {formData.recurrence.frequency === 'none'
+                    ? 'Task occurs once'
+                    : formData.recurrence.frequency === 'weekly' && formData.recurrence.daysOfWeek && formData.recurrence.daysOfWeek.length > 0
+                      ? formData.recurrence.daysOfWeek
+                          .sort((a, b) => parseInt(a) - parseInt(b))
+                          .map(dayIndex => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][parseInt(dayIndex)])
+                          .join(' ')
+                      : `Every ${formData.recurrence.interval} ${formData.recurrence.frequency === 'daily' ? 'day' : formData.recurrence.frequency === 'weekly' ? 'week' : 'month'}${formData.recurrence.interval > 1 ? 's' : ''}`
+                  }
+                </Text>
               </View>
-            )}
+              
+              <View style={[
+                styles.recurrenceArrow,
+                formData.recurrence.frequency !== 'none' && styles.recurrenceArrowActive
+              ]}>
+                <Text style={[
+                  styles.recurrenceArrowText,
+                  formData.recurrence.frequency !== 'none' && styles.recurrenceArrowTextActive
+                ]}>
+                  {showRecurrenceDetails ? '−' : '+'}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Recurrence Options */}
+          {showRecurrenceDetails && (
+            <View style={styles.recurrenceOptionsContainer}>
+              {/* Main Options */}
+              <View style={styles.recurrenceOptions}>
+                {['Once', 'Daily', 'Weekly', 'Monthly'].map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.recurrenceOptionButton,
+                      formData.recurrence.frequency === (option === 'Once' ? 'none' : option.toLowerCase()) && styles.recurrenceOptionButtonActive
+                    ]}
+                    onPress={() => {
+                      const frequency = option === 'Once' ? 'none' : option.toLowerCase() as 'none' | 'daily' | 'weekly' | 'monthly';
+                      updateField('recurrence', {
+                        ...formData.recurrence,
+                        frequency,
+                        interval: 1, // Reset interval when changing frequency
+                      });
+                    }}
+                  >
+                    <Text style={[
+                      styles.recurrenceOptionText,
+                      formData.recurrence.frequency === (option === 'Once' ? 'none' : option.toLowerCase()) && styles.recurrenceOptionTextActive
+                    ]}>
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Sub Options */}
+              {formData.recurrence.frequency === 'daily' && (
+                <View style={styles.subOptionsContainer}>
+                  <View style={styles.intervalControl}>
+                    <Text style={styles.intervalLabel}>Every</Text>
+                    <Text style={styles.intervalNumberPink}>{formData.recurrence.interval}</Text>
+                    <Text style={styles.intervalLabel}>
+                      {formData.recurrence.interval === 1 ? 'day' : 'days'}
+                    </Text>
+                    <View style={styles.arrowContainer}>
+                      <TouchableOpacity
+                        style={styles.arrowButton}
+                        onPress={() => {
+                          const newInterval = Math.max(1, formData.recurrence.interval - 1);
+                          updateField('recurrence', {
+                            ...formData.recurrence,
+                            interval: newInterval,
+                          });
+                        }}
+                      >
+                        <Text style={styles.arrowText}>‹</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.arrowButton}
+                        onPress={() => {
+                          const newInterval = Math.min(365, formData.recurrence.interval + 1);
+                          updateField('recurrence', {
+                            ...formData.recurrence,
+                            interval: newInterval,
+                          });
+                        }}
+                      >
+                        <Text style={styles.arrowText}>›</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+              
+              {formData.recurrence.frequency === 'weekly' && (
+                <View style={styles.subOptionsContainer}>
+                  <Text style={styles.subOptionsTitle}>Days of the week:</Text>
+                  <View style={styles.weekDaysContainer}>
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.weekDayButton,
+                          formData.recurrence.daysOfWeek?.includes(index.toString()) && styles.weekDayButtonActive
+                        ]}
+                        onPress={() => {
+                          const currentDays = formData.recurrence.daysOfWeek || [];
+                          const dayStr = index.toString();
+                          const newDays = currentDays.includes(dayStr)
+                            ? currentDays.filter(d => d !== dayStr)
+                            : [...currentDays, dayStr];
+                          updateField('recurrence', {
+                            ...formData.recurrence,
+                            daysOfWeek: newDays,
+                          });
+                        }}
+                      >
+                        <Text style={[
+                          styles.weekDayText,
+                          formData.recurrence.daysOfWeek?.includes(index.toString()) && styles.weekDayTextActive
+                        ]}>
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+              
+              {formData.recurrence.frequency === 'monthly' && (
+                <View style={styles.subOptionsContainer}>
+                  <View style={styles.intervalControl}>
+                    <Text style={styles.intervalLabel}>Every</Text>
+                    <Text style={styles.intervalNumberPink}>{formData.recurrence.interval}</Text>
+                    <Text style={styles.intervalLabel}>
+                      {formData.recurrence.interval === 1 ? 'month' : 'months'}
+                    </Text>
+                    <View style={styles.arrowContainer}>
+                      <TouchableOpacity
+                        style={styles.arrowButton}
+                        onPress={() => {
+                          const newInterval = Math.max(1, formData.recurrence.interval - 1);
+                          updateField('recurrence', {
+                            ...formData.recurrence,
+                            interval: newInterval,
+                          });
+                        }}
+                      >
+                        <Text style={styles.arrowText}>‹</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.arrowButton}
+                        onPress={() => {
+                          const newInterval = Math.min(12, formData.recurrence.interval + 1);
+                          updateField('recurrence', {
+                            ...formData.recurrence,
+                            interval: newInterval,
+                          });
+                        }}
+                      >
+                        <Text style={styles.arrowText}>›</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Alerts */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Alerts</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>ALERTS</Text>
+            <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+          </View>
+          
           <TouchableOpacity
-            style={styles.alertsButton}
+            style={styles.alertsModernContainer}
             onPress={() => setShowAlertsTray(true)}
+            activeOpacity={0.8}
           >
-            <Text style={styles.alertsButtonText}>Select alerts +</Text>
+            <View style={[
+              styles.alertsContent,
+              formData.alerts.length > 0 && styles.alertsContentActive
+            ]}>
+              <View style={styles.alertsTextContent}>
+                <Text style={styles.alertsMainText}>Select Alerts</Text>
+                <Text style={styles.alertsSubtext}>
+                  {formData.alerts.length > 0 
+                    ? `${formData.alerts.length} alert${formData.alerts.length > 1 ? 's' : ''} selected`
+                    : 'Choose when to be notified'
+                  }
+                </Text>
+              </View>
+              
+              <View style={[
+                styles.alertsArrow,
+                formData.alerts.length > 0 && styles.alertsArrowActive
+              ]}>
+                <Text style={[
+                  styles.alertsArrowText,
+                  formData.alerts.length > 0 && styles.alertsArrowTextActive
+                ]}>+</Text>
+              </View>
+            </View>
           </TouchableOpacity>
 
           {/* Selected Alerts Display */}
@@ -625,7 +911,10 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
 
         {/* Details & Subtasks */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details & Steps</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.sectionTitle}>DETAILS & STEPS</Text>
+            <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+          </View>
           <TextInput
             style={styles.detailsInput}
             value={formData.details}
@@ -728,6 +1017,15 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           }}
         />
 
+        {/* Custom Duration Tray */}
+        <CustomDurationTray
+          visible={showCustomDurationTray}
+          onClose={() => setShowCustomDurationTray(false)}
+          selectedDuration={formData.durationMinutes}
+          onDurationChange={duration => updateField('durationMinutes', duration)}
+          useCircularPicker={true}
+        />
+
         {/* Modern Date/Time Picker */}
         <ModernDateTimePicker
           visible={showModernDateTime}
@@ -797,15 +1095,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   emoji: {
     fontSize: 32,
@@ -825,38 +1120,50 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  
+  // Combined Section Styles
+  combinedSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  timeSpentSubsection: {
+    marginTop: 24,
+  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 0,
   },
 
   // Modern Partner Share Styles
-  partnerShareContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    marginHorizontal: 4,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  partnerShareModernContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.2)',
+    backgroundColor: 'transparent',
   },
-  partnerShareContainerActive: {
-    backgroundColor: '#F0F9F0',
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.15,
-  },
-  partnerShareTouchable: {
-    padding: 20,
+  partnerShareModernContainerActive: {
+    backgroundColor: 'rgba(236, 72, 153, 0.08)',
+    borderColor: 'rgba(236, 72, 153, 0.3)',
   },
   partnerShareContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+  },
+  partnerTextContent: {
+    flex: 1,
+    marginLeft: 16,
   },
 
   // Enhanced Profile Picture Styles
@@ -890,30 +1197,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
     borderWidth: 2,
     borderColor: colors.surface,
-  },
-  checkmarkContainer: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    zIndex: 10,
-  },
-  checkmarkBackground: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  checkmarkIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
 
   // Enhanced Text Styles
@@ -1117,22 +1400,59 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  // Alerts Button
-  alertsButton: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 12,
+  // Modern Alerts Styles
+  alertsModernContainer: {
     alignItems: 'center',
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingVertical: 12,
   },
-  alertsButtonText: {
+  alertsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    minWidth: 280,
+  },
+  alertsTextContent: {
+    flex: 1,
+  },
+  alertsMainText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  alertsSubtext: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    opacity: 0.8,
+  },
+  alertsArrow: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertsArrowText: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  alertsContentActive: {
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    borderColor: colors.primary,
+  },
+  alertsArrowTextActive: {
+    color: colors.primary,
+  },
+  alertsArrowActive: {
+    backgroundColor: 'transparent',
   },
 
   // Selected Alerts Display
@@ -1298,63 +1618,328 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Modern Date/Time Button Styles
-  modernDateTimeButton: {
-    backgroundColor: colors.surface,
+  // Modern When Container Styles
+  modernWhenContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 0,
+    width: '100%',
+  },
+  
+  // When Title Row
+  whenTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  editDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    opacity: 0.7,
+  },
+  
+  // When Content
+  whenContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
     borderRadius: 16,
-    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    marginHorizontal: 40,
+  },
+  
+  // Date Block
+  dateBlock: {
+    alignItems: 'center',
+    paddingRight: 20,
+  },
+  dayText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  dateNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    lineHeight: 36,
+    marginBottom: 2,
+  },
+  monthText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  
+  // Vertical Divider
+  verticalDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: colors.border,
+    marginHorizontal: 20,
+  },
+  
+  // Time Block
+  timeBlock: {
+    flex: 1,
+    paddingLeft: 4,
+  },
+  timeLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  timeDisplay: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  timeSubtext: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    opacity: 0.8,
+  },
+
+  // Consistent title row styles
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 16,
   },
-  dateTimeDisplay: {
+  titleRowActions: {
     flexDirection: 'row',
-    flex: 1,
-    gap: 24,
+    alignItems: 'center',
+    gap: 12,
   },
-  dateSection: {
-    flex: 1,
+  customButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
-  timeSection: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: 12,
+  customButtonText: {
+    fontSize: 13,
     fontWeight: '500',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    textTransform: 'uppercase',
+  },
+  actionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.7,
+  },
+  
+  // Duration display - close to title
+  durationDisplayContainer: {
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    marginTop: -8,
+  },
+  durationDisplayText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(236, 72, 153, 0.7)',
     letterSpacing: 0.5,
   },
-  timeLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  
+  // Modern Recurrence Styles
+  recurrenceModernContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
   },
-  dateValue: {
+  recurrenceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    minWidth: 280,
+  },
+  recurrenceTextContent: {
+    flex: 1,
+  },
+  recurrenceMainText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.textPrimary,
+    marginBottom: 2,
   },
-  timeValue: {
-    fontSize: 16,
+  recurrenceSubtext: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    opacity: 0.8,
+  },
+  recurrenceArrow: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recurrenceArrowText: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  recurrenceContentActive: {
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    borderColor: colors.primary,
+  },
+  recurrenceArrowTextActive: {
+    color: colors.primary,
+  },
+  recurrenceArrowActive: {
+    backgroundColor: 'transparent',
+  },
+  
+  // Recurrence Options
+  recurrenceOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+  },
+  recurrenceOptionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recurrenceOptionButtonActive: {
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    borderColor: colors.primary,
+  },
+  recurrenceOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  recurrenceOptionTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+
+  // Section container styles
+  alertsContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  
+  // Recurrence sub-options styles
+  recurrenceOptionsContainer: {
+    marginTop: 16,
+  },
+  subOptionsContainer: {
+    marginTop: 12,
+  },
+  subOptionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Interval control styles (for daily/monthly)
+  intervalControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  intervalLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  arrowButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrowText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  intervalNumber: {
+    fontSize: 18,
     fontWeight: '600',
     color: colors.textPrimary,
+    minWidth: 30,
+    textAlign: 'center',
   },
-  editIndicator: {
+  intervalNumberPink: {
     fontSize: 16,
-    opacity: 0.6,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  arrowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+  },
+  
+  // Weekly controls styles
+  weekDaysContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  weekDayButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDayButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  weekDayText: {
+    fontSize: 12,
+    fontWeight: '500',
     color: colors.textSecondary,
+  },
+  weekDayTextActive: {
+    color: colors.white,
+    fontWeight: '600',
   },
 });
 

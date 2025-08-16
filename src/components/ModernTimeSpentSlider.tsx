@@ -23,6 +23,7 @@ import {
 import { runOnJS } from 'react-native-reanimated';
 import CustomDurationTray from './CustomDurationTray';
 import { useTheme } from '../context/ThemeContext';
+import { colors } from '../styles';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -41,12 +42,16 @@ interface ModernTimeSpentSliderProps {
   initialValue?: number;
   onValueChange?: (minutes: number) => void;
   containerWidth?: number;
+  startTime?: string;
+  showHeader?: boolean;
 }
 
 const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
   initialValue = 60,
   onValueChange,
   containerWidth,
+  startTime,
+  showHeader = true,
 }) => {
   const { theme } = useTheme();
   const [showCustomTray, setShowCustomTray] = useState(false);
@@ -105,22 +110,46 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
   // Find initial index and position
   const getInitialIndexFromValue = (value: number) => {
     const index = TIME_OPTIONS.findIndex(option => option.value === value);
-    return index >= 0 ? index : 3; // Default to 1 hour if not found
+    return index >= 0 ? index : -1; // Return -1 if not found (custom value)
   };
 
   // Shared values for animations
   const initialIndex = getInitialIndexFromValue(initialValue);
-  const translateX = useSharedValue(indexToPosition(initialIndex));
+  const getInitialPosition = () => {
+    if (initialIndex >= 0) {
+      return indexToPosition(initialIndex);
+    } else {
+      // Custom value, position proportionally
+      const minValue = 1;
+      const maxValue = 120;
+      const percentage = (initialValue - minValue) / (maxValue - minValue);
+      return Math.max(0, Math.min(sliderWidth, percentage * sliderWidth));
+    }
+  };
+  const translateX = useSharedValue(getInitialPosition());
   const scale = useSharedValue(1);
   const isDragging = useSharedValue(false);
 
   // Update animations when initialValue changes
   useEffect(() => {
     const newIndex = getInitialIndexFromValue(initialValue);
-    translateX.value = withSpring(indexToPosition(newIndex), {
-      damping: 20,
-      stiffness: 200,
-    });
+    if (newIndex >= 0) {
+      // Value exists in TIME_OPTIONS, position on that option
+      translateX.value = withSpring(indexToPosition(newIndex), {
+        damping: 20,
+        stiffness: 200,
+      });
+    } else {
+      // Custom value, position proportionally between min and max
+      const minValue = 1;
+      const maxValue = 120;
+      const percentage = (initialValue - minValue) / (maxValue - minValue);
+      const customPosition = Math.max(0, Math.min(sliderWidth, percentage * sliderWidth));
+      translateX.value = withSpring(customPosition, {
+        damping: 20,
+        stiffness: 200,
+      });
+    }
   }, [initialValue, sliderWidth]);
 
   // Haptic feedback helper
@@ -185,6 +214,16 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
     ],
   }));
 
+  // Custom label style - always centered above thumb
+  const customLabelAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { scale: scale.value },
+      ],
+    };
+  });
+
   const trackAnimatedStyle = useAnimatedStyle(() => {
     // Calculate progress directly from position (0 to 1)
     const progress = translateX.value / sliderWidth;
@@ -199,25 +238,97 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
   // Get current value label for display
   const getCurrentLabel = () => {
     if (initialValue >= 60) {
-      return initialValue === 60 ? '1h' : `${(initialValue / 60).toFixed(1)}h`;
+      const hours = Math.floor(initialValue / 60);
+      const minutes = initialValue % 60;
+      if (minutes === 0) {
+        return `${hours}h`;
+      } else {
+        return `${hours}h ${minutes}m`;
+      }
     }
     return `${initialValue}m`;
   };
 
+  // Check if current value is a preset
+  const isPresetValue = () => {
+    return TIME_OPTIONS.some(option => option.value === initialValue);
+  };
+
+  // Calculate end time based on start time and duration
+  const calculateEndTime = (startTimeStr: string, durationMinutes: number): string => {
+    if (!startTimeStr) return '';
+    
+    try {
+      const [hours, minutes] = startTimeStr.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + durationMinutes;
+      const endHours = Math.floor(endMinutes / 60) % 24;
+      const endMins = endMinutes % 60;
+      return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // Format time to 12-hour format
+  const formatTime12Hour = (timeStr: string): string => {
+    if (!timeStr) return '';
+    
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const date = new Date();
+      date.setHours(hours, minutes);
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return timeStr;
+    }
+  };
+
+  // Get time range display
+  const getTimeRangeDisplay = () => {
+    if (!startTime) return getCurrentLabel();
+    
+    const endTime = calculateEndTime(startTime, initialValue);
+    const startFormatted = formatTime12Hour(startTime);
+    const endFormatted = formatTime12Hour(endTime);
+    
+    return `${startFormatted} - ${endFormatted}`;
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header with Title and Extra */}
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-          Time spent?
-        </Text>
-        <TouchableOpacity onPress={() => setShowCustomTray(true)}>
-          <Text style={[styles.extraButton, { color: theme.primary }]}>
-            extra..
+      {/* Premium Header */}
+      {showHeader && (
+        <View style={styles.premiumHeader}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+            TIME SPENT
           </Text>
-        </TouchableOpacity>
-      </View>
-
+          
+          {startTime && (
+            <Text style={[styles.centerTimeRange, { color: theme.textSecondary }]}>
+              {getTimeRangeDisplay()}
+            </Text>
+          )}
+          
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              onPress={() => setShowCustomTray(true)}
+              style={styles.customButton}
+            >
+              <Text style={[styles.customButtonText, { color: theme.primary }]}>
+                Custom
+              </Text>
+            </TouchableOpacity>
+            <View style={[styles.actionDot, { backgroundColor: theme.primary }]} />
+          </View>
+        </View>
+        </View>
+      )}
 
       {/* Slider Section */}
       <GestureHandlerRootView style={styles.sliderSection}>
@@ -228,6 +339,13 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
           {/* Active Track */}
           <Animated.View style={[styles.activeTrack, trackAnimatedStyle]} />
           
+          
+          {/* Custom Value Label */}
+          {!isPresetValue() && (
+            <Animated.View style={[styles.customValueLabel, customLabelAnimatedStyle]}>
+              <Text style={styles.customValueText}>{getCurrentLabel()}</Text>
+            </Animated.View>
+          )}
           
           {/* Draggable Thumb */}
           <PanGestureHandler onGestureEvent={gestureHandler}>
@@ -282,29 +400,61 @@ const ModernTimeSpentSlider: React.FC<ModernTimeSpentSliderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  
+  // Premium Header Styles
+  premiumHeader: {
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 5,
   },
-  headerTitle: {
-    fontSize: 16,
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  sectionLabel: {
+    fontSize: 11,
     fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  extraButton: {
-    fontSize: 16,
-    fontWeight: '400',
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  customButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  customButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  actionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.7,
+  },
+  centerTimeRange: {
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    opacity: 0.8,
+    textAlign: 'center',
+    flex: 1,
   },
   sliderSection: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   sliderContainer: {
     height: 60,
@@ -356,7 +506,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     top: 15, // Center vertically in 60px container (30px - 12px = 18px)
-    left: -12, // Center the thumb (-width/2)
+    left: -20, // Center the thumb (-width/2 = -40/2 = -20)
   },
   thumbInner: {
     width: 38,
@@ -375,13 +525,40 @@ const styles = StyleSheet.create({
     width: 40,
   },
   intervalLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#8E8E93',
     fontWeight: '400',
   },
   intervalLabelActive: {
     color: '#EC4899',
     fontWeight: '600',
+  },
+  customValueLabel: {
+    position: 'absolute',
+    top: -10, // Position closer to the thumb, just above it
+    left: -30, // Center the label (-width/2 = -60/2 = -30)
+    width: 60,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: '#EC4899',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
+    zIndex: 10,
+  },
+  customValueText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
 
