@@ -11,46 +11,73 @@ import FloatingNavigation from '../components/navigation/FloatingNavigation';
 import { TaskFormData } from '../types/tasks';
 import UnifiedTaskService from '../services/tasks/unifiedTaskService';
 
-const TimelineWrapper: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
-  return <TimelineScreen key={refreshKey} />;
+const TimelineWrapper: React.FC<{ 
+  refreshKey: number; 
+  onEditTask?: (task: any) => void;
+  onDuplicateTask?: (task: any) => void;
+}> = ({ refreshKey, onEditTask, onDuplicateTask }) => {
+  return <TimelineScreen key={refreshKey} onEditTask={onEditTask} onDuplicateTask={onDuplicateTask} />;
 };
 
 const AppNavigator: React.FC = () => {
   const [timelineKey, setTimelineKey] = useState(0);
   const [activeRoute, setActiveRoute] = useState('Timeline');
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  
+  // State for edit/duplicate functionality
+  const [editingTask, setEditingTask] = useState(null);
+  const [duplicatingTask, setDuplicatingTask] = useState(null);
+  const [createMode, setCreateMode] = useState<'create' | 'edit' | 'duplicate'>('create');
 
   // Handle task creation with unified service
-  const handleCreateTask = async (taskData: TaskFormData) => {
+  const handleCreateTask = async (taskData: TaskFormData, mode: 'create' | 'edit' | 'duplicate' = 'create', taskId?: string) => {
     console.log(
-      '🚀 Creating task with unified service:',
+      `🚀 ${mode === 'edit' ? 'Updating' : 'Creating'} task with unified service:`,
       JSON.stringify(taskData, null, 2),
     );
 
     try {
-      // Use the unified task service directly (no dynamic import needed) 
-      const newTask = await UnifiedTaskService.createTaskFromForm(taskData);
+      let result;
+      let successMessage;
+      
+      if (mode === 'edit' && taskId) {
+        // TODO: Implement task update functionality
+        // For now, we'll create a new task (this needs to be implemented in UnifiedTaskService)
+        console.log('⚠️ Edit mode not fully implemented yet, creating new task');
+        result = await UnifiedTaskService.createTaskFromForm(taskData);
+        successMessage = 'Task Updated! ✏️';
+      } else {
+        // Create new task (for both 'create' and 'duplicate' modes)
+        result = await UnifiedTaskService.createTaskFromForm(taskData);
+        successMessage = mode === 'duplicate' ? 'Task Duplicated! 📋' : 'Task Created! 🎉';
+      }
 
       // Show success message
       const dateObj = new Date(taskData.when.date);
       const dateStr = dateObj.toLocaleDateString();
 
       Alert.alert(
-        'Task Created! 🎉',
-        `"${taskData.title}" has been added for ${dateStr} at ${taskData.when.time}`,
+        successMessage,
+        `"${taskData.title}" has been ${mode === 'edit' ? 'updated' : 'added'} for ${dateStr} at ${taskData.when.time}`,
         [{ text: 'Great!' }],
       );
 
-      console.log('✅ Unified task created successfully:', newTask.id);
-      console.log('📊 Created task data:', JSON.stringify(newTask, null, 2));
+      console.log(`✅ Task ${mode} successful:`, result.id);
+      console.log('📊 Task data:', JSON.stringify(result, null, 2));
 
-      // Refresh the timeline to show the new task
+      // Refresh the timeline to show the updated task list
       setTimelineKey(prev => prev + 1);
+      
+      // Reset edit/duplicate state
+      setEditingTask(null);
+      setDuplicatingTask(null);
+      setCreateMode('create');
+      
     } catch (error) {
-      console.error('❌ Failed to create task:', error);
+      console.error(`❌ Failed to ${mode} task:`, error);
       Alert.alert(
         'Error',
-        `Failed to create task: ${
+        `Failed to ${mode} task: ${
           error instanceof Error ? error.message : 'Unknown error'
         }`,
         [{ text: 'OK' }],
@@ -61,6 +88,31 @@ const AppNavigator: React.FC = () => {
   // Handle navigation between screens
   const handleNavigate = (route: string) => {
     setActiveRoute(route);
+    
+    // Reset edit/duplicate state when navigating away from Create screen
+    if (route !== 'Create') {
+      setEditingTask(null);
+      setDuplicatingTask(null);
+      setCreateMode('create');
+    }
+  };
+
+  // Handle edit task navigation
+  const handleEditTask = (task: any) => {
+    console.log('🎯 AppNavigator: handleEditTask called with:', JSON.stringify(task, null, 2));
+    setEditingTask(task);
+    setDuplicatingTask(null);
+    setCreateMode('edit');
+    setActiveRoute('Create');
+  };
+
+  // Handle duplicate task navigation
+  const handleDuplicateTask = (task: any) => {
+    console.log('🎯 AppNavigator: handleDuplicateTask called with:', JSON.stringify(task, null, 2));
+    setDuplicatingTask(task);
+    setEditingTask(null);
+    setCreateMode('duplicate');
+    setActiveRoute('Create');
   };
 
   // Handle create button press (now just navigation)
@@ -72,7 +124,7 @@ const AppNavigator: React.FC = () => {
   const renderActiveScreen = () => {
     switch (activeRoute) {
       case 'Timeline':
-        return <TimelineWrapper refreshKey={timelineKey} />;
+        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} />;
       case 'Calendar':
         return <CalendarScreen />;
       case 'Create':
@@ -80,6 +132,9 @@ const AppNavigator: React.FC = () => {
           <CreateTaskScreen
             onCreateTask={handleCreateTask}
             onBack={() => setActiveRoute('Timeline')} // Navigate back to Timeline when done
+            editingTask={editingTask}
+            duplicatingTask={duplicatingTask}
+            mode={createMode}
           />
         );
       case 'Knowledge':

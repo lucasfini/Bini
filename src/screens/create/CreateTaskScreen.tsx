@@ -48,8 +48,11 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 import { TaskFormData } from '../../types/tasks';
 
 interface CreateTaskProps {
-  onCreateTask: (task: TaskFormData) => void;
+  onCreateTask: (task: TaskFormData, mode?: 'create' | 'edit' | 'duplicate', taskId?: string) => void;
   onBack?: () => void;
+  editingTask?: any; // Task being edited
+  duplicatingTask?: any; // Task being duplicated
+  mode?: 'create' | 'edit' | 'duplicate';
 }
 
 // Enhanced Time Selector that shows time range
@@ -253,24 +256,113 @@ const Checkbox: React.FC<{
 const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   onCreateTask,
   onBack,
+  editingTask,
+  duplicatingTask,
+  mode = 'create',
 }) => {
   const { theme } = useTheme();
-  const [formData, setFormData] = useState<TaskFormData>({
-    title: '',
-    emoji: '🍽️',
-    when: {
-      date: new Date().toISOString().split('T')[0],
-      time: '20:30',
-    },
-    durationMinutes: 60,
-    recurrence: {
-      frequency: 'none',
-      interval: 1,
-    },
-    alerts: [],
-    details: '',
-    isShared: false,
-    subtasks: [],
+  
+  // Debug: Log props on mount and change
+  useEffect(() => {
+    console.log('🎬 CreateTaskScreen props:', {
+      mode,
+      editingTask: editingTask ? 'present' : 'null',
+      duplicatingTask: duplicatingTask ? 'present' : 'null'
+    });
+    if (editingTask) {
+      console.log('📝 Editing task data:', JSON.stringify(editingTask, null, 2));
+    }
+    if (duplicatingTask) {
+      console.log('📋 Duplicating task data:', JSON.stringify(duplicatingTask, null, 2));
+    }
+  }, [mode, editingTask, duplicatingTask]);
+
+  // Helper function to convert UnifiedTask to TaskFormData
+  const taskToFormData = (task: any, isDuplicate: boolean = false): TaskFormData => {
+    console.log('🔄 Converting task to form data:', JSON.stringify(task, null, 2));
+    console.log('📋 Is duplicate mode:', isDuplicate);
+    
+    // Debug each field individually
+    console.log('🔍 Field debugging:');
+    console.log('  - task.title:', task.title, '(type:', typeof task.title, ')');
+    console.log('  - task.emoji:', task.emoji, '(type:', typeof task.emoji, ')');
+    console.log('  - task.date:', task.date, '(type:', typeof task.date, ')');
+    console.log('  - task.startTime:', task.startTime, '(type:', typeof task.startTime, ')');
+    console.log('  - task.time:', task.time, '(type:', typeof task.time, ')');
+    console.log('  - task.duration:', task.duration, '(type:', typeof task.duration, ')');
+    console.log('  - task.details:', task.details, '(type:', typeof task.details, ')');
+    console.log('  - task.subtitle:', task.subtitle, '(type:', typeof task.subtitle, ')');
+    console.log('  - task.recurrence:', task.recurrence, '(type:', typeof task.recurrence, ')');
+    console.log('  - task.alerts:', task.alerts, '(type:', typeof task.alerts, ', isArray:', Array.isArray(task.alerts), ')');
+    console.log('  - task.steps:', task.steps, '(type:', typeof task.steps, ', isArray:', Array.isArray(task.steps), ')');
+    console.log('  - task.subtasks:', task.subtasks, '(type:', typeof task.subtasks, ', isArray:', Array.isArray(task.subtasks), ')');
+    console.log('  - task.isShared:', task.isShared, '(type:', typeof task.isShared, ')');
+    
+    const formData = {
+      title: task.title || '',
+      emoji: task.emoji || '🍽️',
+      when: {
+        date: isDuplicate ? new Date().toISOString().split('T')[0] : (task.date || new Date().toISOString().split('T')[0]),
+        time: isDuplicate ? '20:30' : (task.startTime || task.time || '20:30'),
+      },
+      durationMinutes: task.duration || 60,
+      recurrence: task.recurrence || {
+        frequency: 'none',
+        interval: 1,
+        daysOfWeek: [],
+      },
+      alerts: Array.isArray(task.alerts) ? task.alerts : [],
+      details: task.details || task.subtitle || '',
+      isShared: Boolean(task.isShared),
+      subtasks: Array.isArray(task.steps) ? task.steps : (Array.isArray(task.subtasks) ? task.subtasks : []),
+    };
+    
+    console.log('✅ Converted form data:', JSON.stringify(formData, null, 2));
+    
+    // Debug the converted values
+    console.log('🎯 Final converted values:');
+    console.log('  - title:', formData.title, '(length:', formData.title.length, ')');
+    console.log('  - emoji:', formData.emoji);
+    console.log('  - date:', formData.when.date);
+    console.log('  - time:', formData.when.time);
+    console.log('  - duration:', formData.durationMinutes);
+    console.log('  - details:', formData.details, '(length:', formData.details.length, ')');
+    console.log('  - alerts count:', formData.alerts.length);
+    console.log('  - subtasks count:', formData.subtasks.length);
+    
+    return formData;
+  };
+
+  // Initialize form data based on mode
+  const getInitialFormData = (): TaskFormData => {
+    if (mode === 'edit' && editingTask) {
+      return taskToFormData(editingTask, false);
+    } else if (mode === 'duplicate' && duplicatingTask) {
+      return taskToFormData(duplicatingTask, true);
+    } else {
+      return {
+        title: '',
+        emoji: '🍽️',
+        when: {
+          date: new Date().toISOString().split('T')[0],
+          time: '20:30',
+        },
+        durationMinutes: 60,
+        recurrence: {
+          frequency: 'none',
+          interval: 1,
+        },
+        alerts: [],
+        details: '',
+        isShared: false,
+        subtasks: [],
+      };
+    }
+  };
+
+  const [formData, setFormData] = useState<TaskFormData>(() => {
+    console.log('🏁 Initial state calculation, mode:', mode);
+    return getInitialFormData();
   });
 
   // Tray visibility states
@@ -283,6 +375,49 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   const [showRecurrenceDetails, setShowRecurrenceDetails] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(false);
   const titleRef = useRef<TextInput>(null);
+
+  // Reinitialize form data when editing/duplicating task changes
+  useEffect(() => {
+    console.log('🔄 Reinitializing form data, mode:', mode);
+    console.log('📝 Editing task:', editingTask);
+    console.log('📋 Duplicating task:', duplicatingTask);
+    
+    if (mode === 'edit' && editingTask) {
+      const editFormData = taskToFormData(editingTask, false);
+      console.log('✏️ Setting edit form data:', JSON.stringify(editFormData, null, 2));
+      setFormData(editFormData);
+    } else if (mode === 'duplicate' && duplicatingTask) {
+      const duplicateFormData = taskToFormData(duplicatingTask, true);
+      console.log('📋 Setting duplicate form data:', JSON.stringify(duplicateFormData, null, 2));
+      setFormData(duplicateFormData);
+    } else {
+      // Reset to default for create mode
+      const defaultFormData = {
+        title: '',
+        emoji: '🍽️',
+        when: {
+          date: new Date().toISOString().split('T')[0],
+          time: '20:30',
+        },
+        durationMinutes: 60,
+        recurrence: {
+          frequency: 'none',
+          interval: 1,
+        },
+        alerts: [],
+        details: '',
+        isShared: false,
+        subtasks: [],
+      };
+      console.log('🆕 Setting default form data for create mode');
+      setFormData(defaultFormData);
+    }
+  }, [editingTask, duplicatingTask, mode]);
+
+  // Debug: Track formData changes
+  useEffect(() => {
+    console.log('📊 Form data updated:', JSON.stringify(formData, null, 2));
+  }, [formData]);
 
   const alertOptions = [
     { id: 'start', label: 'At start of task' },
@@ -339,25 +474,6 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   };
 
   useEffect(() => {
-    // Initialize form data when component mounts
-    setFormData({
-      title: '',
-      emoji: '🍽️',
-      when: {
-        date: new Date().toISOString().split('T')[0],
-        time: '20:30',
-      },
-      durationMinutes: 60,
-      recurrence: {
-        frequency: 'none',
-        interval: 1,
-      },
-      alerts: [],
-      details: '',
-      isShared: false,
-      subtasks: [],
-    });
-
     // Focus title input after a short delay
     setTimeout(() => titleRef.current?.focus(), 300);
   }, []);
@@ -376,11 +492,12 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
     }
 
     try {
-      await onCreateTask(formData);
+      const taskId = mode === 'edit' ? editingTask?.id : undefined;
+      await onCreateTask(formData, mode, taskId);
       onBack?.(); // Navigate back after successful creation
     } catch (error) {
-      console.error('Task creation failed:', error);
-      Alert.alert('Error', 'Failed to create task. Please try again.');
+      console.error(`Task ${mode} failed:`, error);
+      Alert.alert('Error', `Failed to ${mode} task. Please try again.`);
     }
   };
 
@@ -423,7 +540,9 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>New Task</Text>
+        <Text style={styles.headerTitle}>
+          {mode === 'edit' ? 'Edit Task' : mode === 'duplicate' ? 'Duplicate Task' : 'New Task'}
+        </Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -978,7 +1097,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
               { color: isCreateButtonReady ? colors.white : colors.white },
             ]}
           >
-            Create Task
+            {mode === 'edit' ? 'Update Task' : mode === 'duplicate' ? 'Create Copy' : 'Create Task'}
           </Text>
         </TouchableOpacity>
       </View>

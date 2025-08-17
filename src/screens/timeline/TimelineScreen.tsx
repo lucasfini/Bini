@@ -784,7 +784,12 @@ const generateTimelineDates = () => {
   return dates;
 };
 
-const TimelineScreen: React.FC = () => {
+interface TimelineScreenProps {
+  onEditTask?: (task: any) => void;
+  onDuplicateTask?: (task: any) => void;
+}
+
+const TimelineScreen: React.FC<TimelineScreenProps> = ({ onEditTask, onDuplicateTask }) => {
   const [selectedFilter, setSelectedFilter] = useState<
     'All' | 'Mine' | 'Shared'
   >('All');
@@ -972,6 +977,7 @@ const TimelineScreen: React.FC = () => {
   const handleTaskEdit = (task: UnifiedTask) => {
     console.log('Edit task:', task.title);
     setTaskDetailTrayVisible(false);
+    onEditTask?.(task);
   };
 
   const handleTaskDelete = async (taskId: string) => {
@@ -986,11 +992,107 @@ const TimelineScreen: React.FC = () => {
   const handleTaskDuplicate = (task: UnifiedTask) => {
     console.log('Duplicate task:', task.title);
     setTaskDetailTrayVisible(false);
+    onDuplicateTask?.(task);
   };
 
   const handleTaskComplete = (taskId: string) => {
     toggleTaskCompletion(taskId);
     setTaskDetailTrayVisible(false);
+  };
+
+  // Step handlers for TaskDetailsTray
+  const handleStepToggle = async (taskId: string, stepId: string) => {
+    try {
+      console.log('🔄 Toggling step:', stepId, 'for task:', taskId);
+      
+      // Find the task in realTasks
+      let targetTask: UnifiedTask | null = null;
+      for (const dateKey in realTasks) {
+        const task = realTasks[dateKey].find(t => t.id === taskId);
+        if (task) {
+          targetTask = task;
+          break;
+        }
+      }
+      
+      if (!targetTask) {
+        console.error('Task not found:', taskId);
+        return;
+      }
+      
+      // Toggle the step
+      const updatedSteps = targetTask.steps?.map(step =>
+        step.id === stepId ? { ...step, completed: !step.completed } : step
+      ) || [];
+      
+      // Update via API
+      await updateTaskSteps(taskId, updatedSteps);
+      
+      // Update the selected task for the detail view
+      if (selectedTaskForDetail?.id === taskId) {
+        setSelectedTaskForDetail({
+          ...selectedTaskForDetail,
+          steps: updatedSteps,
+          subtasks: updatedSteps, // Keep backward compatibility
+        });
+      }
+      
+      // Refresh tasks to get updated data
+      await refreshTasks();
+      
+    } catch (error) {
+      console.error('Failed to toggle step:', error);
+    }
+  };
+
+  const handleAddStepToTask = async (taskId: string, stepText?: string) => {
+    if (!stepText) return;
+    
+    try {
+      console.log('➕ Adding step to task:', taskId, 'Text:', stepText);
+      
+      // Find the task in realTasks
+      let targetTask: UnifiedTask | null = null;
+      for (const dateKey in realTasks) {
+        const task = realTasks[dateKey].find(t => t.id === taskId);
+        if (task) {
+          targetTask = task;
+          break;
+        }
+      }
+      
+      if (!targetTask) {
+        console.error('Task not found:', taskId);
+        return;
+      }
+      
+      const newStep = {
+        id: Date.now().toString(),
+        title: stepText,
+        completed: false,
+      };
+      
+      // Add the new step
+      const updatedSteps = [...(targetTask.steps || []), newStep];
+      
+      // Update via API
+      await updateTaskSteps(taskId, updatedSteps);
+      
+      // Update the selected task for the detail view
+      if (selectedTaskForDetail?.id === taskId) {
+        setSelectedTaskForDetail({
+          ...selectedTaskForDetail,
+          steps: updatedSteps,
+          subtasks: updatedSteps, // Keep backward compatibility
+        });
+      }
+      
+      // Refresh tasks to get updated data
+      await refreshTasks();
+      
+    } catch (error) {
+      console.error('Failed to add step:', error);
+    }
   };
 
   // FIXED: Updated subtask toggle handler using unified fields
@@ -1061,6 +1163,29 @@ const TimelineScreen: React.FC = () => {
       return colors.accentSecondary;
     };
 
+    const getCategoryIcon = () => {
+      // Return appropriate icon based on task category or content
+      if (task.title.toLowerCase().includes('work') || task.title.toLowerCase().includes('meeting')) {
+        return '💼';
+      } else if (task.title.toLowerCase().includes('health') || task.title.toLowerCase().includes('exercise')) {
+        return '🏃‍♀️';
+      } else if (task.title.toLowerCase().includes('study') || task.title.toLowerCase().includes('learn')) {
+        return '📚';
+      } else if (task.title.toLowerCase().includes('food') || task.title.toLowerCase().includes('eat')) {
+        return '🍽️';
+      } else if (task.isShared) {
+        return '💕';
+      }
+      return '📝'; // Default
+    };
+
+    const getCardBackgroundColor = () => {
+      if (task.isCompleted) return colors.background;
+      if (task.isShared) return colors.accentPrimary + '08';
+      if (task.priority === 'high') return colors.accentWarning + '08';
+      return colors.surface;
+    };
+
     // FIXED: Get time display using unified fields
     const getTimeDisplay = () => {
       const displayTime = task.startTime || task.time || 'TODO';
@@ -1075,27 +1200,55 @@ const TimelineScreen: React.FC = () => {
         ]}
         {...swipeHandler.panHandlers}
       >
-        <Pressable onPress={handleTaskPress} style={styles.taskItem}>
-          <View style={styles.taskContent}>
-            {/* Time or Status */}
-            <View style={styles.taskTimeContainer}>
-              {task.isCompleted ? (
-                <Text style={styles.taskStatusDone}>DONE</Text>
-              ) : getTimeDisplay() === 'TODO' ? (
-                <Text
-                  style={[styles.taskStatusTodo, { color: getAccentColor() }]}
+        <View style={styles.taskItemContainer}>
+          {/* Timeline Dot */}
+          <View style={styles.timelineColumn}>
+            <View style={[styles.timelineDot, { backgroundColor: getAccentColor() }]} />
+            <View style={styles.timelineConnector} />
+          </View>
+
+          {/* Task Card */}
+          <Pressable 
+            onPress={handleTaskPress} 
+            style={[
+              styles.taskCard,
+              { backgroundColor: getCardBackgroundColor() },
+              task.isCompleted && styles.taskCardCompleted,
+            ]}
+          >
+            {/* Card Header */}
+            <View style={styles.taskCardHeader}>
+              {/* Category Icon */}
+              <View style={[styles.categoryIcon, { backgroundColor: getAccentColor() + '20' }]}>
+                <Text style={styles.categoryIconText}>{getCategoryIcon()}</Text>
+              </View>
+
+              {/* Time Badge */}
+              <View style={[styles.timeBadge, { backgroundColor: getAccentColor() + '15' }]}>
+                {task.isCompleted ? (
+                  <Text style={[styles.timeBadgeText, { color: colors.completed }]}>DONE</Text>
+                ) : getTimeDisplay() === 'TODO' ? (
+                  <Text style={[styles.timeBadgeText, { color: getAccentColor() }]}>TODO</Text>
+                ) : (
+                  <Text style={[styles.timeBadgeText, { color: getAccentColor() }]}>
+                    {getTimeDisplay()}
+                  </Text>
+                )}
+              </View>
+
+              {/* Shared indicator */}
+              {task.isShared && (
+                <TouchableOpacity
+                  onPress={handleSharedIconPress}
+                  style={[styles.sharedBadgeNew, { backgroundColor: colors.accentPrimary + '20' }]}
                 >
-                  TODO
-                </Text>
-              ) : (
-                <Text style={[styles.taskTime, { color: getAccentColor() }]}>
-                  {getTimeDisplay()}
-                </Text>
+                  <Users size={14} color={colors.accentPrimary} />
+                </TouchableOpacity>
               )}
             </View>
 
-            {/* Task Details */}
-            <View style={styles.taskDetails}>
+            {/* Task Content */}
+            <View style={styles.taskCardContent}>
               <View style={styles.taskTitleRow}>
                 {task.emoji && (
                   <Text 
@@ -1118,7 +1271,7 @@ const TimelineScreen: React.FC = () => {
 
                 {/* Group Tag - only show if task is shared */}
                 {group && task.isShared && (
-                  <TouchableOpacity style={styles.groupTag}>
+                  <View style={styles.groupTag}>
                     <View
                       style={[
                         styles.groupTagDot,
@@ -1126,17 +1279,7 @@ const TimelineScreen: React.FC = () => {
                       ]}
                     />
                     <Text style={styles.groupTagText}>{group.shortName}</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Shared indicator */}
-                {task.isShared && (
-                  <TouchableOpacity
-                    onPress={handleSharedIconPress}
-                    style={styles.sharedIndicator}
-                  >
-                    <Users size={12} color={colors.textSecondary} />
-                  </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
@@ -1151,77 +1294,120 @@ const TimelineScreen: React.FC = () => {
                   {task.details || task.subtitle}
                 </Text>
               )}
-            </View>
-          </View>
 
-          {/* Reactions */}
-          {reactions.length > 0 && (
-            <View style={styles.reactionsContainer}>
-              <ReactionDisplay
-                reactions={reactions}
-                onReactionPress={reaction =>
-                  console.log('Reaction pressed:', reaction)
-                }
-              />
+              {/* Task Progress Indicator */}
+              {task.steps && task.steps.length > 0 && (
+                <View style={styles.progressIndicator}>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill,
+                        { 
+                          width: `${(task.steps.filter(s => s.completed).length / task.steps.length) * 100}%`,
+                          backgroundColor: getAccentColor()
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {task.steps.filter(s => s.completed).length}/{task.steps.length} steps
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
-        </Pressable>
+
+            {/* Reactions */}
+            {reactions.length > 0 && (
+              <View style={styles.reactionsContainer}>
+                <ReactionDisplay
+                  reactions={reactions}
+                  onReactionPress={reaction =>
+                    console.log('Reaction pressed:', reaction)
+                  }
+                />
+              </View>
+            )}
+          </Pressable>
+        </View>
       </Animated.View>
     );
   };
 
-  // Empty State Component
+  // Empty State Component - Matching Create Task Page Design
   const EmptyTimelineState: React.FC = () => {
-    const getEmptyStateContent = () => {
-      switch (selectedFilter) {
-        case 'Mine':
-          return {
-            emoji: '📝',
-            title: 'No Personal Tasks Yet',
-            subtitle: 'Your personal task timeline is empty',
-            description: 'Create your first personal task to get started with planning your day!'
-          };
-        case 'Shared':
-          return {
-            emoji: '👥',
-            title: 'No Shared Tasks Yet',
-            subtitle: 'Your shared task timeline is empty',
-            description: 'Create tasks with "Share with partner" enabled to collaborate together!'
-          };
-        default:
-          return {
-            emoji: '🌟',
-            title: 'Your Timeline Awaits',
-            subtitle: 'No tasks scheduled yet',
-            description: 'Create your first task to start organizing your day and achieving your goals!'
-          };
-      }
-    };
-
-    const content = getEmptyStateContent();
-
     return (
       <View style={styles.emptyStateContainer}>
-        <View style={styles.emptyStateContent}>
-          <Text style={styles.emptyStateEmoji}>{content.emoji}</Text>
-          <Text style={styles.emptyStateTitle}>{content.title}</Text>
-          <Text style={styles.emptyStateSubtitle}>{content.subtitle}</Text>
-          <Text style={styles.emptyStateDescription}>{content.description}</Text>
-          
-          <View style={styles.emptyStateActions}>
-            <TouchableOpacity style={styles.emptyStateButton}>
-              <PlusCircle size={20} color={colors.white} />
-              <Text style={styles.emptyStateButtonText}>Create Your First Task</Text>
-            </TouchableOpacity>
+        {/* Main Content */}
+        <View style={styles.emptyContent}>
+          {/* Header Section */}
+          <View style={styles.emptyHeaderSection}>
+            <Text style={styles.emptyWelcomeText}>Ready to plan your day?</Text>
+            <Text style={styles.emptySubtext}>
+              Create your first task to get started with your productive timeline
+            </Text>
           </View>
-          
-          <View style={styles.emptyStateTips}>
-            <Text style={styles.emptyStateTipsTitle}>✨ Pro Tips:</Text>
-            <Text style={styles.emptyStateTip}>• Set specific times for better planning</Text>
-            <Text style={styles.emptyStateTip}>• Add steps to break down complex tasks</Text>
-            <Text style={styles.emptyStateTip}>• Use emojis to make tasks more fun</Text>
-            <Text style={styles.emptyStateTip}>• Share tasks with your partner to collaborate</Text>
+
+          {/* Preview Section - mimic create task form style */}
+          <View style={styles.emptyPreviewSection}>
+            <View style={styles.titleRow}>
+              <Text style={styles.sectionTitle}>YOUR FIRST TASK</Text>
+              <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+            </View>
+            
+            {/* Task Preview Container */}
+            <View style={styles.taskPreviewContainer}>
+              <View style={styles.emojiPlaceholder}>
+                <Text style={styles.placeholderEmoji}>🎯</Text>
+              </View>
+              <View style={styles.taskPreviewContent}>
+                <Text style={styles.taskPreviewTitle}>What needs to be done?</Text>
+                <Text style={styles.taskPreviewSubtext}>
+                  Add a title, set the time, and you're ready to go
+                </Text>
+              </View>
+            </View>
           </View>
+
+          {/* Features Preview */}
+          <View style={styles.featuresSection}>
+            <View style={styles.titleRow}>
+              <Text style={styles.sectionTitle}>FEATURES</Text>
+              <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+            </View>
+            
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>📅</Text>
+                <Text style={styles.featureText}>Schedule for any day</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>⏰</Text>
+                <Text style={styles.featureText}>Set time and duration</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>🔄</Text>
+                <Text style={styles.featureText}>Add recurring tasks</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>👥</Text>
+                <Text style={styles.featureText}>Share with your partner</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom CTA - matching create task button style */}
+        <View style={styles.emptyCtaSection}>
+          <TouchableOpacity 
+            style={styles.emptyCreateButton} 
+            activeOpacity={0.8}
+            onPress={() => {
+              // Navigate to create task screen
+              console.log('Navigate to create task screen');
+            }}
+          >
+            <Text style={styles.emptyCreateButtonText}>Create Your First Task</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -1340,6 +1526,8 @@ const TimelineScreen: React.FC = () => {
         onDelete={(task) => handleTaskDelete(task.id)}
         onDuplicate={handleTaskDuplicate}
         onComplete={(task) => handleTaskComplete(task.id)}
+        onStepToggle={handleStepToggle}
+        onAddStep={handleAddStepToTask}
       />
 
       {/* Encouragement Modal */}
@@ -1442,6 +1630,179 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingRight: 20,
   },
+  
+  // Enhanced Task Card Styles
+  taskItemContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    alignItems: 'flex-start',
+  },
+  timelineColumn: {
+    alignItems: 'center',
+    paddingTop: 8,
+    marginRight: 16,
+    width: 20,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginBottom: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  timelineConnector: {
+    width: 2,
+    flex: 1,
+    backgroundColor: colors.border,
+    minHeight: 40,
+  },
+  
+  taskCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  taskCardCompleted: {
+    opacity: 0.7,
+  },
+  
+  taskCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryIconText: {
+    fontSize: 16,
+  },
+  
+  timeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginLeft: 'auto',
+    marginRight: 8,
+  },
+  timeBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  
+  sharedBadgeNew: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  taskCardContent: {
+    gap: 8,
+  },
+  
+  taskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+    flexWrap: 'wrap',
+  },
+  taskEmoji: {
+    fontSize: 16,
+  },
+  taskTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  taskTitleCompleted: {
+    color: colors.completed,
+    textDecorationLine: 'line-through',
+  },
+  
+  groupTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    gap: 4,
+  },
+  groupTagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  groupTagText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  
+  taskSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  taskSubtitleCompleted: {
+    color: colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  
+  progressIndicator: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    minWidth: 60,
+  },
+  
+  reactionsContainer: {
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+
+  // Legacy styles for compatibility
   taskItem: {
     marginBottom: 16,
     backgroundColor: 'transparent',
@@ -1476,46 +1837,6 @@ const styles = StyleSheet.create({
   taskDetails: {
     flex: 1,
   },
-  taskTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingLeft: 45,
-    marginBottom: 2,
-    flexWrap: 'wrap',
-  },
-  taskEmoji: {
-    fontSize: 16,
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  taskTitleCompleted: {
-    color: colors.completed,
-    textDecorationLine: 'line-through',
-  },
-  groupTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    gap: 4,
-  },
-  groupTagDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  groupTagText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
   sharedIndicator: {
     width: 20,
     height: 20,
@@ -1523,20 +1844,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  taskSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    paddingLeft: 45,
-  },
-  taskSubtitleCompleted: {
-    color: colors.textTertiary,
-    textDecorationLine: 'line-through',
-  },
-  reactionsContainer: {
-    marginTop: 8,
-    marginLeft: 76,
   },
 
   // Task Detail Tray Styles
@@ -1887,87 +2194,146 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Empty State Styles
+  // Empty State Styles - Matching Create Task Page Design
   emptyStateContainer: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  
+  emptyContent: {
+    flex: 1,
+    paddingTop: 40,
+  },
+  
+  // Header Section
+  emptyHeaderSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 32,
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 60,
-    minHeight: screenHeight * 0.7,
   },
-  emptyStateContent: {
-    alignItems: 'center',
-    maxWidth: 320,
-  },
-  emptyStateEmoji: {
-    fontSize: 64,
-    marginBottom: 24,
-  },
-  emptyStateTitle: {
+  
+  emptyWelcomeText: {
     fontSize: 24,
     fontWeight: '600',
     color: colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptyStateSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
     marginBottom: 12,
   },
-  emptyStateDescription: {
-    fontSize: 15,
-    color: colors.textTertiary,
+  
+  emptySubtext: {
+    fontSize: 16,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 32,
+    paddingHorizontal: 20,
   },
-  emptyStateActions: {
-    width: '100%',
-    marginBottom: 40,
+  
+  // Preview Section - matching create task form sections
+  emptyPreviewSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  emptyStateButton: {
-    backgroundColor: colors.accentPrimary,
+  
+  taskPreviewContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
+    backgroundColor: 'transparent',
     borderRadius: 16,
-    gap: 8,
-    shadowColor: colors.accentPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  emptyStateButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  emptyStateTips: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
-  emptyStateTipsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 12,
-    textAlign: 'center',
+  
+  emojiPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
-  emptyStateTip: {
+  
+  placeholderEmoji: {
+    fontSize: 32,
+  },
+  
+  taskPreviewContent: {
+    flex: 1,
+  },
+  
+  taskPreviewTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: colors.textTertiary,
+    marginBottom: 4,
+  },
+  
+  taskPreviewSubtext: {
     fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 6,
+    lineHeight: 18,
+  },
+  
+  // Features Section
+  featuresSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  
+  featuresList: {
+    gap: 16,
+  },
+  
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  
+  featureIcon: {
+    fontSize: 20,
+    marginRight: 16,
+    width: 32,
+    textAlign: 'center',
+  },
+  
+  featureText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  
+  // Bottom CTA Section - matching create button exactly
+  emptyCtaSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  
+  emptyCreateButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  
+  emptyCreateButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.white,
   },
 });
 

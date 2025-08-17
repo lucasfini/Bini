@@ -8,6 +8,7 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -29,6 +30,7 @@ import {
   Plus,
 } from '@tamagui/lucide-icons';
 import { UnifiedTask } from '../types/tasks';
+import { colors } from '../styles';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -40,13 +42,11 @@ interface TaskDetailsTrayProps {
   onDuplicate?: (task: UnifiedTask) => void;
   onDelete?: (task: UnifiedTask) => void;
   onComplete?: (task: UnifiedTask) => void;
+  onStepToggle?: (taskId: string, stepId: string) => void;
+  onAddStep?: (taskId: string, stepText?: string) => void;
 }
 
-// Using consistent colors matching CreateTaskScreen
-const colors = {
-  white: '#FFFFFF',
-  icon: '#666666',
-};
+// Using colors from design system
 
 const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
   visible,
@@ -56,11 +56,17 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
   onDuplicate,
   onDelete,
   onComplete,
+  onStepToggle,
+  onAddStep,
 }) => {
   const translateY = useSharedValue(screenHeight);
+  const containerHeight = useSharedValue(250); // Start with compact height
+  const [isExpanded, setIsExpanded] = React.useState(false);
 
   React.useEffect(() => {
     if (visible) {
+      setIsExpanded(false); // Reset to collapsed when opening
+      containerHeight.value = 250; // Reset to compact height
       translateY.value = withSpring(0, {
         damping: 15,
         stiffness: 120,
@@ -70,11 +76,101 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
     }
   }, [visible]);
 
+  React.useEffect(() => {
+    if (isExpanded) {
+      containerHeight.value = withSpring(screenHeight * 0.8, {
+        damping: 18,
+        stiffness: 100,
+      });
+    } else {
+      containerHeight.value = withSpring(250, {
+        damping: 18,
+        stiffness: 100,
+      });
+    }
+  }, [isExpanded]);
+
   const trayStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
+    height: containerHeight.value,
   }));
 
   if (!task) return null;
+
+  // Enhanced button handlers with user feedback
+  const handleEdit = () => {
+    onEdit?.(task);
+    onClose(); // Close tray when editing
+  };
+
+  const handleDuplicate = () => {
+    Alert.alert(
+      'Duplicate Task',
+      `Create a copy of "${task.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Duplicate', 
+          onPress: () => {
+            onDuplicate?.(task);
+            onClose();
+          }
+        },
+      ]
+    );
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Task',
+      `Are you sure you want to delete "${task.title}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            onDelete?.(task);
+            onClose();
+          }
+        },
+      ]
+    );
+  };
+
+  const handleComplete = () => {
+    const action = task.isCompleted ? 'mark as incomplete' : 'complete';
+    Alert.alert(
+      'Complete Task',
+      `${action.charAt(0).toUpperCase() + action.slice(1)} "${task.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: task.isCompleted ? 'Mark Incomplete' : 'Complete', 
+          onPress: () => onComplete?.(task)
+        },
+      ]
+    );
+  };
+
+  const handleAddStep = () => {
+    Alert.prompt(
+      'Add Step',
+      'Enter a description for the new step:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Add', 
+          onPress: (text) => {
+            if (text && text.trim()) {
+              onAddStep?.(task.id, text.trim());
+            }
+          }
+        },
+      ],
+      'plain-text'
+    );
+  };
 
   const formatTime = (time?: string) => {
     if (!time) return 'Not set';
@@ -129,126 +225,45 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
         <Animated.View style={[styles.container, trayStyle]}>
           <View style={styles.containerInner}>
 
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Task Details</Text>
+            {/* Compact Header with Task Info */}
+            <View style={styles.compactHeader}>
+              <View style={styles.taskTitleRow}>
+                <Text style={styles.taskEmoji}>{task.emoji || '📝'}</Text>
+                <View style={styles.taskInfo}>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                  <Text style={styles.taskCategory}>
+                    {task.isShared ? 'Shared' : 'Personal'} • {formatTime(task.startTime || task.time)}
+                    {task.endTime && ` - ${formatTime(task.endTime)}`}
+                  </Text>
+                </View>
+              </View>
               <TouchableOpacity onPress={onClose}>
                 <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              style={styles.content}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Task Title Section */}
-              <View style={styles.section}>
-                <View style={styles.taskTitleRow}>
-                  <Text style={styles.taskEmoji}>{task.emoji || '📝'}</Text>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                </View>
-                <Text style={styles.taskCategory}>
-                  {task.category || 'Personal Task'}
-                </Text>
-              </View>
-
-              {/* Time Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Time</Text>
-                <Text style={styles.sectionValue}>
-                  {formatTime(task.startTime || task.time)}
-                  {task.endTime && ` - ${formatTime(task.endTime)}`}
-                </Text>
-              </View>
-
-              {/* Details Section */}
-              {task.details && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Details</Text>
-                  <Text style={styles.sectionValue}>{task.details}</Text>
-                </View>
-              )}
-
-              {/* Steps Section */}
-              <View style={styles.section}>
-                <View style={styles.stepsHeader}>
-                  <Text style={styles.sectionLabel}>Steps</Text>
-                  <TouchableOpacity style={styles.addButton}>
-                    <Plus size={16} color={colors.icon} />
-                  </TouchableOpacity>
-                </View>
-                {stepsCount > 0 ? (
-                  <>
-                    <Text style={styles.sectionValue}>
-                      {completedSteps} of {stepsCount} completed
-                    </Text>
-                    <View style={styles.stepsList}>
-                      {task.steps?.map((step, index) => (
-                        <View key={step.id} style={styles.stepItem}>
-                          <View
-                            style={[
-                              styles.stepCheckbox,
-                              step.completed && styles.stepCheckboxCompleted,
-                            ]}
-                          >
-                            {step.completed && (
-                              <Check size={12} color={colors.white} />
-                            )}
-                          </View>
-                          <Text
-                            style={[
-                              styles.stepText,
-                              step.completed && styles.stepTextCompleted,
-                            ]}
-                          >
-                            {step.title}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                ) : (
-                  <Text style={styles.sectionValue}>No steps added</Text>
-                )}
-              </View>
-
-              {/* Recurrence Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Recurrence</Text>
-                <Text style={styles.sectionValue}>
-                  {formatRecurrence(task.recurrence)}
-                </Text>
-              </View>
-
-              {/* Alerts Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Alerts</Text>
-                <Text style={styles.sectionValue}>
-                  {formatAlerts(task.alerts)}
-                </Text>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
+            {/* Action Buttons - Always Visible */}
+            <View style={styles.actionButtonsContainer}>
+              <View style={styles.actionButtonsRow}>
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => onEdit?.(task)}
+                  onPress={handleEdit}
                 >
-                  <Edit3 size={16} color={colors.icon} />
+                  <Edit3 size={16} color={colors.textSecondary} />
                   <Text style={styles.actionButtonText}>Edit</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => onDuplicate?.(task)}
+                  onPress={handleDuplicate}
                 >
-                  <Copy size={16} color={colors.icon} />
+                  <Copy size={16} color={colors.textSecondary} />
                   <Text style={styles.actionButtonText}>Duplicate</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => onDelete?.(task)}
+                  onPress={handleDelete}
                 >
                   <Trash2 size={16} color={colors.white} />
                   <Text
@@ -258,23 +273,167 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Complete Task Button */}
-              {!task.isCompleted && (
+              
+              {/* Complete button in separate row */}
+              {!task.isCompleted ? (
                 <TouchableOpacity
-                  style={styles.completeButton}
-                  onPress={() => onComplete?.(task)}
+                  style={styles.completeButtonFull}
+                  onPress={handleComplete}
                 >
-                  <Text style={styles.completeButtonText}>Complete Task</Text>
+                  <Check size={16} color={colors.white} />
+                  <Text style={styles.completeButtonFullText}>Complete Task</Text>
                 </TouchableOpacity>
-              )}
-
-              {task.isCompleted && (
-                <View style={styles.completedIndicator}>
-                  <Text style={styles.completedText}>Task Completed</Text>
+              ) : (
+                <View style={styles.completedButtonFull}>
+                  <Check size={16} color={colors.white} />
+                  <Text style={styles.completedButtonFullText}>Task Completed</Text>
                 </View>
               )}
-            </ScrollView>
+            </View>
+
+            {/* Show Details Button */}
+            {!isExpanded && (
+              <TouchableOpacity
+                style={styles.showDetailsButton}
+                onPress={() => setIsExpanded(true)}
+              >
+                <Text style={styles.showDetailsButtonText}>Show Details</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Expanded Content */}
+            {isExpanded && (
+              <>
+                <ScrollView
+                  style={styles.expandedContent}
+                  showsVerticalScrollIndicator={false}
+                >
+              {/* Enhanced Details Cards */}
+              <View style={styles.detailsContainer}>
+                {/* Time Card */}
+                <View style={styles.detailCard}>
+                  <View style={styles.detailCardHeader}>
+                    <Clock size={16} color={colors.primary} />
+                    <Text style={styles.detailCardTitle}>Scheduled Time</Text>
+                  </View>
+                  <Text style={styles.detailCardValue}>
+                    {formatTime(task.startTime || task.time)}
+                    {task.endTime && ` - ${formatTime(task.endTime)}`}
+                  </Text>
+                </View>
+
+                {/* Details Card */}
+                {task.details && (
+                  <View style={styles.detailCard}>
+                    <View style={styles.detailCardHeader}>
+                      <FileText size={16} color={colors.primary} />
+                      <Text style={styles.detailCardTitle}>Notes</Text>
+                    </View>
+                    <Text style={styles.detailCardValue}>{task.details}</Text>
+                  </View>
+                )}
+
+                {/* Recurrence Card */}
+                <View style={styles.detailCard}>
+                  <View style={styles.detailCardHeader}>
+                    <RefreshCw size={16} color={colors.primary} />
+                    <Text style={styles.detailCardTitle}>Repeat</Text>
+                  </View>
+                  <Text style={styles.detailCardValue}>
+                    {formatRecurrence(task.recurrence)}
+                  </Text>
+                </View>
+
+                {/* Alerts Card */}
+                <View style={styles.detailCard}>
+                  <View style={styles.detailCardHeader}>
+                    <Bell size={16} color={colors.primary} />
+                    <Text style={styles.detailCardTitle}>Alerts</Text>
+                  </View>
+                  <Text style={styles.detailCardValue}>
+                    {formatAlerts(task.alerts)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Enhanced Steps Section */}
+              <View style={styles.stepsCard}>
+                <View style={styles.stepsCardHeader}>
+                  <View style={styles.detailCardHeader}>
+                    <CheckSquare size={16} color={colors.primary} />
+                    <Text style={styles.detailCardTitle}>Steps</Text>
+                  </View>
+                  <View style={styles.stepsProgress}>
+                    <Text style={styles.stepsProgressText}>
+                      {completedSteps}/{stepsCount}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.addStepButton}
+                      onPress={handleAddStep}
+                    >
+                      <Plus size={14} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                {stepsCount > 0 && (
+                  <View style={styles.stepsProgressBar}>
+                    <View style={styles.stepsProgressBarBg}>
+                      <View 
+                        style={[
+                          styles.stepsProgressBarFill,
+                          { width: `${(completedSteps / stepsCount) * 100}%` }
+                        ]} 
+                      />
+                    </View>
+                  </View>
+                )}
+                
+                {stepsCount > 0 ? (
+                  <View style={styles.stepsList}>
+                    {task.steps?.map((step, index) => (
+                      <TouchableOpacity 
+                        key={step.id} 
+                        style={styles.stepItem}
+                        onPress={() => onStepToggle?.(task.id, step.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View
+                          style={[
+                            styles.stepCheckbox,
+                            step.completed && styles.stepCheckboxCompleted,
+                          ]}
+                        >
+                          {step.completed && (
+                            <Check size={12} color={colors.white} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.stepText,
+                            step.completed && styles.stepTextCompleted,
+                          ]}
+                        >
+                          {step.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyStepsText}>No steps added yet</Text>
+                )}
+              </View>
+                </ScrollView>
+                
+                {/* Hide Details Button - Fixed at bottom */}
+                <TouchableOpacity
+                  style={styles.hideDetailsButton}
+                  onPress={() => setIsExpanded(false)}
+                >
+                  <Text style={styles.hideDetailsButtonText}>Hide Details</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -300,196 +459,287 @@ const styles = StyleSheet.create({
   },
   container: {
     width: screenWidth * 0.9,
-    height: screenHeight * 0.8,
   },
   containerInner: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
     flex: 1,
+    overflow: 'hidden',
   },
-  header: {
+  compactHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    marginBottom: 16,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
+  taskInfo: {
+    flex: 1,
+    marginLeft: 12,
   },
   closeButton: {
     fontSize: 20,
     fontWeight: '400',
-    color: '#666666',
+    color: colors.textSecondary,
     width: 32,
     height: 32,
     textAlign: 'center',
     lineHeight: 32,
   },
-  content: {
-    flex: 1,
+  expandedContent: {
+    maxHeight: screenHeight * 0.5,
+    paddingTop: 16,
   },
-  section: {
+  detailsContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    gap: 12,
+  },
+  detailCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  detailCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  detailCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  detailCardValue: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  stepsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 12,
+  },
+  stepsCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stepsProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepsProgressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  addStepButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepsProgressBar: {
+    marginBottom: 16,
+  },
+  stepsProgressBarBg: {
+    height: 6,
+    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  stepsProgressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
   },
   taskTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  taskEmoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  taskTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000000',
     flex: 1,
   },
-  taskCategory: {
-    fontSize: 14,
-    color: '#666666',
-    fontWeight: '500',
+  taskEmoji: {
+    fontSize: 28,
   },
-  sectionLabel: {
-    fontSize: 11,
+  taskTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#666666',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 8,
+    color: colors.textPrimary,
+    marginBottom: 2,
   },
-  sectionValue: {
-    fontSize: 16,
-    color: '#000000',
+  taskCategory: {
+    fontSize: 12,
+    color: colors.textSecondary,
     fontWeight: '500',
-    lineHeight: 22,
-  },
-  stepsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  addButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   stepsList: {
-    gap: 8,
+    gap: 10,
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(248, 250, 252, 0.8)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: colors.border,
   },
   stepCheckbox: {
     width: 20,
     height: 20,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   stepCheckboxCompleted: {
-    backgroundColor: '#EC4899',
-    borderColor: '#EC4899',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   stepText: {
     fontSize: 14,
-    color: '#000000',
+    color: colors.textPrimary,
     fontWeight: '500',
     flex: 1,
   },
+  emptyStepsText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
   stepTextCompleted: {
     textDecorationLine: 'line-through',
-    color: '#666666',
+    color: colors.textSecondary,
     opacity: 0.7,
   },
-  actionButtons: {
+  actionButtonsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  actionButtonsRow: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
   },
   actionButton: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     borderRadius: 16,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
   },
   actionButtonText: {
-    color: '#000000',
-    fontSize: 14,
+    color: colors.textPrimary,
+    fontSize: 12,
     fontWeight: '500',
   },
   deleteButton: {
-    backgroundColor: '#FF6B6B',
-    borderColor: '#FF6B6B',
+    backgroundColor: colors.error,
+    borderColor: colors.error,
   },
   deleteButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
-  completeButton: {
-    backgroundColor: '#EC4899',
-    borderColor: '#EC4899',
+  completeButtonFull: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    borderWidth: 1,
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    marginHorizontal: 20,
-    marginVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
-  completeButtonText: {
-    color: '#FFFFFF',
+  completeButtonFullText: {
+    color: colors.white,
     fontWeight: '600',
     fontSize: 16,
   },
-  completedIndicator: {
+  completedButtonFull: {
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: colors.success,
     borderRadius: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    marginHorizontal: 20,
-    marginVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  completedButtonFullText: {
+    color: colors.success,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  showDetailsButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 4,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  completedText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-    fontSize: 16,
+  showDetailsButtonText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  hideDetailsButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  hideDetailsButtonText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
 });
 
