@@ -5,6 +5,8 @@ import React, { useEffect } from 'react';
 import { createTamagui, TamaguiProvider } from 'tamagui';
 import { defaultConfig } from '@tamagui/config/v4';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -99,13 +101,17 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <TamaguiProvider config={config}>
-      <ThemeProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </ThemeProvider>
-    </TamaguiProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <TamaguiProvider config={config}>
+          <ThemeProvider>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </ThemeProvider>
+        </TamaguiProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 };
 

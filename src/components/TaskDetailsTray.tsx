@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: 20, // Position above the navigation bar
     paddingHorizontal: 20,
   },
   backdrop: {
@@ -604,17 +604,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(248, 250, 252, 0.8)',
+    backgroundColor: '#2A2A2A',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#3A3A3A',
   },
   stepCheckbox: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: '#3A3A3A',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    color: colors.textPrimary,
+    color: '#FFFFFF',
     fontWeight: '500',
     flex: 1,
   },

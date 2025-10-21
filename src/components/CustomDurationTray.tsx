@@ -39,6 +39,17 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
   useCircularPicker = false,
 }) => {
   const { theme } = useTheme();
+  
+  // Force dark theme for this component
+  const darkTheme = {
+    background: '#1A1A1A',
+    surface: '#2A2A2A',
+    border: '#3A3A3A',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#CCCCCC',
+    textTertiary: '#999999',
+    primary: '#FF6B9D',
+  };
   const [hours, setHours] = useState(Math.floor(selectedDuration / 60));
   const [minutes, setMinutes] = useState(selectedDuration % 60);
 
@@ -173,7 +184,7 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
           <Animated.View style={isCenterItem}>
             <Text style={[
               styles.pickerItemText,
-              { color: theme.textPrimary }
+              { color: darkTheme.textPrimary }
             ]}>
               {value}
             </Text>
@@ -251,7 +262,7 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
       <View style={styles.container}>
         {/* Quick Presets */}
         <View style={styles.presetsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Quick Select</Text>
+          <Text style={[styles.sectionTitle, { color: darkTheme.textPrimary }]}>Quick Select</Text>
           <View style={styles.presetButtons}>
             {[
               { label: '15m', value: 15 },
@@ -265,9 +276,9 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
                 key={preset.value}
                 style={[
                   styles.presetButton,
-                  { backgroundColor: colors.background },
+                  { backgroundColor: darkTheme.surface },
                   (useCircularPicker ? circularPickerValue : (hours * 60 + minutes)) === preset.value && { 
-                    backgroundColor: theme.primary 
+                    backgroundColor: darkTheme.primary 
                   }
                 ]}
                 onPress={() => {
@@ -282,7 +293,7 @@ const CustomDurationTray: React.FC<CustomDurationTrayProps> = ({
               >
                 <Text style={[
                   styles.presetButtonText,
-                  { color: (useCircularPicker ? circularPickerValue : (hours * 60 + minutes)) === preset.value ? colors.white : theme.textPrimary }
+                  { color: (useCircularPicker ? circularPickerValue : (hours * 60 + minutes)) === preset.value ? '#FFFFFF' : darkTheme.textPrimary }
                 ]}>
                   {preset.label}
                 </Text>

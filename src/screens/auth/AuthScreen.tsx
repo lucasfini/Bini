@@ -35,6 +35,15 @@ const AuthScreen: React.FC = () => {
     }
   };
 
+  const handleSkipLogin = async (): Promise<void> => {
+    try {
+      // Create a mock user for development
+      await login({ email: 'dev@test.com', password: 'testpass123' });
+    } catch (err: any) {
+      Alert.alert('Skip Login Error', err.message);
+    }
+  };
+
   const isFormValid = (): boolean => {
     if (!email || !password) return false;
     if (!isLogin && (!name || !confirmPassword)) return false;
@@ -142,6 +151,17 @@ const AuthScreen: React.FC = () => {
               )}
             </TouchableOpacity>
 
+            {/* Skip Login Button - Development Only */}
+            <TouchableOpacity 
+              style={styles.skipButton}
+              onPress={handleSkipLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.skipButtonText}>
+                Skip Login (Dev Mode)
+              </Text>
+            </TouchableOpacity>
+
             {/* Toggle Login/Signup */}
             <View style={styles.toggleContainer}>
               <Text style={styles.toggleText}>
@@ -244,6 +264,20 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.semibold,
+  },
+  skipButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  skipButtonText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
   },
   toggleContainer: {
     flexDirection: 'row',

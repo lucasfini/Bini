@@ -41,11 +41,12 @@ import ModernTimeSpentSlider from '../../components/ModernTimeSpentSlider';
 import RecurrenceSelector from '../../components/RecurrenceSelector';
 import ModernDateTimePicker from '../../components/ModernDateTimePicker';
 import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../styles';
+import { colors, typography, spacing } from '../../styles';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 import { TaskFormData } from '../../types/tasks';
+import { populateSampleTasks } from '../../utils/populateSampleTasks';
 
 interface CreateTaskProps {
   onCreateTask: (task: TaskFormData, mode?: 'create' | 'edit' | 'duplicate', taskId?: string) => void;
@@ -261,6 +262,17 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   mode = 'create',
 }) => {
   const { theme } = useTheme();
+  
+  // Force dark theme for this screen
+  const darkTheme = {
+    background: '#1A1A1A',
+    surface: '#2A2A2A',
+    border: '#3A3A3A',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#CCCCCC',
+    textTertiary: '#999999',
+    primary: '#FF6B9D',
+  };
   
   // Debug: Log props on mount and change
   useEffect(() => {
@@ -525,12 +537,147 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
   // Determine if create button should be solid (all conditions met)
   const isCreateButtonReady = formData.title.trim().length > 0 && isNearBottom;
 
+  // Create theme-aware styles
+  const getThemedStyles = () => {
+    return StyleSheet.create({
+      ...styles,
+      // Override specific styles with dark theme colors
+      container: {
+        ...styles.container,
+        backgroundColor: darkTheme.background,
+      },
+      header: {
+        ...styles.header,
+        backgroundColor: darkTheme.background,
+        borderBottomColor: darkTheme.border,
+      },
+      headerTitle: {
+        ...styles.headerTitle,
+        color: darkTheme.textPrimary,
+      },
+      titleInput: {
+        ...styles.titleInput,
+        color: darkTheme.textPrimary,
+      },
+      sectionTitle: {
+        ...styles.sectionTitle,
+        color: darkTheme.textSecondary,
+      },
+      partnerName: {
+        ...styles.partnerName,
+        color: darkTheme.textPrimary,
+      },
+      partnerSubtext: {
+        ...styles.partnerSubtext,
+        color: darkTheme.textSecondary,
+      },
+      dayText: {
+        ...styles.dayText,
+        color: darkTheme.textSecondary,
+      },
+      dateNumber: {
+        ...styles.dateNumber,
+        color: darkTheme.textPrimary,
+      },
+      monthText: {
+        ...styles.monthText,
+        color: darkTheme.textSecondary,
+      },
+      timeLabel: {
+        ...styles.timeLabel,
+        color: darkTheme.textSecondary,
+      },
+      timeDisplay: {
+        ...styles.timeDisplay,
+        color: darkTheme.textPrimary,
+      },
+      timeSubtext: {
+        ...styles.timeSubtext,
+        color: darkTheme.textSecondary,
+      },
+      recurrenceMainText: {
+        ...styles.recurrenceMainText,
+        color: darkTheme.textPrimary,
+      },
+      recurrenceSubtext: {
+        ...styles.recurrenceSubtext,
+        color: darkTheme.textSecondary,
+      },
+      alertsMainText: {
+        ...styles.alertsMainText,
+        color: darkTheme.textPrimary,
+      },
+      alertsSubtext: {
+        ...styles.alertsSubtext,
+        color: darkTheme.textSecondary,
+      },
+      subtasksTitle: {
+        ...styles.subtasksTitle,
+        color: darkTheme.textPrimary,
+      },
+      subtaskNumber: {
+        ...styles.subtaskNumber,
+        color: darkTheme.textSecondary,
+      },
+      subtaskInput: {
+        ...styles.subtaskInput,
+        color: darkTheme.textPrimary,
+        backgroundColor: darkTheme.surface,
+        borderColor: darkTheme.border,
+      },
+      detailsInput: {
+        ...styles.detailsInput,
+        color: darkTheme.textPrimary,
+        backgroundColor: darkTheme.surface,
+        borderColor: darkTheme.border,
+      },
+      whenContent: {
+        ...styles.whenContent,
+        borderColor: darkTheme.border,
+      },
+      verticalDivider: {
+        ...styles.verticalDivider,
+        backgroundColor: darkTheme.border,
+      },
+      recurrenceContent: {
+        ...styles.recurrenceContent,
+        borderColor: darkTheme.border,
+      },
+      alertsContent: {
+        ...styles.alertsContent,
+        borderColor: darkTheme.border,
+      },
+      intervalLabel: {
+        ...styles.intervalLabel,
+        color: darkTheme.textSecondary,
+      },
+      weekDayText: {
+        ...styles.weekDayText,
+        color: darkTheme.textSecondary,
+      },
+      recurrenceOptionText: {
+        ...styles.recurrenceOptionText,
+        color: darkTheme.textSecondary,
+      },
+      subOptionsTitle: {
+        ...styles.subOptionsTitle,
+        color: darkTheme.textSecondary,
+      },
+      addSubtaskText: {
+        ...styles.addSubtaskText,
+        color: darkTheme.textSecondary,
+      },
+    });
+  };
+
+  const themedStyles = getThemedStyles();
+
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <StatusBar backgroundColor={colors.background} barStyle="dark-content" />
+    <GestureHandlerRootView style={themedStyles.container}>
+      <StatusBar backgroundColor={darkTheme.background} barStyle="light-content" />
 
       {/* Header with back button */}
-      <View style={styles.header}>
+      <View style={themedStyles.header}>
         {onBack && (
           <TouchableOpacity
             style={styles.backButton}
@@ -540,10 +687,19 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>
+        <Text style={themedStyles.headerTitle}>
           {mode === 'edit' ? 'Edit Task' : mode === 'duplicate' ? 'Duplicate Task' : 'New Task'}
         </Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          onPress={async () => {
+            console.log('Creating sample tasks...');
+            await populateSampleTasks();
+            Alert.alert('Sample Tasks Created', '5 sample tasks have been created!');
+          }}
+          style={{ padding: 8 }}
+        >
+          <Text style={{ color: darkTheme.primary, fontSize: 12 }}>Sample</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -566,18 +722,18 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           </TouchableOpacity>
           <TextInput
             ref={titleRef}
-            style={styles.titleInput}
+            style={themedStyles.titleInput}
             value={formData.title}
             onChangeText={text => updateField('title', text)}
             placeholder="What needs to be done?"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={darkTheme.textTertiary}
           />
         </View>
 
         {/* Partner Share */}
         <View style={styles.section}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>SHARE WITH PARTNER</Text>
+            <Text style={themedStyles.sectionTitle}>SHARE WITH PARTNER</Text>
             <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
           </View>
           
@@ -606,12 +762,12 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
               {/* Text Content */}
               <View style={styles.partnerTextContent}>
                 <View style={styles.partnerNameRow}>
-                  <Text style={styles.partnerName}>Sarah</Text>
+                  <Text style={themedStyles.partnerName}>Sarah</Text>
                   <View style={styles.partnerBadge}>
                     <Text style={styles.partnerBadgeText}>Partner</Text>
                   </View>
                 </View>
-                <Text style={styles.partnerSubtext}>
+                <Text style={themedStyles.partnerSubtext}>
                   {formData.isShared
                     ? 'Will be notified about this task'
                     : 'Tap to share this task with your partner'}
@@ -624,7 +780,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
         {/* Combined Scheduling Section */}
         <View style={styles.combinedSection}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>SCHEDULED FOR</Text>
+            <Text style={themedStyles.sectionTitle}>SCHEDULED FOR</Text>
             <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
           </View>
           
@@ -634,10 +790,10 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             activeOpacity={0.8}
           >
             {/* Main Content */}
-            <View style={styles.whenContent}>
+            <View style={themedStyles.whenContent}>
               {/* Date Section */}
               <View style={styles.dateBlock}>
-                <Text style={styles.dayText}>
+                <Text style={themedStyles.dayText}>
                   {(() => {
                     try {
                       const date = new Date(formData.when.date);
@@ -652,7 +808,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
                     }
                   })()}
                 </Text>
-                <Text style={styles.dateNumber}>
+                <Text style={themedStyles.dateNumber}>
                   {(() => {
                     try {
                       const date = new Date(formData.when.date);
@@ -665,7 +821,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
                     }
                   })()}
                 </Text>
-                <Text style={styles.monthText}>
+                <Text style={themedStyles.monthText}>
                   {(() => {
                     try {
                       const date = new Date(formData.when.date);
@@ -683,12 +839,12 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
               </View>
 
               {/* Divider */}
-              <View style={styles.verticalDivider} />
+              <View style={themedStyles.verticalDivider} />
 
               {/* Time Section */}
               <View style={styles.timeBlock}>
-                <Text style={styles.timeLabel}>AT</Text>
-                <Text style={styles.timeDisplay}>
+                <Text style={themedStyles.timeLabel}>AT</Text>
+                <Text style={themedStyles.timeDisplay}>
                   {(() => {
                     try {
                       if (!formData.when.time) {
@@ -707,7 +863,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
                     }
                   })()}
                 </Text>
-                <Text style={styles.timeSubtext}>Start time</Text>
+                <Text style={themedStyles.timeSubtext}>Start time</Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -715,7 +871,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           {/* TIME SPENT Section - No border divider */}
           <View style={styles.timeSpentSubsection}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>TIME SPENT</Text>
+            <Text style={themedStyles.sectionTitle}>TIME SPENT</Text>
             <View style={styles.titleRowActions}>
               <TouchableOpacity 
                 onPress={() => setShowCustomDurationTray(true)}
@@ -777,7 +933,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
         {/* Recurrence */}
         <View style={styles.section}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>REPEAT</Text>
+            <Text style={themedStyles.sectionTitle}>REPEAT</Text>
             <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
           </View>
           
@@ -787,17 +943,17 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             activeOpacity={0.8}
           >
             <View style={[
-              styles.recurrenceContent,
+              themedStyles.recurrenceContent,
               formData.recurrence.frequency !== 'none' && styles.recurrenceContentActive
             ]}>
               <View style={styles.recurrenceTextContent}>
-                <Text style={styles.recurrenceMainText}>
+                <Text style={themedStyles.recurrenceMainText}>
                   {formData.recurrence.frequency === 'none' 
                     ? 'Once' 
                     : formData.recurrence.frequency.charAt(0).toUpperCase() + formData.recurrence.frequency.slice(1)
                   }
                 </Text>
-                <Text style={styles.recurrenceSubtext}>
+                <Text style={themedStyles.recurrenceSubtext}>
                   {formData.recurrence.frequency === 'none'
                     ? 'Task occurs once'
                     : formData.recurrence.frequency === 'weekly' && formData.recurrence.daysOfWeek && formData.recurrence.daysOfWeek.length > 0
@@ -973,7 +1129,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
         {/* Alerts */}
         <View style={styles.section}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>ALERTS</Text>
+            <Text style={themedStyles.sectionTitle}>ALERTS</Text>
             <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
           </View>
           
@@ -983,12 +1139,12 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             activeOpacity={0.8}
           >
             <View style={[
-              styles.alertsContent,
+              themedStyles.alertsContent,
               formData.alerts.length > 0 && styles.alertsContentActive
             ]}>
               <View style={styles.alertsTextContent}>
-                <Text style={styles.alertsMainText}>Select Alerts</Text>
-                <Text style={styles.alertsSubtext}>
+                <Text style={themedStyles.alertsMainText}>Select Alerts</Text>
+                <Text style={themedStyles.alertsSubtext}>
                   {formData.alerts.length > 0 
                     ? `${formData.alerts.length} alert${formData.alerts.length > 1 ? 's' : ''} selected`
                     : 'Choose when to be notified'
@@ -1031,15 +1187,15 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
         {/* Details & Subtasks */}
         <View style={styles.section}>
           <View style={styles.titleRow}>
-            <Text style={styles.sectionTitle}>DETAILS & STEPS</Text>
+            <Text style={themedStyles.sectionTitle}>DETAILS & STEPS</Text>
             <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
           </View>
           <TextInput
-            style={styles.detailsInput}
+            style={themedStyles.detailsInput}
             value={formData.details}
             onChangeText={text => updateField('details', text)}
             placeholder="Add notes, links, or additional details..."
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={darkTheme.textTertiary}
             multiline
             numberOfLines={3}
           />
@@ -1047,16 +1203,16 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
           {/* Subtasks */}
           {formData.subtasks.length > 0 && (
             <View style={styles.subtasksSection}>
-              <Text style={styles.subtasksTitle}>Steps to complete:</Text>
+              <Text style={themedStyles.subtasksTitle}>Steps to complete:</Text>
               {formData.subtasks.map((task, index) => (
                 <View key={task.id} style={styles.subtaskRow}>
-                  <Text style={styles.subtaskNumber}>{index + 1}.</Text>
+                  <Text style={themedStyles.subtaskNumber}>{index + 1}.</Text>
                   <TextInput
-                    style={styles.subtaskInput}
+                    style={themedStyles.subtaskInput}
                     placeholder={`Step ${index + 1}`}
                     value={task.title}
                     onChangeText={text => updateSubtask(task.id, text)}
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={darkTheme.textTertiary}
                   />
                   <TouchableOpacity onPress={() => removeSubtask(task.id)}>
                     <Text style={styles.removeSubtask}>✕</Text>
@@ -1070,7 +1226,7 @@ const CreateTaskScreen: React.FC<CreateTaskProps> = ({
             style={styles.addSubtaskButton}
             onPress={addSubtask}
           >
-            <Text style={styles.addSubtaskText}>+ Add step</Text>
+            <Text style={themedStyles.addSubtaskText}>+ Add step</Text>
           </TouchableOpacity>
         </View>
         {/* Extra spacing to ensure create button doesn't cover content */}

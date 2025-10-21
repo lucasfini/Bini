@@ -138,20 +138,6 @@ class UnifiedTaskService {
 
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
-    
-    // DEBUG: Test database connection
-    console.log('🔍 Testing database connection...');
-    const { data: testData, error: testError } = await supabase
-      .from('tasks')
-      .select('count')
-      .limit(1);
-    
-    if (testError) {
-      console.error('❌ Database connection test failed:', testError);
-      throw new Error(`Database connection failed: ${testError.message}`);
-    } else {
-      console.log('✅ Database connection successful');
-    }
 
     const unifiedTask = this.formToUnified(formData, user.user.id);
 
@@ -221,12 +207,14 @@ class UnifiedTaskService {
     }
 
     const today = new Date();
+    const pastWeek = new Date();
+    pastWeek.setDate(today.getDate() - 7); // Get past week for navigation
     const nextWeek = new Date();
     nextWeek.setDate(today.getDate() + 7);
 
     console.log(
       '📅 Fetching tasks from',
-      today.toISOString().split('T')[0],
+      pastWeek.toISOString().split('T')[0],
       'to',
       nextWeek.toISOString().split('T')[0],
     );
@@ -245,12 +233,12 @@ class UnifiedTaskService {
         console.log('📋 Sample task:', JSON.stringify(allTasks[0], null, 2));
       }
 
-      // SIMPLIFIED QUERY: First just get tasks created by this user
+      // SIMPLIFIED QUERY: Get tasks for past week to next week
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
         .eq('created_by', user.user.id)
-        .gte('date', today.toISOString().split('T')[0])
+        .gte('date', pastWeek.toISOString().split('T')[0])
         .lte('date', nextWeek.toISOString().split('T')[0])
         .order('date', { ascending: true });
 
@@ -272,7 +260,7 @@ class UnifiedTaskService {
       data.forEach((task, index) => {
         try {
           console.log(`🔄 Processing task ${index + 1}:`, task.id, task.title);
-          const dateKey = this.convertDateToTimelineKey(task.date);
+          const dateKey = task.date; // Use the actual ISO date string directly
           if (!grouped[dateKey]) grouped[dateKey] = [];
 
           const unifiedTask = this.dbToUnified(task);

@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
   },
   backgroundTrack: {
     height: 30,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#2A2A2A',
     borderRadius: 7,
     position: 'absolute',
   },

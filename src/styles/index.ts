@@ -1,18 +1,18 @@
 import { Dimensions } from 'react-native';
 
-// Updated Color Palette - Clean minimal design
+// Updated Color Palette - Dark theme design
 export const colors = {
-  // Base colors for minimal timeline design
-  background: '#FAFAFA',        // Light gray background
-  surface: '#FFFFFF',           // White cards/surfaces
-  border: '#F0F0F0',           // Light borders
-  borderLight: '#F8F8F8',      // Even lighter borders
+  // Base colors for dark theme design
+  background: '#1A1A1A',        // Dark gray background
+  surface: '#2A2A2A',           // Dark cards/surfaces
+  border: '#3A3A3A',           // Dark borders
+  borderLight: '#333333',      // Lighter dark borders
   
-  // Text hierarchy
-  textPrimary: '#333333',       // Main text
-  textSecondary: '#666666',     // Secondary text
-  textTertiary: '#999999',      // Tertiary text/labels
-  textDisabled: '#CCCCCC',      // Disabled text
+  // Text hierarchy for dark theme
+  textPrimary: '#FFFFFF',       // White main text
+  textSecondary: '#CCCCCC',     // Light gray secondary text
+  textTertiary: '#999999',      // Gray tertiary text/labels
+  textDisabled: '#666666',      // Darker disabled text
   
   // Configurable accent colors (user can choose theme)
   accentPrimary: '#FF6B9D',     // Pink - for shared tasks, today indicator
@@ -50,10 +50,10 @@ export const colors = {
   white: '#FFFFFF',
   black: '#000000',
   
-  // Shadows and overlays
-  shadowColor: 'rgba(0,0,0,0.08)',
-  overlayLight: 'rgba(255,255,255,0.95)',
-  overlayDark: 'rgba(0,0,0,0.8)',
+  // Shadows and overlays for dark theme
+  shadowColor: 'rgba(0,0,0,0.4)',
+  overlayLight: 'rgba(255,255,255,0.1)',
+  overlayDark: 'rgba(0,0,0,0.9)',
   
   // Legacy couple-themed colors
   heart: '#FF6B6B',
@@ -162,6 +162,42 @@ export const layout = {
 
 // Complete Theme Definitions based on startup animation colors
 export const themes = {
+  dark: {
+    // Primary colors with dark theme
+    primary: '#FF9FB2',          // Light pink from animation
+    primaryDark: '#FF6B9D',      // Darker pink variant
+    primaryLight: '#FFB8C5',     // Lighter pink variant
+    
+    // Secondary colors from animation  
+    secondary: '#9BC4E2',        // Light blue from animation
+    secondaryDark: '#6B73FF',    // Darker blue variant
+    secondaryLight: '#B8D4F0',   // Lighter blue variant
+    
+    // Dark background hierarchy
+    background: '#1A1A1A',       // Dark background
+    surface: '#2A2A2A',          // Dark cards/surfaces
+    surfaceSecondary: '#333333', // Slightly lighter dark surface
+    
+    // Accent colors
+    accent: '#FF9FB2',
+    accentSecondary: '#9BC4E2',
+    
+    // Dark theme text colors
+    textPrimary: '#FFFFFF',      // White text
+    textSecondary: '#CCCCCC',    // Light gray text
+    textTertiary: '#999999',     // Medium gray text
+    
+    // Dark borders and dividers
+    border: '#3A3A3A',           // Dark border
+    borderLight: '#333333',      // Lighter dark border
+    
+    // Status colors with dark theme
+    success: '#4CAF50',
+    warning: '#FF8A65',
+    error: '#FF6B6B',
+    info: '#9BC4E2',
+  },
+  
   pink: {
     // Primary colors from animation
     primary: '#FF9FB2',          // Light pink from animation

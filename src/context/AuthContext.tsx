@@ -46,6 +46,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       clearError();
       
+      // Check for development bypass
+      if (credentials.email === 'dev@test.com' && credentials.password === 'testpass123') {
+        console.log('🚀 Using development bypass...');
+        const mockUser = {
+          id: 'dev-user-123',
+          name: 'Dev User',
+          email: 'dev@test.com',
+          partnerId: null,
+          partnerLinked: false
+        };
+        setUser(mockUser);
+        console.log('✅ Development login successful');
+        return;
+      }
+      
       console.log('🚀 Attempting login...');
       const user = await SupabaseAuthService.signIn(credentials);
       setUser(user);

@@ -25,18 +25,19 @@ const ModernCheckboxList: React.FC<ModernCheckboxListProps> = ({
   options,
   checkedValues,
   onToggle,
-  isDarkMode = false,
+  isDarkMode = true, // Force dark mode
   style = 'rounded',
 }) => {
+  // Force dark theme for this component
   const theme = {
-    background: isDarkMode ? '#1F2937' : '#FFFFFF',
-    text: isDarkMode ? '#F9FAFB' : '#111827',
-    textSecondary: isDarkMode ? '#D1D5DB' : '#6B7280',
-    border: isDarkMode ? '#374151' : '#E5E7EB',
-    itemBackground: isDarkMode ? '#374151' : '#F9FAFB',
-    selectedBackground: isDarkMode ? '#065F46' : '#E8F5E8',
-    checkboxActive: '#EC4899',
-    checkboxInactive: isDarkMode ? '#4B5563' : '#E5E7EB',
+    background: '#1A1A1A',
+    text: '#FFFFFF',
+    textSecondary: '#CCCCCC',
+    border: '#3A3A3A',
+    itemBackground: '#2A2A2A',
+    selectedBackground: 'rgba(255, 107, 157, 0.1)',
+    checkboxActive: '#FF6B9D',
+    checkboxInactive: '#3A3A3A',
   };
 
   const borderRadius = style === 'square' ? 6 : 12;

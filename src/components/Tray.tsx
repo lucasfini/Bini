@@ -50,6 +50,15 @@ const Tray: React.FC<TrayProps> = ({
   rightButton,
 }) => {
   const { theme } = useTheme();
+  
+  // Force dark theme for this component
+  const darkTheme = {
+    background: '#1A1A1A',
+    surface: '#2A2A2A',
+    border: '#3A3A3A',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#CCCCCC',
+  };
 
   // Animation values
   const translateY = useSharedValue(screenHeight);
@@ -113,7 +122,7 @@ const Tray: React.FC<TrayProps> = ({
       animationType="none"
       statusBarTranslucent
     >
-      <StatusBar backgroundColor="rgba(0,0,0,0.3)" barStyle="dark-content" />
+      <StatusBar backgroundColor="rgba(0,0,0,0.3)" barStyle="light-content" />
 
       {/* Backdrop */}
       <Animated.View style={[styles.backdrop, backdropStyle]}>
@@ -132,17 +141,17 @@ const Tray: React.FC<TrayProps> = ({
           trayStyle
         ]}
       >
-        <View style={[styles.tray, { backgroundColor: colors.surface }]}>
+        <View style={[styles.tray, { backgroundColor: darkTheme.surface }]}>
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <View style={[styles.header, { borderBottomColor: darkTheme.border }]}>
             {/* Title */}
-            <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: darkTheme.textPrimary }]} numberOfLines={1}>
               {title}
             </Text>
             
             {/* Close Button */}
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
+              <Text style={[styles.closeButtonText, { color: darkTheme.textSecondary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 

@@ -15,8 +15,10 @@ const TimelineWrapper: React.FC<{
   refreshKey: number; 
   onEditTask?: (task: any) => void;
   onDuplicateTask?: (task: any) => void;
-}> = ({ refreshKey, onEditTask, onDuplicateTask }) => {
-  return <TimelineScreen key={refreshKey} onEditTask={onEditTask} onDuplicateTask={onDuplicateTask} />;
+  onNavigateToCreate?: () => void;
+  onRefreshTimeline?: () => void;
+}> = ({ refreshKey, onEditTask, onDuplicateTask, onNavigateToCreate, onRefreshTimeline }) => {
+  return <TimelineScreen key={refreshKey} refreshKey={refreshKey} onEditTask={onEditTask} onDuplicateTask={onDuplicateTask} onNavigateToCreate={onNavigateToCreate} onRefreshTimeline={onRefreshTimeline} />;
 };
 
 const AppNavigator: React.FC = () => {
@@ -89,8 +91,8 @@ const AppNavigator: React.FC = () => {
   const handleNavigate = (route: string) => {
     setActiveRoute(route);
     
-    // Reset edit/duplicate state when navigating away from Create screen
-    if (route !== 'Create') {
+    // Reset edit/duplicate state when navigating to Create screen for fresh start
+    if (route === 'Create') {
       setEditingTask(null);
       setDuplicatingTask(null);
       setCreateMode('create');
@@ -115,16 +117,29 @@ const AppNavigator: React.FC = () => {
     setActiveRoute('Create');
   };
 
-  // Handle create button press (now just navigation)
+  // Handle create button press - navigate to create screen with reset
   const handleCreatePress = () => {
-    // Navigation is handled by onNavigate in FloatingNavigation
+    setEditingTask(null);
+    setDuplicatingTask(null);
+    setCreateMode('create');
+    setActiveRoute('Create');
+  };
+
+  // Handle navigation to create from timeline
+  const handleNavigateToCreate = () => {
+    handleCreatePress();
+  };
+
+  // Handle timeline refresh (increment refresh key to trigger re-render)
+  const handleRefreshTimeline = () => {
+    setTimelineKey(prev => prev + 1);
   };
 
   // Render the current active screen
   const renderActiveScreen = () => {
     switch (activeRoute) {
       case 'Timeline':
-        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} />;
+        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} />;
       case 'Calendar':
         return <CalendarScreen />;
       case 'Create':
@@ -142,7 +157,7 @@ const AppNavigator: React.FC = () => {
       case 'Profile':
         return <ProfileScreen />;
       default:
-        return <TimelineWrapper refreshKey={timelineKey} />;
+        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} />;
     }
   };
 

@@ -174,7 +174,7 @@ const StartupAnimation: React.FC<StartupAnimationProps> = ({ onAnimationComplete
 
   return (
     <Animated.View style={[styles.container, backgroundStyle]}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <StatusBar backgroundColor="#1A1A1A" barStyle="light-content" />
       
       {/* Animation Stage */}
       <View style={styles.animationContainer}>
@@ -201,7 +201,7 @@ const StartupAnimation: React.FC<StartupAnimationProps> = ({ onAnimationComplete
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -218,12 +218,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 160,
     height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 40,
     shadowColor: '#FFE55C',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
+    shadowOpacity: 0.8,
+    shadowRadius: 25,
     elevation: 10,
   },
   
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 42,
     fontWeight: '800',
-    color: '#2C3E26',
+    color: '#FFFFFF',
     letterSpacing: 6,
     marginTop: 120,
     textAlign: 'center',
