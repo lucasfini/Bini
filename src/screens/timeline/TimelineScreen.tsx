@@ -312,30 +312,36 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     <View style={styles.container}>
       {/* Header with Date Display and Filter */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
-          <View style={styles.dayNumberContainer}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
             <Animated.Text style={[
               styles.dayNumber,
               isViewingToday ? styles.dayNumberToday : styles.dayNumberOther
             ]}>
               {headerDateComponents.day}
             </Animated.Text>
-          </View>
-          <View style={styles.dayMeta}>
-            <Animated.Text style={styles.dayWeekday}>{headerDateComponents.weekday}</Animated.Text>
-            <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
-          </View>
-        </TouchableOpacity>
+            <View style={styles.dayMeta}>
+              <Animated.Text style={styles.dayWeekday}>{headerDateComponents.weekday}</Animated.Text>
+              <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
-        {/* Filter Dropdown */}
-        <TouchableOpacity
-          onPress={() => setShowDropdown(!showDropdown)}
-          style={styles.filterDropdown}
-        >
-          <Animated.Text style={styles.filterDropdownText}>
-            {filter}
-          </Animated.Text>
-        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          {/* Interactive partner element will go here */}
+        </View>
+
+        <View style={styles.headerRight}>
+          {/* Filter Dropdown */}
+          <TouchableOpacity
+            onPress={() => setShowDropdown(!showDropdown)}
+            style={styles.filterDropdown}
+          >
+            <Animated.Text style={styles.filterDropdownText}>
+              {filter}
+            </Animated.Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dropdown Menu */}
@@ -465,16 +471,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
   },
+  headerLeft: {
+    flex: 1,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   dateButton: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
-    flex: 1,
-    marginRight: 16,
-  },
-  dayNumberContainer: {
-    minWidth: 80,
+    gap: 12,
   },
   dayNumber: {
     fontSize: 42,
@@ -490,7 +503,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   dayMeta: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     justifyContent: 'center',
   },
   dayWeekday: {
@@ -499,7 +512,6 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    textAlign: 'right',
   },
   dayMonth: {
     fontSize: 12,
@@ -507,7 +519,6 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     opacity: 0.8,
     marginTop: 2,
-    textAlign: 'right',
     letterSpacing: 0.5,
   },
 
