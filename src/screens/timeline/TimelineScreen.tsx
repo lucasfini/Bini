@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, LayoutChangeEvent, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withTiming, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
   withSpring,
   Easing,
   interpolate,
@@ -20,6 +20,7 @@ import { useTimelineData } from './hooks/useTimelineData';
 import { Task } from './types';
 import { colors, spacing, typography, layout } from '../../theme/designTokens';
 import TaskDetailsTray from '../../components/TaskDetailsTray';
+import CalendarTray from '../../components/CalendarTray';
 import UnifiedTaskService from '../../services/tasks/unifiedTaskService';
 import { getLocalDateISO } from '../../utils/dateHelper';
 import { List, User, Users, ChevronLeft, Calendar } from 'lucide-react-native';
@@ -47,6 +48,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const { sections: hookSections, isLoading, hasLoadedOnce } = useTimelineData(refreshKey);
   const [sections, setSections] = useState(hookSections);
   const [taskDetailTrayVisible, setTaskDetailTrayVisible] = useState(false);
+  const [calendarTrayVisible, setCalendarTrayVisible] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [filter, setFilter] = useState<FilterKey>('Ours');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -81,39 +83,6 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   const hasAnyTasks = filteredSections.some(section => section.tasks.length > 0);
   const isViewingToday = currentDate === today;
-  
-  // Navigation helpers
-  const goToPreviousDay = () => {
-    const prevDate = new Date(currentDate);
-    prevDate.setDate(prevDate.getDate() - 1);
-    const newDate = prevDate.toISOString().split('T')[0];
-    
-    console.log('🔙 Going to previous day:', newDate);
-    console.log('📋 Available sections:', sections.map(s => s.dateISO));
-    
-    // Animate slide right
-    slideAnimation.value = withTiming(1, { duration: 300 }, () => {
-      runOnJS(setCurrentDate)(newDate);
-      slideAnimation.value = withTiming(0, { duration: 300 });
-    });
-  };
-  
-  const goToToday = () => {
-    if (currentDate === today) return;
-    
-    const currentDateObj = new Date(currentDate);
-    const todayObj = new Date(today);
-    const daysDiff = Math.ceil((todayObj.getTime() - currentDateObj.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Faster animation for farther distances
-    const duration = Math.max(200, 600 - (daysDiff * 50));
-    
-    // Animate slide left back to present
-    slideAnimation.value = withTiming(-1, { duration }, () => {
-      runOnJS(setCurrentDate)(today);
-      slideAnimation.value = withTiming(0, { duration: 200 });
-    });
-  };
 
   // Get icon for filter dropdown
   const getFilterIcon = (filterKey: FilterKey) => {
@@ -131,6 +100,29 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     return { day, weekday, month };
+  };
+
+  // Format date for header display
+  const formatHeaderDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    return `${day} ${weekday}, ${month}`;
+  };
+
+  const handleOpenCalendar = () => {
+    setCalendarTrayVisible(true);
+  };
+
+  const handleDateSelect = (newDate: string) => {
+    console.log('📅 Date selected:', newDate);
+
+    // Animate transition
+    slideAnimation.value = withTiming(currentDate < newDate ? -1 : 1, { duration: 150 }, () => {
+      runOnJS(setCurrentDate)(newDate);
+      slideAnimation.value = withTiming(0, { duration: 300 });
+    });
   };
 
   const handleCreateTask = () => {
@@ -316,70 +308,36 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Filter Header with Back Arrow and Dropdown */}
-      <View style={[styles.filterHeader, { paddingTop: insets.top }]}>
-        <View style={styles.leftSection}>
-          <TouchableOpacity 
-            onPress={goToPreviousDay}
-            style={styles.backButton}
-          >
-            <ChevronLeft size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          
-          {!isViewingToday && (
-            <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
-              <Animated.Text style={styles.todayButtonText}>Present</Animated.Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        
-        <View style={styles.filterDropdownContainer}>
-          <TouchableOpacity 
-            onPress={() => {
-              console.log('🔘 Dropdown pressed, current state:', showDropdown);
-              setShowDropdown(!showDropdown);
-            }}
-            style={styles.filterDropdown}
-          >
-            <Animated.Text style={styles.filterDropdownText}>
-              {filter}
-            </Animated.Text>
-          </TouchableOpacity>
-        </View>
+      {/* Header with Date Display */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
+          <Animated.Text style={styles.dateText}>
+            {formatHeaderDate(currentDate)}
+          </Animated.Text>
+          <Calendar size={20} color="#FF6B9D" style={{ marginLeft: 8 }} />
+        </TouchableOpacity>
       </View>
 
-      {/* Dropdown Menu - rendered outside header */}
-      {showDropdown && (
-        <View style={styles.dropdownMenuContainer}>
-          <TouchableOpacity 
-            style={styles.dropdownBackdrop}
-            onPress={() => setShowDropdown(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.dropdownMenu}>
-            {(['All', 'Mine', 'Ours'] as const).map((option) => (
-              <TouchableOpacity
-                key={option}
-                onPress={() => {
-                  console.log('📋 Option selected:', option);
-                  handleFilterChange(option);
-                }}
-                style={[
-                  styles.dropdownOption,
-                  option === filter && styles.dropdownOptionActive
-                ]}
-              >
-                <Animated.Text style={[
-                  styles.dropdownOptionText,
-                  option === filter && styles.dropdownOptionTextActive
-                ]}>
-                  {option}
-                </Animated.Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
+      {/* Sticky Filter Bar */}
+      <View style={styles.filterBar}>
+        {(['All', 'Mine', 'Ours'] as const).map((option) => (
+          <TouchableOpacity
+            key={option}
+            onPress={() => handleFilterChange(option)}
+            style={[
+              styles.filterPill,
+              option === filter && styles.filterPillActive
+            ]}
+          >
+            <Animated.Text style={[
+              styles.filterPillText,
+              option === filter && styles.filterPillTextActive
+            ]}>
+              {option}
+            </Animated.Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
 
       {/* Content */}
@@ -392,50 +350,33 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
           <Animated.View style={contentAnimatedStyle}>
             {filteredSections.length > 0 ? (
               filteredSections.map((section, sectionIndex) => {
-                const { day, weekday, month } = formatDay(new Date(section.dateISO));
-                const isTodaySection = currentDate === today;
-                
                 // Check if all tasks for this day are completed
-                const allTasksCompleted = section.tasks.length > 0 && 
+                const allTasksCompleted = section.tasks.length > 0 &&
                   section.tasks.every(task => task.isCompleted);
-                
+
                 return (
-                  <View key={section.dateISO}>
-                    <View style={styles.daySection}>
-                      {/* Day Header */}
-                      <View style={styles.dayHeader}>
-                        <View style={styles.dayNumberContainer}>
-                          <View style={styles.dayNumberRow}>
-                            <Animated.Text style={[
-                              styles.dayNumber,
-                              isTodaySection ? styles.dayNumberToday : styles.dayNumberOther
-                            ]}>
-                              {day}
-                            </Animated.Text>
-                            {allTasksCompleted && (
-                              <Animated.Text style={styles.goldStar}>⭐</Animated.Text>
-                            )}
-                          </View>
-                        </View>
-                        <View style={styles.dayMeta}>
-                          <Animated.Text style={styles.dayWeekday}>{weekday}</Animated.Text>
-                          <Animated.Text style={styles.dayMonth}>{month}</Animated.Text>
-                        </View>
+                  <View key={section.dateISO} style={styles.daySection}>
+                    {/* All tasks completed indicator */}
+                    {allTasksCompleted && (
+                      <View style={styles.completionBanner}>
+                        <Animated.Text style={styles.completionText}>
+                          ⭐ All tasks completed!
+                        </Animated.Text>
                       </View>
-                      
-                      {/* Tasks */}
-                      <View style={styles.tasksContainer}>
-                        {section.tasks.map((task, taskIndex) => (
-                          <TaskCard
-                            key={task.id}
-                            task={task}
-                            onPress={handleOpenTask}
-                            onSwipeComplete={handleToggleComplete}
-                            onStepToggle={handleStepToggle}
-                            index={taskIndex}
-                          />
-                        ))}
-                      </View>
+                    )}
+
+                    {/* Tasks */}
+                    <View style={styles.tasksContainer}>
+                      {section.tasks.map((task, taskIndex) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onPress={handleOpenTask}
+                          onSwipeComplete={handleToggleComplete}
+                          onStepToggle={handleStepToggle}
+                          index={taskIndex}
+                        />
+                      ))}
                     </View>
                   </View>
                 );
@@ -466,6 +407,14 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         onStepToggle={handleStepToggle}
         onStepsUpdate={handleStepsUpdate}
       />
+
+      {/* Calendar Tray */}
+      <CalendarTray
+        visible={calendarTrayVisible}
+        onClose={() => setCalendarTrayVisible(false)}
+        selectedDate={currentDate}
+        onDateSelect={handleDateSelect}
+      />
     </View>
   );
 };
@@ -475,100 +424,63 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1A1A1A',
   },
-  
-  // Filter Header
-  filterHeader: {
+
+  // Header
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: 20,
     paddingBottom: 12,
     backgroundColor: '#1A1A1A',
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
   },
-  leftSection: {
+  dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
   },
-  backButton: {
-    padding: 8,
+  dateText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  filterDropdownContainer: {
-    // Simple container, no complex positioning
+
+  // Sticky Filter Bar
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#1A1A1A',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
   },
-  filterDropdown: {
+  filterPill: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    minWidth: 80,
+    borderRadius: 20,
+    minWidth: 70,
     alignItems: 'center',
-    opacity: 1,
   },
-  filterDropdownText: {
+  filterPillActive: {
+    backgroundColor: '#FF6B9D',
+  },
+  filterPillText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#CCCCCC',
   },
-  
-  // Dropdown Menu System
-  dropdownMenuContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
-  },
-  dropdownBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 120, // Position below header
-    alignSelf: 'flex-end',
-    right: 20,
-    width: 80, // Same width as dropdown button (minWidth: 80)
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  dropdownOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  dropdownOptionActive: {
-    backgroundColor: 'rgba(255, 107, 157, 0.1)',
-  },
-  dropdownOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
+  filterPillTextActive: {
     color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  dropdownOptionTextActive: {
-    color: '#FF6B9D',
-    fontWeight: '600',
-  },
-  todayButton: {
-    // No background, no padding, just text
-  },
-  todayButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B9D',
+    fontWeight: '700',
   },
   
   // Content
@@ -587,56 +499,20 @@ const styles = StyleSheet.create({
   daySection: {
     marginBottom: 22,
   },
-  dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+  completionBanner: {
+    backgroundColor: 'rgba(255, 107, 157, 0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
   },
-  dayNumberContainer: {
-    minWidth: 80,
-  },
-  dayNumberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dayNumber: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-  },
-  goldStar: {
-    fontSize: 20,
-    marginTop: -8,
-  },
-  dayNumberToday: {
-    color: '#FF6B9D',
-  },
-  dayNumberOther: {
-    opacity: 0.85,
-  },
-  dayMeta: {
-    alignItems: 'flex-end',
-  },
-  dayWeekday: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#CCCCCC',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    textAlign: 'right',
-  },
-  dayMonth: {
-    fontSize: 12,
+  completionText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: '#CCCCCC',
-    opacity: 0.8,
-    marginTop: 2,
-    textAlign: 'right',
-    letterSpacing: 0.5,
+    color: '#FF6B9D',
+    textAlign: 'center',
   },
   
   // Tasks
