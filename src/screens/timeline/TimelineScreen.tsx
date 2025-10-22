@@ -310,7 +310,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Header with Date Display */}
+      {/* Header with Date Display and Filter */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
           <View style={styles.dayNumberContainer}>
@@ -326,28 +326,47 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
             <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
           </View>
         </TouchableOpacity>
+
+        {/* Filter Dropdown */}
+        <TouchableOpacity
+          onPress={() => setShowDropdown(!showDropdown)}
+          style={styles.filterDropdown}
+        >
+          <Animated.Text style={styles.filterDropdownText}>
+            {filter}
+          </Animated.Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Sticky Filter Bar */}
-      <View style={styles.filterBar}>
-        {(['All', 'Mine', 'Ours'] as const).map((option) => (
+      {/* Dropdown Menu */}
+      {showDropdown && (
+        <View style={styles.dropdownMenuContainer}>
           <TouchableOpacity
-            key={option}
-            onPress={() => handleFilterChange(option)}
-            style={[
-              styles.filterPill,
-              option === filter && styles.filterPillActive
-            ]}
-          >
-            <Animated.Text style={[
-              styles.filterPillText,
-              option === filter && styles.filterPillTextActive
-            ]}>
-              {option}
-            </Animated.Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+            style={styles.dropdownBackdrop}
+            onPress={() => setShowDropdown(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.dropdownMenu}>
+            {(['All', 'Mine', 'Ours'] as const).map((option) => (
+              <TouchableOpacity
+                key={option}
+                onPress={() => handleFilterChange(option)}
+                style={[
+                  styles.dropdownOption,
+                  option === filter && styles.dropdownOptionActive
+                ]}
+              >
+                <Animated.Text style={[
+                  styles.dropdownOptionText,
+                  option === filter && styles.dropdownOptionTextActive
+                ]}>
+                  {option}
+                </Animated.Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
 
       {/* Content */}
@@ -452,6 +471,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     flex: 1,
+    marginRight: 16,
   },
   dayNumberContainer: {
     minWidth: 80,
@@ -491,37 +511,69 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Sticky Filter Bar
-  filterBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#1A1A1A',
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-  },
-  filterPill: {
+  // Filter Dropdown
+  filterDropdown: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#2A2A2A',
-    borderRadius: 20,
-    minWidth: 70,
+    borderRadius: 8,
+    minWidth: 80,
     alignItems: 'center',
   },
-  filterPillActive: {
-    backgroundColor: '#FF6B9D',
-  },
-  filterPillText: {
+  filterDropdownText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#CCCCCC',
+    color: '#ffffff',
   },
-  filterPillTextActive: {
+
+  // Dropdown Menu System
+  dropdownMenuContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 120,
+    alignSelf: 'flex-end',
+    right: 20,
+    width: 80,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  dropdownOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  dropdownOptionActive: {
+    backgroundColor: 'rgba(255, 107, 157, 0.1)',
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
     color: '#FFFFFF',
-    fontWeight: '700',
+    textAlign: 'center',
+  },
+  dropdownOptionTextActive: {
+    color: '#FF6B9D',
+    fontWeight: '600',
   },
   
   // Content
