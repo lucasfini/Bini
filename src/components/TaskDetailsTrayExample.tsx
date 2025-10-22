@@ -48,8 +48,8 @@ const TaskDetailsTrayExample: React.FC = () => {
     setIsVisible(false);
   };
 
-  const handleDelete = (task: UnifiedTask) => {
-    console.log('Delete task:', task.title);
+  const handleDelete = (taskId: string) => {
+    console.log('Delete task:', taskId);
     setIsVisible(false);
   };
 

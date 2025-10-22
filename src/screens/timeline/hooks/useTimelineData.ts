@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DaySection, Task } from '../types';
 import UnifiedTaskService from '../../../services/tasks/unifiedTaskService';
 import { UnifiedTask } from '../../../types/tasks';
+import { getLocalDateISO } from '../../../utils/dateHelper';
 
 const MOCK_EMPTY = false; // Set to false to use real data
 
@@ -22,10 +23,10 @@ export const useTimelineData = (refreshKey?: number): { sections: DaySection[]; 
       setIsLoading(true);
       try {
         const tasksGroupedByDate = await UnifiedTaskService.getTasksForTimeline();
-        
+
         // Convert UnifiedTask to Task format and create sections
         const sectionMap = new Map<string, DaySection>();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateISO();
         
         Object.entries(tasksGroupedByDate).forEach(([date, unifiedTasks]) => {
           // Include all tasks (both completed and incomplete)

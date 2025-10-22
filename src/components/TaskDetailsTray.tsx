@@ -40,7 +40,7 @@ interface TaskDetailsTrayProps {
   onClose: () => void;
   onEdit?: (task: UnifiedTask) => void;
   onDuplicate?: (task: UnifiedTask) => void;
-  onDelete?: (task: UnifiedTask) => void;
+  onDelete?: (taskId: string) => void;
   onComplete?: (task: UnifiedTask) => void;
   onStepToggle?: (taskId: string, stepId: string) => void;
   onAddStep?: (taskId: string, stepText?: string) => void;
@@ -126,11 +126,11 @@ const TaskDetailsTray: React.FC<TaskDetailsTrayProps> = ({
       `Are you sure you want to delete "${task.title}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            onDelete?.(task);
+            onDelete?.(task.id);
             onClose();
           }
         },

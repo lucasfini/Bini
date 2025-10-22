@@ -21,6 +21,7 @@ import { Task } from './types';
 import { colors, spacing, typography, layout } from '../../theme/designTokens';
 import TaskDetailsTray from '../../components/TaskDetailsTray';
 import UnifiedTaskService from '../../services/tasks/unifiedTaskService';
+import { getLocalDateISO } from '../../utils/dateHelper';
 import { List, User, Users, ChevronLeft, Calendar } from 'lucide-react-native';
 
 interface TimelineScreenProps {
@@ -56,8 +57,8 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   }, [hookSections]);
   
   // Single-day view state
-  const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const today = new Date().toISOString().split('T')[0];
+  const [currentDate, setCurrentDate] = useState<string>(getLocalDateISO());
+  const today = getLocalDateISO();
   
   // Animation shared values
   const filterAnimation = useSharedValue(0);

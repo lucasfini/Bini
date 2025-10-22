@@ -1,6 +1,7 @@
 // src/services/tasks/unifiedTaskService.ts - FIXED FOR STRING JSON FIELDS
 import { supabase } from '../../config/supabase';
 import { UnifiedTask, TaskFormData } from '../../types/tasks';
+import { getLocalDateISO } from '../../utils/dateHelper';
 
 class UnifiedTaskService {
   // Helper to calculate end time
@@ -206,17 +207,22 @@ class UnifiedTaskService {
       throw new Error('Not authenticated');
     }
 
+    // Use local timezone to get correct date boundaries
     const today = new Date();
     const pastWeek = new Date();
     pastWeek.setDate(today.getDate() - 7); // Get past week for navigation
     const nextWeek = new Date();
     nextWeek.setDate(today.getDate() + 7);
 
+    // Convert to local date strings (not UTC)
+    const pastWeekLocal = getLocalDateISO(pastWeek);
+    const nextWeekLocal = getLocalDateISO(nextWeek);
+
     console.log(
       '📅 Fetching tasks from',
-      pastWeek.toISOString().split('T')[0],
+      pastWeekLocal,
       'to',
-      nextWeek.toISOString().split('T')[0],
+      nextWeekLocal,
     );
     console.log('👤 User ID:', user.user.id);
 
@@ -227,19 +233,19 @@ class UnifiedTaskService {
         .from('tasks')
         .select('*')
         .limit(10);
-      
+
       console.log('📊 Total tasks in database:', allTasks?.length || 0);
       if (allTasks && allTasks.length > 0) {
         console.log('📋 Sample task:', JSON.stringify(allTasks[0], null, 2));
       }
 
-      // SIMPLIFIED QUERY: Get tasks for past week to next week
+      // SIMPLIFIED QUERY: Get tasks for past week to next week using local timezone
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
         .eq('created_by', user.user.id)
-        .gte('date', pastWeek.toISOString().split('T')[0])
-        .lte('date', nextWeek.toISOString().split('T')[0])
+        .gte('date', pastWeekLocal)
+        .lte('date', nextWeekLocal)
         .order('date', { ascending: true });
 
       if (error) {
