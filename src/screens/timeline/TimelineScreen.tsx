@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent, Pressable, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -55,6 +55,8 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPartnerActions, setShowPartnerActions] = useState(false);
   const [showUserStatus, setShowUserStatus] = useState(false);
+  const [showCustomMessage, setShowCustomMessage] = useState(false);
+  const [customMessage, setCustomMessage] = useState('');
 
   // Activity feed state with priority system
   type ActivityType = 'status' | 'interaction' | 'task';
@@ -133,6 +135,21 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     setShowUserStatus(false);
   };
 
+  // Custom message
+  const handleOpenCustomMessage = () => {
+    setShowUserStatus(false);
+    setShowCustomMessage(true);
+  };
+
+  const handleSubmitCustomMessage = () => {
+    if (customMessage.trim()) {
+      setActivities(prev => prev.filter(a => a.type !== 'status'));
+      addActivity('status', `You: ${customMessage.trim()}`);
+      setCustomMessage('');
+      setShowCustomMessage(false);
+    }
+  };
+
   // Scrolling animation for activity feed (endless loop)
   const scrollX = useSharedValue(0);
   const [textWidth, setTextWidth] = useState(0);
@@ -163,6 +180,23 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
     return () => clearInterval(interval);
   }, []);
+
+  // Check if all tasks for today are completed
+  useEffect(() => {
+    const todaySection = filteredSections.find(s => s.dateISO === currentDate);
+    if (todaySection && todaySection.tasks.length > 0) {
+      const allCompleted = todaySection.tasks.every(task => task.isCompleted);
+      if (allCompleted) {
+        // Check if we already have this message
+        const hasCompletionMessage = activities.some(a =>
+          a.message.includes('All tasks completed')
+        );
+        if (!hasCompletionMessage) {
+          addActivity('task', '⭐ All tasks completed for today! Great work!', 15000);
+        }
+      }
+    }
+  }, [filteredSections, currentDate]);
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -512,6 +546,62 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
             <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Celebrating 🎉')}>
               <Text style={styles.actionText}>🎉 Celebrating</Text>
             </TouchableOpacity>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.actionOption} onPress={handleOpenCustomMessage}>
+              <Text style={styles.actionText}>✏️ Custom message...</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Custom Message Modal */}
+      {showCustomMessage && (
+        <View style={styles.dropdownMenuContainer}>
+          <TouchableOpacity
+            style={styles.dropdownBackdrop}
+            onPress={() => {
+              setShowCustomMessage(false);
+              setCustomMessage('');
+            }}
+            activeOpacity={1}
+          />
+          <View style={styles.customMessageModal}>
+            <Text style={styles.modalTitle}>Custom Status</Text>
+            <TextInput
+              style={styles.customMessageInput}
+              value={customMessage}
+              onChangeText={(text) => {
+                if (text.length <= 40) {
+                  setCustomMessage(text);
+                }
+              }}
+              placeholder="Your status message..."
+              placeholderTextColor="#666666"
+              maxLength={40}
+              autoFocus
+            />
+            <Text style={styles.charCount}>{customMessage.length}/40</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowCustomMessage(false);
+                  setCustomMessage('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  !customMessage.trim() && styles.submitButtonDisabled
+                ]}
+                onPress={handleSubmitCustomMessage}
+                disabled={!customMessage.trim()}
+              >
+                <Text style={styles.submitButtonText}>Set Status</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -593,21 +683,8 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
           <Animated.View style={contentAnimatedStyle}>
             {filteredSections.length > 0 ? (
               filteredSections.map((section, sectionIndex) => {
-                // Check if all tasks for this day are completed
-                const allTasksCompleted = section.tasks.length > 0 &&
-                  section.tasks.every(task => task.isCompleted);
-
                 return (
                   <View key={section.dateISO} style={styles.daySection}>
-                    {/* All tasks completed indicator */}
-                    {allTasksCompleted && (
-                      <View style={styles.completionBanner}>
-                        <Animated.Text style={styles.completionText}>
-                          ⭐ All tasks completed!
-                        </Animated.Text>
-                      </View>
-                    )}
-
                     {/* Tasks */}
                     <View style={styles.tasksContainer}>
                       {section.tasks.map((task, taskIndex) => (
@@ -885,7 +962,86 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#FFFFFF',
   },
-  
+  divider: {
+    height: 1,
+    backgroundColor: '#3A3A3A',
+    marginVertical: 4,
+  },
+
+  // Custom Message Modal
+  customMessageModal: {
+    position: 'absolute',
+    top: '30%',
+    left: '10%',
+    right: '10%',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  customMessageInput: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  charCount: {
+    fontSize: 12,
+    color: '#666666',
+    textAlign: 'right',
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#3A3A3A',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#CCCCCC',
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#FF6B9D',
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#4A4A4A',
+    opacity: 0.5,
+  },
+  submitButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
   // Content
   contentWrapper: {
     flex: 1,
@@ -901,21 +1057,6 @@ const styles = StyleSheet.create({
   // Day Sections
   daySection: {
     marginBottom: 22,
-  },
-  completionBanner: {
-    backgroundColor: 'rgba(255, 107, 157, 0.1)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 157, 0.3)',
-  },
-  completionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FF6B9D',
-    textAlign: 'center',
   },
   
   // Tasks
