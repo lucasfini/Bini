@@ -326,9 +326,6 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
             <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleOpenCalendar} style={styles.calendarIconButton}>
-          <Calendar size={24} color="#FF6B9D" />
-        </TouchableOpacity>
       </View>
 
       {/* Sticky Filter Bar */}
@@ -452,8 +449,9 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
     paddingVertical: 8,
-    gap: 16,
+    flex: 1,
   },
   dayNumberContainer: {
     minWidth: 80,
@@ -491,11 +489,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'right',
     letterSpacing: 0.5,
-  },
-  calendarIconButton: {
-    padding: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   // Sticky Filter Bar
