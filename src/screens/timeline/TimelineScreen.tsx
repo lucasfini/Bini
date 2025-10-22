@@ -53,9 +53,85 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [filter, setFilter] = useState<FilterKey>('Ours');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showPartnerActions, setShowPartnerActions] = useState(false);
+  const [showUserStatus, setShowUserStatus] = useState(false);
 
-  // Partner interaction states
-  const [recentActivity, setRecentActivity] = useState('Alex completed Morning Workout and is on fire today!');
+  // Activity feed state with priority system
+  type ActivityType = 'status' | 'interaction' | 'task';
+  interface Activity {
+    type: ActivityType;
+    message: string;
+    timestamp: number;
+    duration?: number; // in ms, undefined = permanent
+  }
+
+  const [activities, setActivities] = useState<Activity[]>([
+    {
+      type: 'task',
+      message: 'Alex completed Morning Workout and is on fire today!',
+      timestamp: Date.now(),
+    }
+  ]);
+
+  // Get current activity to display (priority: status > interaction > task)
+  const currentActivity = useMemo(() => {
+    const now = Date.now();
+
+    // Filter out expired temporary activities
+    const validActivities = activities.filter(a => {
+      if (!a.duration) return true; // Permanent activities
+      return (now - a.timestamp) < a.duration;
+    });
+
+    // Priority order: status, then interaction, then task
+    const statusActivity = validActivities.find(a => a.type === 'status');
+    if (statusActivity) return statusActivity.message;
+
+    const interactionActivity = validActivities.find(a => a.type === 'interaction');
+    if (interactionActivity) return interactionActivity.message;
+
+    const taskActivity = validActivities.find(a => a.type === 'task');
+    return taskActivity?.message || 'No recent activity';
+  }, [activities]);
+
+  // Add activity helper
+  const addActivity = (type: ActivityType, message: string, duration?: number) => {
+    setActivities(prev => [...prev, {
+      type,
+      message,
+      timestamp: Date.now(),
+      duration,
+    }]);
+  };
+
+  // Partner actions
+  const handleSendNudge = () => {
+    addActivity('interaction', 'You nudged Alex 👋', 10000);
+    setShowPartnerActions(false);
+  };
+
+  const handleSendHighFive = () => {
+    addActivity('interaction', 'You high-fived Alex ✋', 10000);
+    setShowPartnerActions(false);
+  };
+
+  const handleSendHeart = () => {
+    addActivity('interaction', 'You sent a heart to Alex ❤️', 10000);
+    setShowPartnerActions(false);
+  };
+
+  const handleSendEncouragement = () => {
+    addActivity('interaction', 'You encouraged Alex 💪', 10000);
+    setShowPartnerActions(false);
+  };
+
+  // User status
+  const handleSetStatus = (status: string) => {
+    // Remove old status activities
+    setActivities(prev => prev.filter(a => a.type !== 'status'));
+    addActivity('status', `You: ${status}`);
+    setShowUserStatus(false);
+  };
 
   // Scrolling animation for activity feed (endless loop)
   const scrollX = useSharedValue(0);
@@ -74,6 +150,19 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
       );
     }
   }, [textWidth]);
+
+  // Clean up expired activities every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setActivities(prev => prev.filter(a => {
+        if (!a.duration) return true; // Keep permanent activities
+        return (now - a.timestamp) < a.duration;
+      }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -354,13 +443,78 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Avatars - Full Height */}
-          <View style={styles.avatarRow}>
-            <Avatar seed="user-felix-789" size={50} />
-            <Avatar seed="partner-morgan-456" size={50} />
+          {/* Partnered Avatars with Connection */}
+          <View style={styles.partnershipContainer}>
+            {/* User Avatar */}
+            <TouchableOpacity onPress={() => setShowUserStatus(!showUserStatus)}>
+              <Avatar seed="user-charlie-890" size={38} />
+            </TouchableOpacity>
+
+            {/* Partnership Heart Icon */}
+            <View style={styles.partnershipHeart}>
+              <Text style={styles.heartIcon}>❤️</Text>
+            </View>
+
+            {/* Partner Avatar */}
+            <TouchableOpacity onPress={() => setShowPartnerActions(!showPartnerActions)}>
+              <Avatar seed="partner-jordan-234" size={38} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      {/* Partner Actions Dropdown */}
+      {showPartnerActions && (
+        <View style={styles.dropdownMenuContainer}>
+          <TouchableOpacity
+            style={styles.dropdownBackdrop}
+            onPress={() => setShowPartnerActions(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.partnerActionsMenu}>
+            <TouchableOpacity style={styles.actionOption} onPress={handleSendNudge}>
+              <Text style={styles.actionText}>👋 Send Nudge</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={handleSendHighFive}>
+              <Text style={styles.actionText}>✋ Send High-Five</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={handleSendHeart}>
+              <Text style={styles.actionText}>❤️ Send Heart</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={handleSendEncouragement}>
+              <Text style={styles.actionText}>💪 Send Encouragement</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* User Status Dropdown */}
+      {showUserStatus && (
+        <View style={styles.dropdownMenuContainer}>
+          <TouchableOpacity
+            style={styles.dropdownBackdrop}
+            onPress={() => setShowUserStatus(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.statusMenu}>
+            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Focused 🎯')}>
+              <Text style={styles.actionText}>🎯 Focused</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Crushing it 💪')}>
+              <Text style={styles.actionText}>💪 Crushing it</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Taking break ☕')}>
+              <Text style={styles.actionText}>☕ Taking break</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Need help 🆘')}>
+              <Text style={styles.actionText}>🆘 Need help</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Celebrating 🎉')}>
+              <Text style={styles.actionText}>🎉 Celebrating</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Filter Bar with Activity Feed */}
       <View style={styles.filterBar}>
@@ -389,10 +543,10 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
               style={styles.activityFeedText}
               onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}
             >
-              {recentActivity}
+              {currentActivity}
             </Animated.Text>
             <Animated.Text style={styles.activityFeedText}>
-              {'    •    ' + recentActivity}
+              {'    •    ' + currentActivity}
             </Animated.Text>
           </Animated.View>
         </View>
@@ -540,10 +694,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
-  avatarRow: {
+  partnershipContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    backgroundColor: 'rgba(255, 107, 157, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 24,
+    gap: 2,
+  },
+  partnershipHeart: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: [{ translateX: -8 }, { translateY: -8 }],
+    zIndex: 10,
+  },
+  heartIcon: {
+    fontSize: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   dateButton: {
     flexDirection: 'row',
@@ -670,6 +841,49 @@ const styles = StyleSheet.create({
   dropdownOptionTextActive: {
     color: '#FF6B9D',
     fontWeight: '600',
+  },
+
+  // Partner Actions & Status Menus
+  partnerActionsMenu: {
+    position: 'absolute',
+    top: 100,
+    right: 20,
+    width: 200,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    paddingVertical: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+  },
+  statusMenu: {
+    position: 'absolute',
+    top: 100,
+    right: 100,
+    width: 180,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    paddingVertical: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+  },
+  actionOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
   
   // Content

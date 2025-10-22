@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { createAvatar } from '@dicebear/core';
-import { funEmoji } from '@dicebear/collection';
+import { lorelei } from '@dicebear/collection';
 
 interface AvatarProps {
   seed: string; // User ID or name to generate consistent avatar
@@ -11,12 +11,10 @@ interface AvatarProps {
 }
 
 const Avatar: React.FC<AvatarProps> = ({ seed, size = 32, style }) => {
-  // Generate avatar SVG
-  const avatar = createAvatar(funEmoji, {
+  // Generate avatar SVG with lorelei style
+  const avatar = createAvatar(lorelei, {
     seed,
     size,
-    // Customize avatar style here
-    backgroundColor: ['#1A1A1A', '#2A2A2A'],
   });
 
   const svgString = avatar.toString();
@@ -34,6 +32,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: '#FF6B9D',
+    backgroundColor: '#2A2A2A',
   },
 });
 
