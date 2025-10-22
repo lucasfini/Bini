@@ -102,13 +102,13 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     return { day, weekday, month };
   };
 
-  // Format date for header display
-  const formatHeaderDate = (dateString: string) => {
+  // Get date components for header display
+  const getHeaderDateComponents = (dateString: string) => {
     const date = new Date(dateString);
     const day = date.getDate();
     const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const month = date.toLocaleDateString('en-US', { month: 'short' });
-    return `${day} ${weekday}, ${month}`;
+    return { day, weekday, month };
   };
 
   const handleOpenCalendar = () => {
@@ -306,15 +306,28 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     );
   }
 
+  const headerDateComponents = getHeaderDateComponents(currentDate);
+
   return (
     <View style={styles.container}>
       {/* Header with Date Display */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
-          <Animated.Text style={styles.dateText}>
-            {formatHeaderDate(currentDate)}
-          </Animated.Text>
-          <Calendar size={20} color="#FF6B9D" style={{ marginLeft: 8 }} />
+          <View style={styles.dayNumberContainer}>
+            <Animated.Text style={[
+              styles.dayNumber,
+              isViewingToday ? styles.dayNumberToday : styles.dayNumberOther
+            ]}>
+              {headerDateComponents.day}
+            </Animated.Text>
+          </View>
+          <View style={styles.dayMeta}>
+            <Animated.Text style={styles.dayWeekday}>{headerDateComponents.weekday}</Animated.Text>
+            <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleOpenCalendar} style={styles.calendarIconButton}>
+          <Calendar size={24} color="#FF6B9D" />
         </TouchableOpacity>
       </View>
 
@@ -429,7 +442,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 12,
     backgroundColor: '#1A1A1A',
@@ -438,16 +451,51 @@ const styles = StyleSheet.create({
   },
   dateButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
+    gap: 16,
   },
-  dateText: {
-    fontSize: 18,
-    fontWeight: '700',
+  dayNumberContainer: {
+    minWidth: 80,
+  },
+  dayNumber: {
+    fontSize: 42,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+  },
+  dayNumberToday: {
+    color: '#FF6B9D',
+  },
+  dayNumberOther: {
+    opacity: 0.85,
+  },
+  dayMeta: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  dayWeekday: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#CCCCCC',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'right',
+  },
+  dayMonth: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#CCCCCC',
+    opacity: 0.8,
+    marginTop: 2,
+    textAlign: 'right',
+    letterSpacing: 0.5,
+  },
+  calendarIconButton: {
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Sticky Filter Bar
