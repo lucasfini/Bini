@@ -21,6 +21,7 @@ import { Task } from './types';
 import { colors, spacing, typography, layout } from '../../theme/designTokens';
 import TaskDetailsTray from '../../components/TaskDetailsTray';
 import CalendarTray from '../../components/CalendarTray';
+import Avatar from '../../components/Avatar';
 import UnifiedTaskService from '../../services/tasks/unifiedTaskService';
 import { getLocalDateISO } from '../../utils/dateHelper';
 import { List, User, Users, ChevronLeft, Calendar } from 'lucide-react-native';
@@ -54,14 +55,21 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Partner interaction states
-  const [recentActivity, setRecentActivity] = useState('Alex completed Morning Workout 💪');
-  const [userMood, setUserMood] = useState('😊');
-  const [partnerMood, setPartnerMood] = useState('💪');
+  const [recentActivity, setRecentActivity] = useState('Alex completed Morning Workout and is on fire today!');
 
-  const handleHighFive = () => {
-    console.log('✋ High-five sent to partner!');
-    // TODO: Send high-five notification to partner
-  };
+  // Scrolling animation for activity feed
+  const scrollX = useSharedValue(0);
+  const [activityWidth, setActivityWidth] = useState(0);
+
+  useEffect(() => {
+    if (activityWidth > 0) {
+      scrollX.value = withRepeat(
+        withTiming(-activityWidth, { duration: 10000, easing: Easing.linear }),
+        -1,
+        false
+      );
+    }
+  }, [activityWidth]);
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -342,18 +350,29 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Activity Feed */}
-          <Animated.Text style={styles.activityFeedText} numberOfLines={1}>
-            {recentActivity}
-          </Animated.Text>
+          {/* Avatars + Scrolling Activity Feed */}
+          <View style={styles.avatarRow}>
+            <Avatar seed="user-id-123" size={28} />
+            <Avatar seed="partner-alex" size={28} />
+          </View>
 
-          {/* Bottom row: Moods + High-five */}
-          <View style={styles.interactionRow}>
-            <Text style={styles.moodText}>{userMood}</Text>
-            <TouchableOpacity onPress={handleHighFive} style={styles.highFiveButton}>
-              <Text style={styles.highFiveEmoji}>✋</Text>
-            </TouchableOpacity>
-            <Text style={styles.moodText}>{partnerMood}</Text>
+          {/* Scrolling Activity Feed */}
+          <View style={styles.activityFeedContainer}>
+            <Animated.View
+              style={[
+                styles.activityFeedScroller,
+                useAnimatedStyle(() => ({
+                  transform: [{ translateX: scrollX.value }],
+                })),
+              ]}
+            >
+              <Animated.Text
+                style={styles.activityFeedText}
+                onLayout={(e) => setActivityWidth(e.nativeEvent.layout.width)}
+              >
+                {recentActivity}
+              </Animated.Text>
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -511,33 +530,27 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activityFeedContainer: {
+    maxWidth: 200,
+    overflow: 'hidden',
+    height: 16,
+  },
+  activityFeedScroller: {
+    flexDirection: 'row',
   },
   activityFeedText: {
     fontSize: 11,
     fontWeight: '500',
     color: '#CCCCCC',
     opacity: 0.7,
-    textAlign: 'right',
-  },
-  interactionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  moodText: {
-    fontSize: 16,
-  },
-  highFiveButton: {
-    backgroundColor: 'rgba(255, 107, 157, 0.15)',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 157, 0.3)',
-  },
-  highFiveEmoji: {
-    fontSize: 18,
+    whiteSpace: 'nowrap',
   },
   dateButton: {
     flexDirection: 'row',
