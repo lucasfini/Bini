@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, LayoutChangeEvent, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
