@@ -57,19 +57,23 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   // Partner interaction states
   const [recentActivity, setRecentActivity] = useState('Alex completed Morning Workout and is on fire today!');
 
-  // Scrolling animation for activity feed
+  // Scrolling animation for activity feed (endless loop)
   const scrollX = useSharedValue(0);
-  const [activityWidth, setActivityWidth] = useState(0);
+  const [textWidth, setTextWidth] = useState(0);
 
   useEffect(() => {
-    if (activityWidth > 0) {
+    if (textWidth > 0) {
+      // Seamlessly loop by scrolling exactly the width of one text instance
       scrollX.value = withRepeat(
-        withTiming(-activityWidth, { duration: 10000, easing: Easing.linear }),
+        withTiming(-(textWidth + 20), {
+          duration: 15000,
+          easing: Easing.linear
+        }),
         -1,
         false
       );
     }
-  }, [activityWidth]);
+  }, [textWidth]);
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -328,7 +332,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Header with Date Display and Filter */}
+      {/* Header with Date Display and Avatars */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
@@ -346,38 +350,19 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         </View>
 
         <View style={styles.headerCenter}>
-          {/* Empty - interaction moved to right */}
+          {/* Empty */}
         </View>
 
         <View style={styles.headerRight}>
-          {/* Avatars + Scrolling Activity Feed */}
+          {/* Avatars - Full Height */}
           <View style={styles.avatarRow}>
-            <Avatar seed="user-id-123" size={28} />
-            <Avatar seed="partner-alex" size={28} />
-          </View>
-
-          {/* Scrolling Activity Feed */}
-          <View style={styles.activityFeedContainer}>
-            <Animated.View
-              style={[
-                styles.activityFeedScroller,
-                useAnimatedStyle(() => ({
-                  transform: [{ translateX: scrollX.value }],
-                })),
-              ]}
-            >
-              <Animated.Text
-                style={styles.activityFeedText}
-                onLayout={(e) => setActivityWidth(e.nativeEvent.layout.width)}
-              >
-                {recentActivity}
-              </Animated.Text>
-            </Animated.View>
+            <Avatar seed="user-felix-789" size={50} />
+            <Avatar seed="partner-morgan-456" size={50} />
           </View>
         </View>
       </View>
 
-      {/* Filter Bar Below Header */}
+      {/* Filter Bar with Activity Feed */}
       <View style={styles.filterBar}>
         <TouchableOpacity
           onPress={() => setShowDropdown(!showDropdown)}
@@ -387,6 +372,30 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
             {filter}
           </Animated.Text>
         </TouchableOpacity>
+
+        <Text style={styles.separator}>|</Text>
+
+        {/* Scrolling Activity Feed - Endless Loop */}
+        <View style={styles.activityFeedContainer}>
+          <Animated.View
+            style={[
+              styles.activityFeedScroller,
+              useAnimatedStyle(() => ({
+                transform: [{ translateX: scrollX.value }],
+              })),
+            ]}
+          >
+            <Animated.Text
+              style={styles.activityFeedText}
+              onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)}
+            >
+              {recentActivity}
+            </Animated.Text>
+            <Animated.Text style={styles.activityFeedText}>
+              {'    •    ' + recentActivity}
+            </Animated.Text>
+          </Animated.View>
+        </View>
       </View>
 
       {/* Dropdown Menu */}
@@ -530,27 +539,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 6,
   },
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  activityFeedContainer: {
-    maxWidth: 200,
-    overflow: 'hidden',
-    height: 16,
-  },
-  activityFeedScroller: {
-    flexDirection: 'row',
-  },
-  activityFeedText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#CCCCCC',
-    opacity: 0.7,
-    whiteSpace: 'nowrap',
+    gap: 4,
   },
   dateButton: {
     flexDirection: 'row',
@@ -595,10 +588,11 @@ const styles = StyleSheet.create({
   filterBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
     paddingHorizontal: 20,
     paddingVertical: 8,
     backgroundColor: '#1A1A1A',
+    gap: 12,
   },
   filterButton: {
     paddingHorizontal: 8,
@@ -608,6 +602,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#CCCCCC',
+  },
+  separator: {
+    fontSize: 14,
+    color: '#3A3A3A',
+    fontWeight: '300',
+  },
+  activityFeedContainer: {
+    flex: 1,
+    overflow: 'hidden',
+    height: 18,
+  },
+  activityFeedScroller: {
+    flexDirection: 'row',
+  },
+  activityFeedText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#CCCCCC',
+    opacity: 0.7,
   },
 
   // Dropdown Menu System
@@ -630,8 +643,7 @@ const styles = StyleSheet.create({
   dropdownMenu: {
     position: 'absolute',
     top: 140,
-    alignSelf: 'flex-end',
-    right: 20,
+    left: 20,
     width: 80,
     backgroundColor: '#2A2A2A',
     borderRadius: 8,
