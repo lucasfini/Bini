@@ -338,6 +338,10 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         </View>
 
         <View style={styles.headerCenter}>
+          {/* Empty - interaction moved to right */}
+        </View>
+
+        <View style={styles.headerRight}>
           {/* Activity Feed */}
           <Animated.Text style={styles.activityFeedText} numberOfLines={1}>
             {recentActivity}
@@ -351,10 +355,6 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
             </TouchableOpacity>
             <Text style={styles.moodText}>{partnerMood}</Text>
           </View>
-        </View>
-
-        <View style={styles.headerRight}>
-          {/* Empty - filter moved below */}
         </View>
       </View>
 
@@ -510,13 +510,15 @@ const styles = StyleSheet.create({
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
   },
   activityFeedText: {
     fontSize: 11,
     fontWeight: '500',
     color: '#CCCCCC',
     opacity: 0.7,
-    textAlign: 'center',
+    textAlign: 'right',
   },
   interactionRow: {
     flexDirection: 'row',
@@ -584,8 +586,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     backgroundColor: '#1A1A1A',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
   },
   filterButton: {
     paddingHorizontal: 8,
