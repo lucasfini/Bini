@@ -52,6 +52,16 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [filter, setFilter] = useState<FilterKey>('Ours');
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Partner interaction states
+  const [recentActivity, setRecentActivity] = useState('Alex completed Morning Workout 💪');
+  const [userMood, setUserMood] = useState('😊');
+  const [partnerMood, setPartnerMood] = useState('💪');
+
+  const handleHighFive = () => {
+    console.log('✋ High-five sent to partner!');
+    // TODO: Send high-five notification to partner
+  };
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -328,20 +338,36 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         </View>
 
         <View style={styles.headerCenter}>
-          {/* Interactive partner element will go here */}
+          {/* Activity Feed */}
+          <Animated.Text style={styles.activityFeedText} numberOfLines={1}>
+            {recentActivity}
+          </Animated.Text>
+
+          {/* Bottom row: Moods + High-five */}
+          <View style={styles.interactionRow}>
+            <Text style={styles.moodText}>{userMood}</Text>
+            <TouchableOpacity onPress={handleHighFive} style={styles.highFiveButton}>
+              <Text style={styles.highFiveEmoji}>✋</Text>
+            </TouchableOpacity>
+            <Text style={styles.moodText}>{partnerMood}</Text>
+          </View>
         </View>
 
         <View style={styles.headerRight}>
-          {/* Filter Dropdown */}
-          <TouchableOpacity
-            onPress={() => setShowDropdown(!showDropdown)}
-            style={styles.filterDropdown}
-          >
-            <Animated.Text style={styles.filterDropdownText}>
-              {filter}
-            </Animated.Text>
-          </TouchableOpacity>
+          {/* Empty - filter moved below */}
         </View>
+      </View>
+
+      {/* Filter Bar Below Header */}
+      <View style={styles.filterBar}>
+        <TouchableOpacity
+          onPress={() => setShowDropdown(!showDropdown)}
+          style={styles.filterButton}
+        >
+          <Animated.Text style={styles.filterButtonText}>
+            {filter}
+          </Animated.Text>
+        </TouchableOpacity>
       </View>
 
       {/* Dropdown Menu */}
@@ -478,10 +504,38 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
   },
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
+  },
+  activityFeedText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#CCCCCC',
+    opacity: 0.7,
+    textAlign: 'center',
+  },
+  interactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  moodText: {
+    fontSize: 16,
+  },
+  highFiveButton: {
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
+  },
+  highFiveEmoji: {
+    fontSize: 18,
   },
   dateButton: {
     flexDirection: 'row',
@@ -522,19 +576,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Filter Dropdown
-  filterDropdown: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    minWidth: 80,
+  // Filter Bar Below Header
+  filterBar: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: '#1A1A1A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
   },
-  filterDropdownText: {
+  filterButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  filterButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#CCCCCC',
   },
 
   // Dropdown Menu System
@@ -556,7 +616,7 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: 120,
+    top: 140,
     alignSelf: 'flex-end',
     right: 20,
     width: 80,
