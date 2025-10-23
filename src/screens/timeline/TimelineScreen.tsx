@@ -421,18 +421,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
 
 
-  
-  // Animated styles
-  const contentAnimatedStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(filterAnimation.value, [0, 0.5, 1], [1, 0.7, 1]);
-    const translateX = interpolate(slideAnimation.value, [-1, 0, 1], [-300, 0, 300]);
-    return { 
-      opacity,
-      transform: [{ translateX }]
-    };
-  });
-  
-  
+
 
   if (!hasAnyTasks && hasLoadedOnce && !isLoading) {
     return (
@@ -450,6 +439,16 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
       </View>
     );
   }
+
+  // Animated styles
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(filterAnimation.value, [0, 0.5, 1], [1, 0.7, 1]);
+    const translateX = interpolate(slideAnimation.value, [-1, 0, 1], [-300, 0, 300]);
+    return {
+      opacity,
+      transform: [{ translateX }]
+    };
+  });
 
   const headerDateComponents = getHeaderDateComponents(currentDate);
 
