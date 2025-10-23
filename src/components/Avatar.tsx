@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { createAvatar } from '@dicebear/core';
-import { lorelei } from '@dicebear/collection';
+import { loreleiNeutral } from '@dicebear/collection';
 
 interface AvatarProps {
   seed: string; // User ID or name to generate consistent avatar
@@ -11,8 +11,8 @@ interface AvatarProps {
 }
 
 const Avatar: React.FC<AvatarProps> = ({ seed, size = 32, style }) => {
-  // Generate avatar SVG with lorelei style
-  const avatar = createAvatar(lorelei, {
+  // Generate avatar SVG with lorelei-neutral style
+  const avatar = createAvatar(loreleiNeutral, {
     seed,
     size,
   });

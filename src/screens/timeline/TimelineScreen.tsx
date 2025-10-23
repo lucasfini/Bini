@@ -479,9 +479,9 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         <View style={styles.headerRight}>
           {/* Partnered Avatars with Connection */}
           <View style={styles.partnershipContainer}>
-            {/* User Avatar */}
+            {/* User Avatar - Woman */}
             <TouchableOpacity onPress={() => setShowUserStatus(!showUserStatus)}>
-              <Avatar seed="user-charlie-890" size={38} />
+              <Avatar seed="emma-rose-2024" size={38} />
             </TouchableOpacity>
 
             {/* Partnership Heart Icon */}
@@ -489,9 +489,9 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
               <Text style={styles.heartIcon}>❤️</Text>
             </View>
 
-            {/* Partner Avatar */}
+            {/* Partner Avatar - Man */}
             <TouchableOpacity onPress={() => setShowPartnerActions(!showPartnerActions)}>
-              <Avatar seed="partner-jordan-234" size={38} />
+              <Avatar seed="james-cooper-2024" size={38} />
             </TouchableOpacity>
           </View>
         </View>
