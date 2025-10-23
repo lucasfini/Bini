@@ -450,6 +450,10 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     };
   });
 
+  const activityFeedAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: scrollX.value }],
+  }));
+
   const headerDateComponents = getHeaderDateComponents(currentDate);
 
   return (
@@ -623,9 +627,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
           <Animated.View
             style={[
               styles.activityFeedScroller,
-              useAnimatedStyle(() => ({
-                transform: [{ translateX: scrollX.value }],
-              })),
+              activityFeedAnimatedStyle,
             ]}
           >
             <Animated.Text
