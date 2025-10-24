@@ -7,6 +7,7 @@ import Animated, {
   withRepeat,
   withTiming,
   withSpring,
+  withSequence,
   Easing,
   interpolate,
   FadeIn,
@@ -22,6 +23,7 @@ import { colors, spacing, typography, layout } from '../../theme/designTokens';
 import TaskDetailsTray from '../../components/TaskDetailsTray';
 import CalendarTray from '../../components/CalendarTray';
 import Avatar from '../../components/Avatar';
+import ProfileTray from '../../components/ProfileTray';
 import UnifiedTaskService from '../../services/tasks/unifiedTaskService';
 import { getLocalDateISO } from '../../utils/dateHelper';
 import { List, User, Users, ChevronLeft, Calendar } from 'lucide-react-native';
@@ -53,10 +55,9 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const [filter, setFilter] = useState<FilterKey>('Ours');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showPartnerActions, setShowPartnerActions] = useState(false);
-  const [showUserStatus, setShowUserStatus] = useState(false);
-  const [showCustomMessage, setShowCustomMessage] = useState(false);
-  const [customMessage, setCustomMessage] = useState('');
+  const [userProfileTrayVisible, setUserProfileTrayVisible] = useState(false);
+  const [partnerProfileTrayVisible, setPartnerProfileTrayVisible] = useState(false);
+  const [userStatus, setUserStatus] = useState<string>('');
 
   // Activity feed state with priority system
   type ActivityType = 'status' | 'interaction' | 'task';
@@ -106,48 +107,34 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }]);
   };
 
-  // Partner actions
-  const handleSendNudge = () => {
-    addActivity('interaction', 'You nudged Alex 👋', 10000);
-    setShowPartnerActions(false);
-  };
-
-  const handleSendHighFive = () => {
-    addActivity('interaction', 'You high-fived Alex ✋', 10000);
-    setShowPartnerActions(false);
-  };
-
-  const handleSendHeart = () => {
-    addActivity('interaction', 'You sent a heart to Alex ❤️', 10000);
-    setShowPartnerActions(false);
-  };
-
-  const handleSendEncouragement = () => {
-    addActivity('interaction', 'You encouraged Alex 💪', 10000);
-    setShowPartnerActions(false);
-  };
-
-  // User status
-  const handleSetStatus = (status: string) => {
+  // User status handler
+  const handleUserStatusChange = (status: string) => {
+    setUserStatus(status);
     // Remove old status activities
     setActivities(prev => prev.filter(a => a.type !== 'status'));
     addActivity('status', `You: ${status}`);
-    setShowUserStatus(false);
   };
 
-  // Custom message
-  const handleOpenCustomMessage = () => {
-    setShowUserStatus(false);
-    setShowCustomMessage(true);
-  };
-
-  const handleSubmitCustomMessage = () => {
-    if (customMessage.trim()) {
-      setActivities(prev => prev.filter(a => a.type !== 'status'));
-      addActivity('status', `You: ${customMessage.trim()}`);
-      setCustomMessage('');
-      setShowCustomMessage(false);
+  // Partner action handler
+  const handlePartnerAction = (action: string) => {
+    let message = '';
+    switch (action) {
+      case 'Send Nudge':
+        message = 'You nudged Alex 👋';
+        break;
+      case 'Send High-Five':
+        message = 'You high-fived Alex ✋';
+        break;
+      case 'Send Heart':
+        message = 'You sent a heart to Alex ❤️';
+        break;
+      case 'Send Encouragement':
+        message = 'You encouraged Alex 💪';
+        break;
+      default:
+        message = `You ${action.toLowerCase()} Alex`;
     }
+    addActivity('interaction', message, 10000);
   };
 
   // Scrolling animation for activity feed (endless loop)
@@ -168,6 +155,18 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }
   }, [textWidth]);
 
+  // Connection pulse animation
+  useEffect(() => {
+    connectionPulse.value = withRepeat(
+      withSequence(
+        withTiming(1.2, { duration: 2000 }),
+        withTiming(1, { duration: 2000 })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
   // Clean up expired activities every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -180,23 +179,6 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
     return () => clearInterval(interval);
   }, []);
-
-  // Check if all tasks for today are completed
-  useEffect(() => {
-    const todaySection = filteredSections.find(s => s.dateISO === currentDate);
-    if (todaySection && todaySection.tasks.length > 0) {
-      const allCompleted = todaySection.tasks.every(task => task.isCompleted);
-      if (allCompleted) {
-        // Check if we already have this message
-        const hasCompletionMessage = activities.some(a =>
-          a.message.includes('All tasks completed')
-        );
-        if (!hasCompletionMessage) {
-          addActivity('task', '⭐ All tasks completed for today! Great work!', 15000);
-        }
-      }
-    }
-  }, [filteredSections, currentDate]);
   
   // Update local sections when hook data changes
   useEffect(() => {
@@ -210,6 +192,10 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   // Animation shared values
   const filterAnimation = useSharedValue(0);
   const slideAnimation = useSharedValue(0);
+  const headerGlow = useSharedValue(0);
+  const avatarGlow = useSharedValue(0);
+  const datePopScale = useSharedValue(1);
+  const connectionPulse = useSharedValue(1);
 
   // Filter sections for single-day view
   const filteredSections = useMemo(() => {
@@ -228,6 +214,23 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   const hasAnyTasks = filteredSections.some(section => section.tasks.length > 0);
   const isViewingToday = currentDate === today;
+
+  // Check if all tasks for today are completed
+  useEffect(() => {
+    const todaySection = filteredSections.find(s => s.dateISO === currentDate);
+    if (todaySection && todaySection.tasks.length > 0) {
+      const allCompleted = todaySection.tasks.every(task => task.isCompleted);
+      if (allCompleted) {
+        // Check if we already have this message
+        const hasCompletionMessage = activities.some(a =>
+          a.message.includes('All tasks completed')
+        );
+        if (!hasCompletionMessage) {
+          addActivity('task', '⭐ All tasks completed for today! Great work!', 15000);
+        }
+      }
+    }
+  }, [filteredSections, currentDate, activities]);
 
   // Get icon for filter dropdown
   const getFilterIcon = (filterKey: FilterKey) => {
@@ -262,6 +265,12 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   const handleDateSelect = (newDate: string) => {
     console.log('📅 Date selected:', newDate);
+
+    // Animate date change with pop effect
+    datePopScale.value = withSequence(
+      withTiming(1.1, { duration: 150 }),
+      withTiming(1, { duration: 150 })
+    );
 
     // Animate transition
     slideAnimation.value = withTiming(currentDate < newDate ? -1 : 1, { duration: 150 }, () => {
@@ -419,9 +428,37 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     });
   };
 
+  // Animated styles - MUST be before any early returns
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(filterAnimation.value, [0, 0.5, 1], [1, 0.7, 1]);
+    const translateX = interpolate(slideAnimation.value, [-1, 0, 1], [-300, 0, 300]);
+    return {
+      opacity,
+      transform: [{ translateX }]
+    };
+  });
 
+  const activityFeedAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: scrollX.value }],
+  }));
 
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(26, 26, 26, ${0.85 + headerGlow.value * 0.1})`,
+  }));
 
+  const dateAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: datePopScale.value }],
+  }));
+
+  const avatarGlowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: 0.3 + avatarGlow.value * 0.4,
+    transform: [{ scale: 1 + avatarGlow.value * 0.05 }],
+  }));
+
+  const connectionPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: connectionPulse.value }],
+    opacity: interpolate(connectionPulse.value, [1, 1.2], [0.6, 1]),
+  }));
 
   if (!hasAnyTasks && hasLoadedOnce && !isLoading) {
     return (
@@ -440,174 +477,102 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     );
   }
 
-  // Animated styles
-  const contentAnimatedStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(filterAnimation.value, [0, 0.5, 1], [1, 0.7, 1]);
-    const translateX = interpolate(slideAnimation.value, [-1, 0, 1], [-300, 0, 300]);
-    return {
-      opacity,
-      transform: [{ translateX }]
-    };
-  });
-
-  const activityFeedAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: scrollX.value }],
-  }));
-
   const headerDateComponents = getHeaderDateComponents(currentDate);
 
   return (
     <View style={styles.container}>
-      {/* Header with Date Display and Avatars */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
-            <Animated.Text style={[
-              styles.dayNumber,
-              isViewingToday ? styles.dayNumberToday : styles.dayNumberOther
-            ]}>
-              {headerDateComponents.day}
-            </Animated.Text>
-            <View style={styles.dayMeta}>
-              <Animated.Text style={styles.dayWeekday}>{headerDateComponents.weekday}</Animated.Text>
-              <Animated.Text style={styles.dayMonth}>{headerDateComponents.month}</Animated.Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.headerCenter}>
-          {/* Empty */}
-        </View>
-
-        <View style={styles.headerRight}>
-          {/* Partnered Avatars with Connection */}
-          <View style={styles.partnershipContainer}>
-            {/* User Avatar - Woman */}
-            <TouchableOpacity onPress={() => setShowUserStatus(!showUserStatus)}>
-              <Avatar seed="emma-rose-2024" size={38} />
-            </TouchableOpacity>
-
-            {/* Partnership Heart Icon */}
-            <View style={styles.partnershipHeart}>
-              <Text style={styles.heartIcon}>❤️</Text>
-            </View>
-
-            {/* Partner Avatar - Man */}
-            <TouchableOpacity onPress={() => setShowPartnerActions(!showPartnerActions)}>
-              <Avatar seed="james-cooper-2024" size={38} />
+      {/* Enhanced Header with Glass Effect */}
+      <Animated.View style={[styles.headerContainer, headerAnimatedStyle, { paddingTop: insets.top }]}>
+        {/* Glass effect overlay */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)', 'transparent']}
+          style={styles.headerGradient}
+        />
+        
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={handleOpenCalendar} style={styles.dateButton}>
+              <Animated.View style={[styles.dateContainer, dateAnimatedStyle]}>
+                <Animated.Text style={[
+                  styles.dayNumber,
+                  isViewingToday ? styles.dayNumberToday : styles.dayNumberOther
+                ]}>
+                  {headerDateComponents.day}
+                </Animated.Text>
+                <View style={styles.dayMeta}>
+                  <Animated.Text style={styles.dayWeekday}>
+                    {headerDateComponents.weekday.toUpperCase()}
+                  </Animated.Text>
+                  <Animated.Text style={styles.dayMonth}>
+                    {headerDateComponents.month}
+                  </Animated.Text>
+                </View>
+              </Animated.View>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
 
-      {/* Partner Actions Dropdown */}
-      {showPartnerActions && (
-        <View style={styles.dropdownMenuContainer}>
-          <TouchableOpacity
-            style={styles.dropdownBackdrop}
-            onPress={() => setShowPartnerActions(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.partnerActionsMenu}>
-            <TouchableOpacity style={styles.actionOption} onPress={handleSendNudge}>
-              <Text style={styles.actionText}>👋 Send Nudge</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={handleSendHighFive}>
-              <Text style={styles.actionText}>✋ Send High-Five</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={handleSendHeart}>
-              <Text style={styles.actionText}>❤️ Send Heart</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={handleSendEncouragement}>
-              <Text style={styles.actionText}>💪 Send Encouragement</Text>
-            </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            {/* Empty - Clean minimal design */}
+          </View>
+
+          <View style={styles.headerRight}>
+            {/* Clean Partnership Section */}
+            <Animated.View style={[styles.cleanPartnershipContainer, avatarGlowStyle]}>
+              {/* Connection Indicator */}
+              <View style={styles.connectionIndicator}>
+                <View style={styles.connectionLine} />
+                <Animated.View style={[styles.connectionPulse, connectionPulseStyle]}>
+                  <Text style={styles.connectionIcon}>💕</Text>
+                </Animated.View>
+              </View>
+              
+              {/* Avatar Row */}
+              <View style={styles.avatarRow}>
+                {/* User Avatar */}
+                <TouchableOpacity 
+                  onPress={() => {
+                    setUserProfileTrayVisible(true);
+                    avatarGlow.value = withSequence(
+                      withTiming(1, { duration: 200 }),
+                      withTiming(0, { duration: 300 })
+                    );
+                  }}
+                  style={styles.cleanAvatarButton}
+                  activeOpacity={0.8}
+                >
+                  <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
+                    <View style={[styles.cleanAvatarRing, { borderColor: userStatus ? '#4ECDC4' : 'rgba(255, 107, 157, 0.3)' }]}>
+                      <Avatar seed="emma-rose-2024" size={32} />
+                    </View>
+                    {userStatus && <View style={[styles.statusDot, { backgroundColor: '#4ECDC4' }]} />}
+                  </Animated.View>
+                </TouchableOpacity>
+
+                {/* Partner Avatar */}
+                <TouchableOpacity 
+                  onPress={() => {
+                    setPartnerProfileTrayVisible(true);
+                    avatarGlow.value = withSequence(
+                      withTiming(1, { duration: 200 }),
+                      withTiming(0, { duration: 300 })
+                    );
+                  }}
+                  style={styles.cleanAvatarButton}
+                  activeOpacity={0.8}
+                >
+                  <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
+                    <View style={styles.cleanAvatarRing}>
+                      <Avatar seed="james-cooper-2024" size={32} />
+                    </View>
+                    <View style={[styles.statusDot, { backgroundColor: '#FF6B9D' }]} />
+                  </Animated.View>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
           </View>
         </View>
-      )}
+      </Animated.View>
 
-      {/* User Status Dropdown */}
-      {showUserStatus && (
-        <View style={styles.dropdownMenuContainer}>
-          <TouchableOpacity
-            style={styles.dropdownBackdrop}
-            onPress={() => setShowUserStatus(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.statusMenu}>
-            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Focused 🎯')}>
-              <Text style={styles.actionText}>🎯 Focused</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Crushing it 💪')}>
-              <Text style={styles.actionText}>💪 Crushing it</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Taking break ☕')}>
-              <Text style={styles.actionText}>☕ Taking break</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Need help 🆘')}>
-              <Text style={styles.actionText}>🆘 Need help</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionOption} onPress={() => handleSetStatus('Celebrating 🎉')}>
-              <Text style={styles.actionText}>🎉 Celebrating</Text>
-            </TouchableOpacity>
-            <View style={styles.divider} />
-            <TouchableOpacity style={styles.actionOption} onPress={handleOpenCustomMessage}>
-              <Text style={styles.actionText}>✏️ Custom message...</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Custom Message Modal */}
-      {showCustomMessage && (
-        <View style={styles.dropdownMenuContainer}>
-          <TouchableOpacity
-            style={styles.dropdownBackdrop}
-            onPress={() => {
-              setShowCustomMessage(false);
-              setCustomMessage('');
-            }}
-            activeOpacity={1}
-          />
-          <View style={styles.customMessageModal}>
-            <Text style={styles.modalTitle}>Custom Status</Text>
-            <TextInput
-              style={styles.customMessageInput}
-              value={customMessage}
-              onChangeText={(text) => {
-                if (text.length <= 40) {
-                  setCustomMessage(text);
-                }
-              }}
-              placeholder="Your status message..."
-              placeholderTextColor="#666666"
-              maxLength={40}
-              autoFocus
-            />
-            <Text style={styles.charCount}>{customMessage.length}/40</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowCustomMessage(false);
-                  setCustomMessage('');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  !customMessage.trim() && styles.submitButtonDisabled
-                ]}
-                onPress={handleSubmitCustomMessage}
-                disabled={!customMessage.trim()}
-              >
-                <Text style={styles.submitButtonText}>Set Status</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
 
       {/* Filter Bar with Activity Feed */}
       <View style={styles.filterBar}>
@@ -736,6 +701,27 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
         selectedDate={currentDate}
         onDateSelect={handleDateSelect}
       />
+
+      {/* User Profile Tray */}
+      <ProfileTray
+        visible={userProfileTrayVisible}
+        onClose={() => setUserProfileTrayVisible(false)}
+        isUser={true}
+        avatarSeed="emma-rose-2024"
+        name="Emma"
+        currentStatus={userStatus}
+        onStatusChange={handleUserStatusChange}
+      />
+
+      {/* Partner Profile Tray */}
+      <ProfileTray
+        visible={partnerProfileTrayVisible}
+        onClose={() => setPartnerProfileTrayVisible(false)}
+        isUser={false}
+        avatarSeed="james-cooper-2024"
+        name="Alex"
+        onSendAction={handlePartnerAction}
+      />
     </View>
   );
 };
@@ -746,16 +732,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
   },
 
-  // Header
+  // Enhanced Header
+  headerContainer: {
+    position: 'relative',
+    backgroundColor: 'rgba(26, 26, 26, 0.85)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(51, 51, 51, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 12,
-    backgroundColor: '#1A1A1A',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    paddingBottom: 16,
   },
   headerLeft: {
     flex: 1,
@@ -764,73 +765,139 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+  },
+  subtleContext: {
+    fontSize: 11,
+    color: 'rgba(180, 154, 174, 0.6)',
+    fontWeight: '400',
+    letterSpacing: 2,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
-  partnershipContainer: {
-    flexDirection: 'row',
+  cleanPartnershipContainer: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 107, 157, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 24,
-    gap: 2,
+    justifyContent: 'center',
+    position: 'relative',
   },
-  partnershipHeart: {
+  connectionIndicator: {
     position: 'absolute',
+    top: -8,
     left: '50%',
-    top: '50%',
-    transform: [{ translateX: -8 }, { translateY: -8 }],
+    transform: [{ translateX: -6 }],
     zIndex: 10,
   },
-  heartIcon: {
-    fontSize: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  connectionLine: {
+    position: 'absolute',
+    top: 6,
+    left: -20,
+    right: -20,
+    height: 1,
+    backgroundColor: 'rgba(255, 107, 157, 0.2)',
+  },
+  connectionPulse: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 107, 157, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  connectionIcon: {
+    fontSize: 8,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  cleanAvatarButton: {
+    position: 'relative',
+  },
+  avatarWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cleanAvatarRing: {
+    padding: 3,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  statusDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#1A1A1A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    gap: 12,
+    gap: 16,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   dayNumber: {
-    fontSize: 42,
-    fontWeight: '800',
+    fontSize: 46,
+    fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1,
+    letterSpacing: -2,
     fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   dayNumberToday: {
     color: '#FF6B9D',
+    textShadowColor: 'rgba(255, 107, 157, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   dayNumberOther: {
-    opacity: 0.85,
+    opacity: 0.9,
   },
   dayMeta: {
     alignItems: 'flex-start',
     justifyContent: 'center',
+    gap: 2,
   },
   dayWeekday: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#CCCCCC',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#E66FAE',
+    letterSpacing: 2,
+    opacity: 0.9,
   },
   dayMonth: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#CCCCCC',
-    opacity: 0.8,
-    marginTop: 2,
-    letterSpacing: 0.5,
+    color: '#B49AAE',
+    letterSpacing: 1,
   },
 
   // Filter Bar Below Header
@@ -921,127 +988,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Partner Actions & Status Menus
-  partnerActionsMenu: {
-    position: 'absolute',
-    top: 100,
-    right: 20,
-    width: 200,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    paddingVertical: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#3A3A3A',
-  },
-  statusMenu: {
-    position: 'absolute',
-    top: 100,
-    right: 100,
-    width: 180,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    paddingVertical: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#3A3A3A',
-  },
-  actionOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#3A3A3A',
-    marginVertical: 4,
-  },
-
-  // Custom Message Modal
-  customMessageModal: {
-    position: 'absolute',
-    top: '30%',
-    left: '10%',
-    right: '10%',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: '#3A3A3A',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  customMessageInput: {
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#3A3A3A',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  charCount: {
-    fontSize: 12,
-    color: '#666666',
-    textAlign: 'right',
-    marginBottom: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#3A3A3A',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#CCCCCC',
-  },
-  submitButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#FF6B9D',
-    alignItems: 'center',
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#4A4A4A',
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
 
   // Content
   contentWrapper: {
