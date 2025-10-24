@@ -16,8 +16,8 @@ import { useAuth } from '../../context/AuthContext';
 
 const AuthScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('luc@luc.com');
+  const [password, setPassword] = useState<string>('pass123');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [name, setName] = useState<string>('');
 

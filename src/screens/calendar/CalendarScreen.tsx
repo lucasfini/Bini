@@ -10,251 +10,201 @@ import {
 } from 'react-native';
 import { YStack, XStack } from 'tamagui';
 import { colors, typography, spacing, shadows } from '../../styles';
+import { Heart, TrendingUp, Award, MessageCircle, Target, Calendar } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const CALENDAR_WIDTH = width - (spacing.lg * 2);
-const DAY_SIZE = (CALENDAR_WIDTH - (spacing.sm * 6)) / 7;
 
-interface CalendarDay {
-  date: number;
-  hasEvents: boolean;
-  isToday: boolean;
-  isCurrentMonth: boolean;
-  events?: Array<{
-    id: string;
-    title: string;
-    emoji: string;
-    isShared: boolean;
-  }>;
-}
+const PartnerAnalyticsScreen: React.FC = () => {
+  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week');
 
-interface MonthData {
-  month: string;
-  year: number;
-  days: CalendarDay[];
-}
+  // Mock data - in real app, fetch from backend
+  const partnerName = 'Alex';
+  const currentStreak = 12;
+  const longestStreak = 28;
+  const sharedTasksCompleted = 45;
+  const myTasksCompleted = 38;
+  const partnerTasksCompleted = 42;
 
-// Generate calendar data
-const generateCalendarData = (month: number, year: number): MonthData => {
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startDate = new Date(firstDay);
-  startDate.setDate(startDate.getDate() - firstDay.getDay());
-  
-  const days: CalendarDay[] = [];
-  const today = new Date();
-  
-  for (let i = 0; i < 42; i++) {
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + i);
-    
-    const isCurrentMonth = currentDate.getMonth() === month;
-    const isToday = currentDate.toDateString() === today.toDateString();
-    const hasEvents = Math.random() > 0.7; // Random events for demo
-    
-    days.push({
-      date: currentDate.getDate(),
-      hasEvents: hasEvents && isCurrentMonth,
-      isToday,
-      isCurrentMonth,
-      events: hasEvents ? [
-        {
-          id: '1',
-          title: 'Morning Workout',
-          emoji: '💪',
-          isShared: false,
-        },
-        {
-          id: '2',
-          title: 'Grocery Shopping',
-          emoji: '🛒',
-          isShared: true,
-        }
-      ] : [],
-    });
-  }
-  
-  return {
-    month: monthNames[month],
-    year,
-    days,
-  };
-};
-
-const CalendarScreen: React.FC = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<CalendarDay | null>(null);
-  
-  const monthData = generateCalendarData(
-    currentDate.getMonth(),
-    currentDate.getFullYear()
-  );
-  
-  const todaysTasks = [
-    { emoji: '💪', title: 'Morning Workout', assignee: 'Alex' },
-    { emoji: '🛒', title: 'Grocery Shopping', assignee: 'Shared' },
-    { emoji: '📚', title: 'Read Chapter 5', assignee: 'Blake' },
-    { emoji: '🍽️', title: 'Cook Dinner', assignee: 'Shared' },
+  const recentActivity = [
+    { partner: 'Alex', action: 'completed', task: 'Morning Workout', time: '2h ago', emoji: '💪' },
+    { partner: 'You', action: 'completed', task: 'Grocery Shopping', time: '4h ago', emoji: '🛒' },
+    { partner: 'Alex', action: 'added', task: 'Book Restaurant', time: '6h ago', emoji: '🍽️' },
+    { partner: 'You', action: 'completed', task: 'Pay Bills', time: '1d ago', emoji: '💰' },
   ];
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() + (direction === 'next' ? 1 : -1));
-    setCurrentDate(newDate);
-  };
-
-  const CalendarDay: React.FC<{ day: CalendarDay; onPress: () => void }> = ({ day, onPress }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[
-        styles.calendarDay,
-        day.isToday && styles.calendarDayToday,
-        !day.isCurrentMonth && styles.calendarDayInactive,
-        selectedDate?.date === day.date && styles.calendarDaySelected,
-      ]}
-    >
-      <Text style={[
-        styles.calendarDayText,
-        day.isToday && styles.calendarDayTextToday,
-        !day.isCurrentMonth && styles.calendarDayTextInactive,
-        selectedDate?.date === day.date && styles.calendarDayTextSelected,
-      ]}>
-        {day.date}
-      </Text>
-      {day.hasEvents && (
-        <View style={[
-          styles.eventDot,
-          day.isToday && styles.eventDotToday,
-        ]} />
-      )}
-    </TouchableOpacity>
-  );
+  const milestones = [
+    { title: '30 Day Streak', icon: '🔥', unlocked: false, progress: 40 },
+    { title: '100 Shared Tasks', icon: '🎯', unlocked: false, progress: 45 },
+    { title: 'Perfect Week', icon: '⭐', unlocked: true, progress: 100 },
+    { title: 'Early Bird', icon: '🌅', unlocked: true, progress: 100 },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <YStack padding="$4" backgroundColor="white" borderBottomLeftRadius="$7" borderBottomRightRadius="$7" shadowColor="black" shadowOffset={{ width: 0, height: 2 }} shadowOpacity={0.1} shadowRadius={8} elevation={4}>
-        <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
-          <TouchableOpacity onPress={() => navigateMonth('prev')}>
-            <Text style={styles.navButton}>◀</Text>
-          </TouchableOpacity>
-          <YStack alignItems="center">
-            <Text style={styles.monthTitle}>{monthData.month} {monthData.year}</Text>
-            <Text style={styles.monthSubtitle}>Monthly Overview</Text>
-          </YStack>
-          <TouchableOpacity onPress={() => navigateMonth('next')}>
-            <Text style={styles.navButton}>▶</Text>
-          </TouchableOpacity>
-        </XStack>
-      </YStack>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Partnership</Text>
+          <Text style={styles.headerSubtitle}>Together is better</Text>
+        </View>
+        <View style={styles.headerIcon}>
+          <Heart size={28} color="#FF6B9D" fill="#FF6B9D" />
+        </View>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Calendar Grid */}
-        <View style={styles.calendarContainer}>
-          <View style={styles.calendar}>
-            {/* Week headers */}
-            <View style={styles.weekHeader}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                <View key={index} style={styles.weekHeaderDay}>
-                  <Text style={styles.weekHeaderText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-            
-            {/* Calendar days */}
-            <View style={styles.calendarGrid}>
-              {monthData.days.map((day, index) => (
-                <CalendarDay
-                  key={index}
-                  day={day}
-                  onPress={() => setSelectedDate(day)}
-                />
-              ))}
-            </View>
+        {/* Streak Card */}
+        <View style={styles.streakCard}>
+          <View style={styles.streakHeader}>
+            <Text style={styles.streakTitle}>🔥 Current Streak</Text>
+            <Text style={styles.streakDays}>{currentStreak} days</Text>
+          </View>
+          <Text style={styles.streakSubtext}>
+            Keep it up! Longest: {longestStreak} days
+          </Text>
+          <View style={styles.streakProgress}>
+            <View style={[styles.streakProgressFill, { width: `${(currentStreak / longestStreak) * 100}%` }]} />
           </View>
         </View>
 
-        {/* Today's Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.cardTitle}>Today's Summary</Text>
-          
-          <XStack gap="$3" marginBottom="$4">
-            <View style={styles.statBox}>
-              <Text style={styles.statNumber}>4</Text>
-              <Text style={styles.statLabel}>Tasks</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxGold]}>
-              <Text style={[styles.statNumber, styles.statNumberGold]}>2</Text>
-              <Text style={styles.statLabel}>Shared</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxBlue]}>
-              <Text style={[styles.statNumber, styles.statNumberBlue]}>1</Text>
-              <Text style={styles.statLabel}>Completed</Text>
-            </View>
-          </XStack>
-          
-          <YStack gap="$2">
-            {todaysTasks.map((task, index) => (
-              <XStack key={index} alignItems="center" gap="$3">
-                <Text style={styles.taskEmoji}>{task.emoji}</Text>
-                <YStack flex={1}>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                  <Text style={styles.taskAssignee}>({task.assignee})</Text>
-                </YStack>
-              </XStack>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statCardNumber}>{sharedTasksCompleted}</Text>
+            <Text style={styles.statCardLabel}>Shared</Text>
+            <Target size={20} color="#FF6B9D" style={styles.statCardIcon} />
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statCardNumber}>{myTasksCompleted}</Text>
+            <Text style={styles.statCardLabel}>You</Text>
+            <TrendingUp size={20} color="#6B73FF" style={styles.statCardIcon} />
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statCardNumber}>{partnerTasksCompleted}</Text>
+            <Text style={styles.statCardLabel}>{partnerName}</Text>
+            <Award size={20} color="#4CAF50" style={styles.statCardIcon} />
+          </View>
+        </View>
+
+        {/* Recent Activity */}
+        <View style={styles.activityCard}>
+          <Text style={styles.cardTitle}>Recent Activity</Text>
+          <YStack gap="$3" marginTop="$3">
+            {recentActivity.map((activity, index) => (
+              <View key={index} style={styles.activityItem}>
+                <Text style={styles.activityEmoji}>{activity.emoji}</Text>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityText}>
+                    <Text style={styles.activityPartner}>{activity.partner}</Text>
+                    {' '}{activity.action}{' '}
+                    <Text style={styles.activityTask}>{activity.task}</Text>
+                  </Text>
+                  <Text style={styles.activityTime}>{activity.time}</Text>
+                </View>
+              </View>
             ))}
           </YStack>
         </View>
 
-        {/* Legend */}
-        <View style={styles.legendCard}>
-          <Text style={styles.cardTitle}>Legend</Text>
-          
-          <YStack gap="$3">
-            <XStack alignItems="center" gap="$3">
-              <View style={styles.legendDot} />
-              <Text style={styles.legendText}>My Tasks</Text>
-            </XStack>
-            <XStack alignItems="center" gap="$3">
-              <View style={[styles.legendDot, styles.legendDotGold]} />
-              <Text style={styles.legendText}>Partner's Tasks</Text>
-            </XStack>
-            <XStack alignItems="center" gap="$3">
-              <View style={[styles.legendDot, styles.legendDotShared]} />
-              <Text style={styles.legendText}>Shared Goals</Text>
-            </XStack>
+        {/* Milestones */}
+        <View style={styles.milestonesCard}>
+          <Text style={styles.cardTitle}>Milestones</Text>
+          <YStack gap="$3" marginTop="$3">
+            {milestones.map((milestone, index) => (
+              <View key={index} style={styles.milestoneItem}>
+                <View style={styles.milestoneHeader}>
+                  <View style={styles.milestoneLeft}>
+                    <Text style={styles.milestoneIcon}>{milestone.icon}</Text>
+                    <Text style={[
+                      styles.milestoneTitle,
+                      !milestone.unlocked && styles.milestoneLocked
+                    ]}>
+                      {milestone.title}
+                    </Text>
+                  </View>
+                  {milestone.unlocked && (
+                    <Text style={styles.milestoneUnlocked}>✓</Text>
+                  )}
+                </View>
+                <View style={styles.milestoneProgress}>
+                  <View style={[
+                    styles.milestoneProgressFill,
+                    { width: `${milestone.progress}%` },
+                    milestone.unlocked && styles.milestoneProgressUnlocked
+                  ]} />
+                </View>
+              </View>
+            ))}
           </YStack>
         </View>
 
         {/* Weekly Progress */}
         <View style={styles.progressCard}>
-          <Text style={styles.cardTitle}>This Week's Progress</Text>
-          
+          <View style={styles.progressHeader}>
+            <Text style={styles.cardTitle}>This Week's Progress</Text>
+            <View style={styles.periodToggle}>
+              <TouchableOpacity
+                style={[
+                  styles.periodButton,
+                  selectedPeriod === 'week' && styles.periodButtonActive
+                ]}
+                onPress={() => setSelectedPeriod('week')}
+              >
+                <Text style={[
+                  styles.periodButtonText,
+                  selectedPeriod === 'week' && styles.periodButtonTextActive
+                ]}>Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.periodButton,
+                  selectedPeriod === 'month' && styles.periodButtonActive
+                ]}
+                onPress={() => setSelectedPeriod('month')}
+              >
+                <Text style={[
+                  styles.periodButtonText,
+                  selectedPeriod === 'month' && styles.periodButtonTextActive
+                ]}>Month</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <YStack gap="$3" marginTop="$3">
             <View>
               <XStack justifyContent="space-between" marginBottom="$1">
-                <Text style={styles.progressLabel}>Tasks Completed</Text>
+                <Text style={styles.progressLabel}>Shared Tasks</Text>
                 <Text style={styles.progressPercentage}>75%</Text>
               </XStack>
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: '75%' }]} />
               </View>
             </View>
-            
+
             <View>
               <XStack justifyContent="space-between" marginBottom="$1">
-                <Text style={styles.progressLabel}>Shared Goals</Text>
-                <Text style={styles.progressPercentage}>60%</Text>
+                <Text style={styles.progressLabel}>Individual Tasks</Text>
+                <Text style={styles.progressPercentage}>85%</Text>
               </XStack>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, styles.progressFillGold, { width: '60%' }]} />
+                <View style={[styles.progressFill, styles.progressFillBlue, { width: '85%' }]} />
               </View>
             </View>
+          </YStack>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsCard}>
+          <Text style={styles.cardTitle}>Quick Actions</Text>
+          <YStack gap="$2" marginTop="$3">
+            <TouchableOpacity style={styles.quickActionButton}>
+              <MessageCircle size={20} color="#FF6B9D" />
+              <Text style={styles.quickActionText}>Send Encouragement</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionButton}>
+              <Calendar size={20} color="#FF6B9D" />
+              <Text style={styles.quickActionText}>Suggest Shared Task</Text>
+            </TouchableOpacity>
           </YStack>
         </View>
 
@@ -264,194 +214,242 @@ const CalendarScreen: React.FC = () => {
   );
 };
 
+export default PartnerAnalyticsScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: {
+    fontSize: typography.sizes.xxl,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+  },
+  headerSubtitle: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  headerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 107, 157, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     flex: 1,
     padding: spacing.lg,
   },
-  monthTitle: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  monthSubtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  navButton: {
-    fontSize: typography.sizes.lg,
-    color: colors.primary,
-    fontWeight: typography.weights.bold,
-    padding: spacing.sm,
-  },
-  calendarContainer: {
+
+  // Streak Card
+  streakCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     ...shadows.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B9D',
   },
-  calendar: {
-    width: '100%',
-  },
-  weekHeader: {
+  streakHeader: {
     flexDirection: 'row',
-    marginBottom: spacing.md,
-  },
-  weekHeaderDay: {
-    width: DAY_SIZE,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
   },
-  weekHeaderText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-    color: colors.textSecondary,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  calendarDay: {
-    width: DAY_SIZE,
-    height: DAY_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: DAY_SIZE / 2,
-    marginBottom: spacing.xs,
-    position: 'relative',
-  },
-  calendarDayToday: {
-    backgroundColor: colors.primary,
-    ...shadows.sm,
-  },
-  calendarDaySelected: {
-    backgroundColor: colors.secondary,
-    ...shadows.sm,
-  },
-  calendarDayInactive: {
-    opacity: 0.3,
-  },
-  calendarDayText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
-    color: colors.textPrimary,
-  },
-  calendarDayTextToday: {
-    color: colors.white,
-    fontWeight: typography.weights.bold,
-  },
-  calendarDayTextSelected: {
-    color: colors.white,
-    fontWeight: typography.weights.bold,
-  },
-  calendarDayTextInactive: {
-    color: colors.textSecondary,
-  },
-  eventDot: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.secondary,
-  },
-  eventDotToday: {
-    backgroundColor: colors.white,
-  },
-  summaryCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...shadows.lg,
-  },
-  cardTitle: {
+  streakTitle: {
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+  },
+  streakDays: {
+    fontSize: typography.sizes.xxl,
+    fontWeight: typography.weights.heavy,
+    color: '#FF6B9D',
+  },
+  streakSubtext: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
   },
-  statBox: {
+  streakProgress: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  streakProgressFill: {
+    height: '100%',
+    backgroundColor: '#FF6B9D',
+    borderRadius: 4,
+  },
+
+  // Stats Grid
+  statsGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  statCard: {
     flex: 1,
-    backgroundColor: colors.primary + '15',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
     padding: spacing.md,
     alignItems: 'center',
+    ...shadows.md,
   },
-  statBoxGold: {
-    backgroundColor: colors.secondary + '15',
-  },
-  statBoxBlue: {
-    backgroundColor: colors.timelineActive + '15',
-  },
-  statNumber: {
-    fontSize: typography.sizes.xl,
+  statCardNumber: {
+    fontSize: typography.sizes.xxl,
     fontWeight: typography.weights.bold,
-    color: colors.primary,
-    marginBottom: 2,
-  },
-  statNumberGold: {
-    color: colors.secondary,
-  },
-  statNumberBlue: {
-    color: colors.timelineActive,
-  },
-  statLabel: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
-  },
-  taskEmoji: {
-    fontSize: 20,
-  },
-  taskTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
     color: colors.textPrimary,
+    marginBottom: spacing.xs,
   },
-  taskAssignee: {
+  statCardLabel: {
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
-    fontStyle: 'italic',
+    fontWeight: typography.weights.medium,
+    marginBottom: spacing.sm,
   },
-  legendCard: {
+  statCardIcon: {
+    marginTop: spacing.xs,
+  },
+
+  // Activity Card
+  activityCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     ...shadows.lg,
   },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  legendDotGold: {
-    backgroundColor: colors.secondary,
+  activityEmoji: {
+    fontSize: 24,
   },
-  legendDotShared: {
-    backgroundColor: colors.timelineActive,
+  activityContent: {
+    flex: 1,
   },
-  legendText: {
+  activityText: {
     fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
+    color: colors.textPrimary,
+    marginBottom: 4,
   },
+  activityPartner: {
+    fontWeight: typography.weights.bold,
+    color: '#FF6B9D',
+  },
+  activityTask: {
+    fontWeight: typography.weights.semibold,
+  },
+  activityTime: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+  },
+
+  // Milestones Card
+  milestonesCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.lg,
+  },
+  milestoneItem: {
+    marginBottom: spacing.sm,
+  },
+  milestoneHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  milestoneLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  milestoneIcon: {
+    fontSize: 24,
+  },
+  milestoneTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.textPrimary,
+  },
+  milestoneLocked: {
+    opacity: 0.5,
+  },
+  milestoneUnlocked: {
+    fontSize: 20,
+    color: '#4CAF50',
+  },
+  milestoneProgress: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  milestoneProgressFill: {
+    height: '100%',
+    backgroundColor: colors.textSecondary,
+    borderRadius: 3,
+  },
+  milestoneProgressUnlocked: {
+    backgroundColor: '#4CAF50',
+  },
+
+  // Progress Card
   progressCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     ...shadows.lg,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  periodToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.border,
+    borderRadius: 8,
+    padding: 2,
+  },
+  periodButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 6,
+  },
+  periodButtonActive: {
+    backgroundColor: colors.surface,
+  },
+  periodButtonText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.medium,
+    color: colors.textSecondary,
+  },
+  periodButtonTextActive: {
+    color: colors.textPrimary,
+    fontWeight: typography.weights.bold,
   },
   progressLabel: {
     fontSize: typography.sizes.sm,
@@ -471,12 +469,40 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B9D',
     borderRadius: 4,
   },
-  progressFillGold: {
-    backgroundColor: colors.secondary,
+  progressFillBlue: {
+    backgroundColor: '#6B73FF',
+  },
+
+  // Quick Actions Card
+  quickActionsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.lg,
+  },
+  quickActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: 'rgba(255, 107, 157, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.2)',
+  },
+  quickActionText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+  },
+  cardTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
   },
 });
-
-export default CalendarScreen;
