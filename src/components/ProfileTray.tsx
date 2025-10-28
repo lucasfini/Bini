@@ -42,10 +42,11 @@ const ProfileTray: React.FC<ProfileTrayProps> = ({
 }) => {
   const [showCustomMessage, setShowCustomMessage] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
-  
+
   // Breathing animation for avatar
   const breathingScale = useSharedValue(1);
   const statusChangeScale = useSharedValue(1);
+  const actionPressScale = useSharedValue(1); // For action card press animation
   
   useEffect(() => {
     if (visible) {
@@ -88,6 +89,12 @@ const ProfileTray: React.FC<ProfileTrayProps> = ({
   };
 
   const handleSendAction = (action: string) => {
+    // Animate press
+    actionPressScale.value = withSequence(
+      withTiming(0.98, { duration: 100 }),
+      withTiming(1, { duration: 100 })
+    );
+
     if (onSendAction) {
       onSendAction(action);
     }
@@ -120,6 +127,45 @@ const ProfileTray: React.FC<ProfileTrayProps> = ({
     { emoji: '💪', text: 'Send Encouragement', color: '#A8E6CF' },
   ];
 
+  // Flavor text for partner actions
+  const actionFlavorTexts = {
+    'Send Nudge': [
+      "Hey, I'm thinking of you",
+      'Missing you!',
+      'You there?',
+      "Check your phone 😄"
+    ],
+    'Send High-Five': [
+      "You're doing amazing!",
+      'Crushing it!',
+      'You rock! 🎸',
+      'Proud of you!'
+    ],
+    'Send Heart': [
+      'I love you',
+      'You mean the world to me',
+      'Always thinking of you',
+      'All my love ❤️'
+    ],
+    'Send Encouragement': [
+      "You've got this!",
+      'Keep pushing!',
+      "You're unstoppable!",
+      'Believe in yourself'
+    ]
+  };
+
+  /**
+   * Get randomized flavor text for an action
+   * @param {string} action - The action text
+   * @returns {string} A random flavor text for the action
+   */
+  const getFlavorText = (action: string): string => {
+    const texts = actionFlavorTexts[action as keyof typeof actionFlavorTexts];
+    if (!texts || texts.length === 0) return '';
+    return texts[Math.floor(Math.random() * texts.length)];
+  };
+
   // Animated styles
   const avatarAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -151,7 +197,7 @@ const ProfileTray: React.FC<ProfileTrayProps> = ({
           
           {/* Avatar with breathing animation */}
           <Animated.View style={[styles.avatarContainer, avatarAnimatedStyle]}>
-            <Avatar seed={avatarSeed} size={72} />
+            <Avatar seed={avatarSeed} size={100} />
           </Animated.View>
           
           {/* Status with background glow */}
@@ -269,24 +315,34 @@ const ProfileTray: React.FC<ProfileTrayProps> = ({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Send Some Love</Text>
             <View style={styles.pillContainer}>
-              {partnerActions.map((action, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.pillButton}
-                  onPress={() => handleSendAction(`${action.text}`)}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={[action.color + '30', action.color + '10']}
-                    style={styles.pillGradient}
+              {partnerActions.map((action, index) => {
+                const flavorText = getFlavorText(action.text);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.pillButton}
+                    onPress={() => handleSendAction(`${action.text}`)}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.pillEmoji}>{action.emoji}</Text>
-                    <Text style={[styles.pillText, { color: action.color }]}>
-                      {action.text.replace('Send ', '')}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ))}
+                    <LinearGradient
+                      colors={[action.color + '30', action.color + '10']}
+                      style={styles.pillGradient}
+                    >
+                      <Text style={styles.pillEmoji}>{action.emoji}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.pillText, { color: action.color }]}>
+                          {action.text.replace('Send ', '')}
+                        </Text>
+                        {flavorText && (
+                          <Text style={[styles.flavorText, { color: action.color }]}>
+                            {flavorText}
+                          </Text>
+                        )}
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
@@ -306,9 +362,12 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     alignItems: 'center',
-    paddingBottom: 24,
-    marginBottom: 28,
+    paddingBottom: 32, // Increased from 24
+    paddingTop: 24,
+    marginBottom: 36, // Increased from 28
     position: 'relative',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 107, 157, 0.1)',
   },
   statusRing: {
     position: 'absolute',
@@ -324,20 +383,23 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
   },
   statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginBottom: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   currentStatus: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16, // Increased from 14
+    fontWeight: '700', // Increased from 600
     textAlign: 'center',
   },
   moodIndicator: {
@@ -357,16 +419,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pillContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    flexDirection: 'column', // Changed from row
+    gap: 16, // Increased from 12
     justifyContent: 'center',
   },
   pillButton: {
-    minWidth: '45%',
-    maxWidth: '48%',
-    borderRadius: 24,
+    width: '100%', // Full width cards
+    borderRadius: 20,
     overflow: 'hidden',
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -376,18 +437,28 @@ const styles = StyleSheet.create({
   pillGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 8,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 16,
   },
   pillEmoji: {
-    fontSize: 18,
+    fontSize: 28, // Increased from 18
+    minWidth: 40,
+    textAlign: 'center',
   },
   pillText: {
-    fontSize: 14,
+    fontSize: 16, // Increased from 14
     fontWeight: '600',
-    textAlign: 'center',
+    textAlign: 'left',
+    flex: 1,
+  },
+  flavorText: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    opacity: 0.8,
+    marginTop: 4,
   },
   customMessageSection: {
     marginBottom: 24,

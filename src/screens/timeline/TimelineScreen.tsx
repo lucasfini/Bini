@@ -191,6 +191,30 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     );
   }, []);
 
+  // Status dot pulse animation
+  useEffect(() => {
+    statusPulse.value = withRepeat(
+      withSequence(
+        withTiming(1.15, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
+  // Partner presence pulse animation (breathing effect on status dot)
+  useEffect(() => {
+    partnerPresencePulse.value = withRepeat(
+      withSequence(
+        withTiming(1.12, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
   // Clean up expired activities every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -234,6 +258,10 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const avatarGlow = useSharedValue(0);
   const datePopScale = useSharedValue(1);
   const connectionPulse = useSharedValue(1);
+  const statusPulse = useSharedValue(1);
+  const partnerPresencePulse = useSharedValue(1); // Partner status dot breathing
+  const userGlow = useSharedValue(0); // User button glow on press
+  const partnerGlow = useSharedValue(0); // Partner button glow on press
 
   // Filter sections for single-day view
   const filteredSections = useMemo(() => {
@@ -501,6 +529,26 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     opacity: interpolate(connectionPulse.value, [1, 1.2], [0.6, 1]),
   }));
 
+  const statusPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: statusPulse.value }],
+    opacity: interpolate(statusPulse.value, [1, 1.15], [0.8, 1]),
+  }));
+
+  const partnerPresencePulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: partnerPresencePulse.value }],
+    opacity: interpolate(partnerPresencePulse.value, [1, 1.12], [0.8, 1]),
+  }));
+
+  const userGlowStyle = useAnimatedStyle(() => ({
+    opacity: userGlow.value * 0.3,
+    transform: [{ scale: 1 + userGlow.value * 0.2 }],
+  }));
+
+  const partnerGlowStyle = useAnimatedStyle(() => ({
+    opacity: partnerGlow.value * 0.3,
+    transform: [{ scale: 1 + partnerGlow.value * 0.2 }],
+  }));
+
   // Removed early return for empty state - header should always be visible
 
   const headerDateComponents = getHeaderDateComponents(currentDate);
@@ -554,45 +602,75 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
               
               {/* Avatar Row */}
               <View style={styles.avatarRow}>
-                {/* User Avatar */}
-                <TouchableOpacity 
-                  onPress={() => {
-                    setUserProfileTrayVisible(true);
-                    avatarGlow.value = withSequence(
-                      withTiming(1, { duration: 200 }),
-                      withTiming(0, { duration: 300 })
-                    );
-                  }}
-                  style={styles.cleanAvatarButton}
-                  activeOpacity={0.8}
-                >
-                  <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
-                    <View style={[styles.cleanAvatarRing, { borderColor: userStatus ? '#4ECDC4' : 'rgba(255, 107, 157, 0.3)' }]}>
-                      <Avatar seed="emma-rose-2024" size={32} />
-                    </View>
-                    {userStatus && <View style={[styles.statusDot, { backgroundColor: '#4ECDC4' }]} />}
-                  </Animated.View>
-                </TouchableOpacity>
+                {/* User Avatar Column */}
+                <View style={styles.avatarColumn}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setUserProfileTrayVisible(true);
+                      // User button glow effect
+                      userGlow.value = withSequence(
+                        withTiming(1, { duration: 200 }),
+                        withTiming(0, { duration: 200 })
+                      );
+                      avatarGlow.value = withSequence(
+                        withTiming(1, { duration: 200 }),
+                        withTiming(0, { duration: 300 })
+                      );
+                    }}
+                    style={styles.cleanAvatarButton}
+                    activeOpacity={0.8}
+                  >
+                    {/* User glow effect */}
+                    <Animated.View style={[
+                      styles.avatarGlowContainer,
+                      styles.userGlow,
+                      userGlowStyle,
+                    ]} />
 
-                {/* Partner Avatar */}
-                <TouchableOpacity 
-                  onPress={() => {
-                    setPartnerProfileTrayVisible(true);
-                    avatarGlow.value = withSequence(
-                      withTiming(1, { duration: 200 }),
-                      withTiming(0, { duration: 300 })
-                    );
-                  }}
-                  style={styles.cleanAvatarButton}
-                  activeOpacity={0.8}
-                >
-                  <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
-                    <View style={styles.cleanAvatarRing}>
-                      <Avatar seed="james-cooper-2024" size={32} />
-                    </View>
-                    <View style={[styles.statusDot, { backgroundColor: '#FF6B9D' }]} />
-                  </Animated.View>
-                </TouchableOpacity>
+                    <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
+                      <View style={[styles.cleanAvatarRing, styles.userAvatarRing]}>
+                        <Avatar seed="emma-rose-2024" size={32} />
+                      </View>
+                      {userStatus && <View style={[styles.statusDot, styles.statusDotCustom]} />}
+                    </Animated.View>
+                  </TouchableOpacity>
+                  <Text style={[styles.avatarLabel, styles.userLabel]}>You</Text>
+                </View>
+
+                {/* Partner Avatar Column */}
+                <View style={styles.avatarColumn}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPartnerProfileTrayVisible(true);
+                      // Partner button glow effect
+                      partnerGlow.value = withSequence(
+                        withTiming(1, { duration: 200 }),
+                        withTiming(0, { duration: 200 })
+                      );
+                      avatarGlow.value = withSequence(
+                        withTiming(1, { duration: 200 }),
+                        withTiming(0, { duration: 300 })
+                      );
+                    }}
+                    style={styles.cleanAvatarButton}
+                    activeOpacity={0.8}
+                  >
+                    {/* Partner glow effect */}
+                    <Animated.View style={[
+                      styles.avatarGlowContainer,
+                      styles.partnerGlow,
+                      partnerGlowStyle,
+                    ]} />
+
+                    <Animated.View style={[styles.avatarWrapper, dateAnimatedStyle]}>
+                      <View style={[styles.cleanAvatarRing, styles.partnerAvatarRing]}>
+                        <Avatar seed="james-cooper-2024" size={32} />
+                      </View>
+                      <Animated.View style={[styles.statusDot, styles.statusDotOnline, partnerPresencePulseStyle]} />
+                    </Animated.View>
+                  </TouchableOpacity>
+                  <Text style={[styles.avatarLabel, styles.partnerLabel]}>Alex</Text>
+                </View>
               </View>
             </Animated.View>
           </View>
@@ -872,21 +950,54 @@ const styles = StyleSheet.create({
     padding: 3,
     borderRadius: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 107, 157, 0.3)',
+    borderWidth: 3, // Increased from 2 for prominence
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, // Increased from 0.2
+    shadowRadius: 6, // Increased from 4
+    elevation: 5, // Increased from 4
+  },
+  userAvatarRing: {
+    borderColor: '#4ECDC4',
+  },
+  partnerAvatarRing: {
+    borderColor: '#FF6B9D',
+  },
+  avatarColumn: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  avatarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  userLabel: {
+    color: '#4ECDC4',
+  },
+  partnerLabel: {
+    color: '#FF6B9D',
+  },
+  avatarGlowContainer: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    zIndex: -1,
+  },
+  userGlow: {
+    backgroundColor: '#4ECDC4',
+  },
+  partnerGlow: {
+    backgroundColor: '#FF6B9D',
   },
   statusDot: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 18, // Increased from 14 for better visibility
+    height: 18, // Increased from 14
+    borderRadius: 9, // Increased from 7
     borderWidth: 2,
     borderColor: '#1A1A1A',
     shadowColor: '#000',
@@ -894,6 +1005,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
     elevation: 2,
+  },
+  statusDotOnline: {
+    backgroundColor: '#FF6B9D',
+  },
+  statusDotOffline: {
+    backgroundColor: '#666666',
+  },
+  statusDotCustom: {
+    backgroundColor: '#4ECDC4',
   },
   dateButton: {
     flexDirection: 'row',
