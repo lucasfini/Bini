@@ -14,6 +14,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing } from './src/styles';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppLoader from './src/components/AppLoader';
+import { QueryProvider } from './src/providers/QueryProvider';
+import { FeatureFlagsProvider } from './src/providers/FeatureFlagsProvider';
+import { PartnerInteractionProvider } from './src/providers/PartnerInteractionProvider';
 
 const config = createTamagui(defaultConfig);
 
@@ -90,7 +93,11 @@ const AppContent: React.FC = () => {
     // User is authenticated - show main app with navigation wrapped in NavigationContainer
     return (
       <NavigationContainer>
-        <AppNavigator />
+        <FeatureFlagsProvider>
+          <PartnerInteractionProvider userId={user.id} partnerId={user.partnerId}>
+            <AppNavigator />
+          </PartnerInteractionProvider>
+        </FeatureFlagsProvider>
       </NavigationContainer>
     );
   }
@@ -104,11 +111,13 @@ const App: React.FC = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <TamaguiProvider config={config}>
-          <ThemeProvider>
-            <AuthProvider>
-              <AppContent />
-            </AuthProvider>
-          </ThemeProvider>
+          <QueryProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <AppContent />
+              </AuthProvider>
+            </ThemeProvider>
+          </QueryProvider>
         </TamaguiProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

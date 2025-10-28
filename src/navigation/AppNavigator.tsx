@@ -7,6 +7,7 @@ import CalendarScreen from '../screens/calendar/CalendarScreen';
 import CreateTaskScreen from '../screens/create/CreateTaskScreen';
 import KnowledgeScreen from '../screens/knowledge/KnowledgeScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import DevShowcaseScreen from '../screens/DevShowcaseScreen';
 import FloatingNavigation from '../components/navigation/FloatingNavigation';
 import { TaskFormData } from '../types/tasks';
 import UnifiedTaskService from '../services/tasks/unifiedTaskService';
@@ -17,14 +18,20 @@ const TimelineWrapper: React.FC<{
   onDuplicateTask?: (task: any) => void;
   onNavigateToCreate?: () => void;
   onRefreshTimeline?: () => void;
-}> = ({ refreshKey, onEditTask, onDuplicateTask, onNavigateToCreate, onRefreshTimeline }) => {
-  return <TimelineScreen key={refreshKey} refreshKey={refreshKey} onEditTask={onEditTask} onDuplicateTask={onDuplicateTask} onNavigateToCreate={onNavigateToCreate} onRefreshTimeline={onRefreshTimeline} />;
+  selectedDate?: string;
+}> = ({ refreshKey, onEditTask, onDuplicateTask, onNavigateToCreate, onRefreshTimeline, selectedDate }) => {
+  return <TimelineScreen key={refreshKey} refreshKey={refreshKey} onEditTask={onEditTask} onDuplicateTask={onDuplicateTask} onNavigateToCreate={onNavigateToCreate} onRefreshTimeline={onRefreshTimeline} selectedDate={selectedDate} />;
 };
 
 const AppNavigator: React.FC = () => {
   const [timelineKey, setTimelineKey] = useState(0);
   const [activeRoute, setActiveRoute] = useState('Timeline');
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  
+  // Navigation parameters state
+  const [navigationParams, setNavigationParams] = useState<{
+    selectedDate?: string;
+  }>({});
   
   // State for edit/duplicate functionality
   const [editingTask, setEditingTask] = useState(null);
@@ -88,8 +95,15 @@ const AppNavigator: React.FC = () => {
   };
 
   // Handle navigation between screens
-  const handleNavigate = (route: string) => {
+  const handleNavigate = (route: string, params?: { selectedDate?: string }) => {
     setActiveRoute(route);
+    
+    // Set navigation parameters if provided
+    if (params) {
+      setNavigationParams(params);
+    } else {
+      setNavigationParams({});
+    }
     
     // Reset edit/duplicate state when navigating to Create screen for fresh start
     if (route === 'Create') {
@@ -139,9 +153,9 @@ const AppNavigator: React.FC = () => {
   const renderActiveScreen = () => {
     switch (activeRoute) {
       case 'Timeline':
-        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} />;
+        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} selectedDate={navigationParams.selectedDate} />;
       case 'Calendar':
-        return <CalendarScreen />;
+        return <CalendarScreen onNavigateToTimeline={handleNavigate} />;
       case 'Create':
         return (
           <CreateTaskScreen
@@ -156,8 +170,10 @@ const AppNavigator: React.FC = () => {
         return <KnowledgeScreen />;
       case 'Profile':
         return <ProfileScreen />;
+      case 'DevShowcase':
+        return <DevShowcaseScreen />;
       default:
-        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} />;
+        return <TimelineWrapper refreshKey={timelineKey} onEditTask={handleEditTask} onDuplicateTask={handleDuplicateTask} onNavigateToCreate={handleNavigateToCreate} onRefreshTimeline={handleRefreshTimeline} selectedDate={navigationParams.selectedDate} />;
     }
   };
 
