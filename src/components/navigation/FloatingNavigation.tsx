@@ -27,6 +27,7 @@ import {
   BookOpen,
   User,
   X,
+  Heart,
 } from 'lucide-react-native';
 import { colors } from '../../styles';
 
@@ -296,6 +297,39 @@ const FloatingNavigation: React.FC<FloatingNavigationProps> = ({
                     </Text>
                   </View>
                 </TouchableOpacity>
+
+                {/* DevShowcase (Development Only) */}
+                {__DEV__ && (
+                  <TouchableOpacity
+                    style={[
+                      styles.trayOption,
+                      activeRoute === 'DevShowcase' && styles.trayOptionActive,
+                    ]}
+                    onPress={() => handleMoreItemPress('DevShowcase')}
+                  >
+                    <View style={[
+                      styles.trayOptionIcon,
+                      activeRoute === 'DevShowcase' && styles.trayOptionIconActive,
+                    ]}>
+                      <Heart 
+                        size={20} 
+                        color={activeRoute === 'DevShowcase' ? colors.primary : colors.textSecondary} 
+                        strokeWidth={2}
+                      />
+                    </View>
+                    <View style={styles.trayOptionContent}>
+                      <Text style={[
+                        styles.trayOptionTitle,
+                        activeRoute === 'DevShowcase' && styles.trayOptionTitleActive,
+                      ]}>
+                        Partner Features
+                      </Text>
+                      <Text style={styles.trayOptionSubtitle}>
+                        Dev showcase (Development only)
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </Animated.View>

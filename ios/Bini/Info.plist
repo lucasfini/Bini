@@ -33,6 +33,16 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record audio for heartbeat sync and partner connection features</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Share photos in serendipity bursts and partner activities</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save shared moments from partner interactions</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Create calendar events for cooperative quests and shared activities</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Capture moments for serendipity bursts and partner sharing</string>
 	<key>RCTNewArchEnabled</key>
 	<false/>
 	<key>UILaunchStoryboardName</key>

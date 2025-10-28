@@ -27,6 +27,8 @@ import ProfileTray from '../../components/ProfileTray';
 import UnifiedTaskService from '../../services/tasks/unifiedTaskService';
 import { getLocalDateISO } from '../../utils/dateHelper';
 import { List, User, Users, ChevronLeft, Calendar } from 'lucide-react-native';
+import HeartbeatSyncWidget from '../../components/partner/HeartbeatSyncWidget';
+import { UnifiedTask } from '../../types/tasks';
 
 interface TimelineScreenProps {
   onEditTask?: (task: any) => void;
@@ -35,9 +37,30 @@ interface TimelineScreenProps {
   onRefreshTimeline?: () => void;
   themeKey?: 'pink' | 'blue';
   refreshKey?: number;
+  selectedDate?: string;
 }
 
 type FilterKey = 'All' | 'Mine' | 'Ours';
+
+// Helper function to convert Timeline Task to UnifiedTask for TaskDetailsTray
+const convertTaskToUnifiedTask = (task: Task): UnifiedTask => {
+  return {
+    id: task.id,
+    title: task.title,
+    date: task.dateISO,
+    isShared: task.isShared || false,
+    isCompleted: task.isCompleted || false,
+    createdBy: 'current-user', // Default value since Task doesn't have this field
+    emoji: task.emoji,
+    startTime: task.startTime,
+    details: task.details,
+    steps: task.steps,
+    recurrence: task.recurrence,
+    alerts: task.alerts,
+    priority: task.priority as 'low' | 'medium' | 'high' | undefined,
+    duration: task.durationMin,
+  };
+};
 
 const TimelineScreen: React.FC<TimelineScreenProps> = ({
   onEditTask,
@@ -46,13 +69,14 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
   onRefreshTimeline,
   themeKey = 'pink',
   refreshKey,
+  selectedDate,
 }) => {
   const insets = useSafeAreaInsets();
   const { sections: hookSections, isLoading, hasLoadedOnce } = useTimelineData(refreshKey);
   const [sections, setSections] = useState(hookSections);
   const [taskDetailTrayVisible, setTaskDetailTrayVisible] = useState(false);
   const [calendarTrayVisible, setCalendarTrayVisible] = useState(false);
-  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
+  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<UnifiedTask | null>(null);
   const [filter, setFilter] = useState<FilterKey>('Ours');
   const [showDropdown, setShowDropdown] = useState(false);
   const [userProfileTrayVisible, setUserProfileTrayVisible] = useState(false);
@@ -185,9 +209,23 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     setSections(hookSections);
   }, [hookSections]);
   
-  // Single-day view state
-  const [currentDate, setCurrentDate] = useState<string>(getLocalDateISO());
+  // Single-day view state - use selectedDate prop if provided, otherwise default to today
+  const [currentDate, setCurrentDate] = useState<string>(selectedDate || getLocalDateISO());
   const today = getLocalDateISO();
+  
+  // Update currentDate when selectedDate prop changes
+  React.useEffect(() => {
+    if (selectedDate && selectedDate !== currentDate) {
+      console.log('📅 TimelineScreen: Updating date from navigation:', selectedDate);
+      setCurrentDate(selectedDate);
+      
+      // Animate date change with pop effect
+      datePopScale.value = withSequence(
+        withTiming(1.1, { duration: 150 }),
+        withTiming(1, { duration: 150 })
+      );
+    }
+  }, [selectedDate]);
   
   // Animation shared values
   const filterAnimation = useSharedValue(0);
@@ -252,11 +290,14 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   // Get date components for header display
   const getHeaderDateComponents = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDate();
+    // Parse date string manually to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed
+    const dayNum = date.getDate();
     const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    return { day, weekday, month };
+    const monthStr = date.toLocaleDateString('en-US', { month: 'short' });
+    console.log('📅 Timeline: Displaying date - Input:', dateString, 'Parsed day:', dayNum);
+    return { day: dayNum, weekday, month: monthStr };
   };
 
   const handleOpenCalendar = () => {
@@ -288,7 +329,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   const handleOpenTask = (task: Task) => {
     console.log('Open task details:', task.title);
-    setSelectedTaskForDetail(task);
+    setSelectedTaskForDetail(convertTaskToUnifiedTask(task));
     setTaskDetailTrayVisible(true);
   };
 
@@ -329,7 +370,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }
   };
 
-  const handleTaskEdit = (task: Task) => {
+  const handleTaskEdit = (task: UnifiedTask) => {
     console.log('Edit task:', task.title);
     setTaskDetailTrayVisible(false);
     if (onEditTask) {
@@ -352,7 +393,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }
   };
 
-  const handleTaskDuplicate = (task: Task) => {
+  const handleTaskDuplicate = (task: UnifiedTask) => {
     console.log('Duplicate task:', task.title);
     setTaskDetailTrayVisible(false);
     if (onDuplicateTask) {
@@ -360,11 +401,11 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }
   };
 
-  const handleTaskComplete = async (taskId: string) => {
-    console.log('Complete task:', taskId);
+  const handleTaskComplete = async (task: UnifiedTask) => {
+    console.log('Complete task:', task.id);
     setTaskDetailTrayVisible(false);
     // Use the same completion logic as handleToggleComplete
-    await handleToggleComplete(taskId);
+    await handleToggleComplete(task.id);
   };
 
   const handleStepToggle = async (taskId: string, stepId: string) => {
@@ -460,22 +501,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
     opacity: interpolate(connectionPulse.value, [1, 1.2], [0.6, 1]),
   }));
 
-  if (!hasAnyTasks && hasLoadedOnce && !isLoading) {
-    return (
-      <View style={styles.container}>
-        {/* Empty State */}
-        <View style={styles.emptyContent}>
-          <EmptyStateIllustration onCreateTask={handleCreateTask} />
-          <Animated.Text style={styles.emptyTitle} entering={FadeIn.delay(200)}>
-            Tap to create your first meaningful moment
-          </Animated.Text>
-          <Animated.Text style={styles.emptySubtitle} entering={FadeIn.delay(400)}>
-            Start building your daily rhythm
-          </Animated.Text>
-        </View>
-      </View>
-    );
-  }
+  // Removed early return for empty state - header should always be visible
 
   const headerDateComponents = getHeaderDateComponents(currentDate);
 
@@ -574,6 +600,11 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
       </Animated.View>
 
 
+      {/* Partner Features Section - Always Visible */}
+      <View style={styles.partnerFeaturesContainer}>
+        <HeartbeatSyncWidget compact style={styles.compactHeartbeat} />
+      </View>
+
       {/* Filter Bar with Activity Feed */}
       <View style={styles.filterBar}>
         <TouchableOpacity
@@ -647,7 +678,19 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
           showsVerticalScrollIndicator={false}
         >
           <Animated.View style={contentAnimatedStyle}>
-            {filteredSections.length > 0 ? (
+            {!hasAnyTasks && hasLoadedOnce && !isLoading ? (
+              // Show complete empty state when no tasks exist at all
+              <View style={styles.emptyContent}>
+                <EmptyStateIllustration onCreateTask={handleCreateTask} />
+                <Animated.Text style={styles.emptyTitle} entering={FadeIn.delay(200)}>
+                  Tap to create your first meaningful moment
+                </Animated.Text>
+                <Animated.Text style={styles.emptySubtitle} entering={FadeIn.delay(400)}>
+                  Start building your daily rhythm
+                </Animated.Text>
+              </View>
+            ) : filteredSections.length > 0 ? (
+              // Show tasks when they exist
               filteredSections.map((section, sectionIndex) => {
                 return (
                   <View key={section.dateISO} style={styles.daySection}>
@@ -668,6 +711,7 @@ const TimelineScreen: React.FC<TimelineScreenProps> = ({
                 );
               })
             ) : (
+              // Show day-specific empty state when viewing a specific day with no tasks
               <View style={styles.emptyDayContent}>
                 <Animated.Text style={styles.emptyDayTitle}>
                   No tasks for this day
@@ -937,6 +981,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#CCCCCC',
     opacity: 0.7,
+  },
+
+  // Partner Features Section
+  partnerFeaturesContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#1A1A1A',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(51, 51, 51, 0.2)',
+  },
+  compactHeartbeat: {
+    // Any specific styling for the compact heartbeat widget
   },
 
   // Dropdown Menu System
